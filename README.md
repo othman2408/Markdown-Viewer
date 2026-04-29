@@ -19,6 +19,12 @@
     <img alt="Last commit" src="https://img.shields.io/github/last-commit/ThisIs-Developer/Markdown-Viewer" />
     <img alt="Stars" src="https://img.shields.io/github/stars/ThisIs-Developer/Markdown-Viewer?style=flat" />
   </p>
+
+  <p>
+    <a href="https://deepwiki.com/ThisIs-Developer/Markdown-Viewer"><img src="https://deepwiki.com/badge.svg" /></a>
+    <br />
+    <img src="https://github.com/user-attachments/assets/b41520d0-8560-445f-a889-5c755b5b8e2b" alt="Markdown Viewer screenshot" />
+  </p>
 </div>
 
 ---
