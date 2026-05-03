@@ -1013,11 +1013,37 @@ a:focus {
   flex: 1;
 }
 
-/* Responsive adjustments for view mode buttons */
+/* Responsive adjustments for view mode buttons and toolbar */
 @media (max-width: 1079px) {
   .view-mode-group {
     position: static;
     transform: none;
+  }
+
+  /* Icon-only view mode buttons at medium widths */
+  .view-mode-btn span {
+    display: none;
+  }
+
+  .view-mode-btn {
+    padding: 5px 10px;
+  }
+
+  .view-mode-btn.active {
+    padding: 4px 9px;
+  }
+
+  /* Compact toolbar at medium widths */
+  .btn-text {
+    display: none;
+  }
+
+  .toolbar {
+    gap: 4px;
+  }
+
+  .tool-button {
+    padding: 5px 10px;
   }
 }
 

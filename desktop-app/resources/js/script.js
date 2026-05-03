@@ -1511,12 +1511,12 @@ This is a fully client-side application. Your content never leaves your browser 
   function toggleSyncScrolling() {
     syncScrollingEnabled = !syncScrollingEnabled;
     if (syncScrollingEnabled) {
-      toggleSyncButton.innerHTML = '<i class="bi bi-link-45deg"></i> Sync Off';
+      toggleSyncButton.innerHTML = '<i class="bi bi-link-45deg"></i> <span class="btn-text">Sync Off</span>';
       toggleSyncButton.classList.add("sync-disabled");
       toggleSyncButton.classList.remove("sync-enabled");
       toggleSyncButton.classList.add("border-primary");
     } else {
-      toggleSyncButton.innerHTML = '<i class="bi bi-link"></i> Sync On';
+      toggleSyncButton.innerHTML = '<i class="bi bi-link"></i> <span class="btn-text">Sync On</span>';
       toggleSyncButton.classList.add("sync-enabled");
       toggleSyncButton.classList.remove("sync-disabled");
       toggleSyncButton.classList.remove("border-primary");
