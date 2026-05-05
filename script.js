@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // ========================================
   const GLOBAL_STATE_KEY = 'markdownViewerGlobalState';
   let referenceCounter = 1;
+  const imageObjectUrls = new Set();
 
   function loadGlobalState() {
     try { return JSON.parse(localStorage.getItem(GLOBAL_STATE_KEY)) || {}; }
@@ -999,6 +1000,7 @@ This is a fully client-side application. Your content never leaves your browser 
       }
 
       updateDocumentStats();
+      cleanupImageObjectUrls();
     } catch (e) {
       console.error("Markdown rendering failed:", e);
       markdownPreview.innerHTML = `<div class="alert alert-danger">
@@ -1896,6 +1898,25 @@ This is a fully client-side application. Your content never leaves your browser 
     });
   }
 
+  function cleanupImageObjectUrls() {
+    if (imageObjectUrls.size === 0) return;
+    const contents = [markdownEditor.value];
+    if (Array.isArray(tabs)) {
+      tabs.forEach(function(tab) {
+        if (tab && typeof tab.content === 'string' && tab.content) {
+          contents.push(tab.content);
+        }
+      });
+    }
+    const snapshot = contents.join('\n');
+    Array.from(imageObjectUrls).forEach(function(url) {
+      if (!snapshot.includes(url)) {
+        URL.revokeObjectURL(url);
+        imageObjectUrls.delete(url);
+      }
+    });
+  }
+
   function insertMarkdownBlock(block) {
     const value = markdownEditor.value;
     const start = markdownEditor.selectionStart;
@@ -2003,6 +2024,7 @@ This is a fully client-side application. Your content never leaves your browser 
 
     function insertFromFile(file) {
       const objectUrl = URL.createObjectURL(file);
+      imageObjectUrls.add(objectUrl);
       insertImage(objectUrl);
     }
 
