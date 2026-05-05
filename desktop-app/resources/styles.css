@@ -51,7 +51,7 @@ body {
 .app-header {
   background-color: var(--header-bg);
   border-bottom: 1px solid var(--border-color);
-  padding: 1rem;
+  padding: 0.35rem 0.75rem;
   transition: background-color 0.3s ease;
   position: relative;
   z-index: 100;
@@ -271,16 +271,16 @@ body {
 
 .toolbar {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .tool-button {
   background-color: var(--button-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 14px;
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 13px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -297,7 +297,7 @@ body {
 }
 
 .tool-button i {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .btn-text {
@@ -620,7 +620,7 @@ a:focus {
 }
 
 .stats-container {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: var(--text-color);
 }
 
@@ -629,7 +629,7 @@ a:focus {
 }
 
 .stat-item i {
-  font-size: 1rem;
+  font-size: 0.9rem;
   opacity: 0.8;
 }
 
@@ -924,7 +924,7 @@ a:focus {
 }
 
 .github-link i {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
 }
 
 /* ========================================
@@ -934,6 +934,12 @@ a:focus {
 /* Header layout for three sections */
 .header-container {
   position: relative;
+  min-height: 30px;
+}
+
+.app-header h1 {
+  font-size: 1.05rem;
+  line-height: 1.1;
 }
 
 .header-left {
@@ -960,8 +966,8 @@ a:focus {
   background-color: var(--button-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
-  padding: 6px 12px;
-  font-size: 14px;
+  padding: 4px 10px;
+  font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -990,7 +996,7 @@ a:focus {
   border-color: var(--accent-color);
   color: var(--accent-color);
   border-width: 2px;
-  padding: 5px 11px; /* Adjust for thicker border */
+  padding: 3px 9px; /* Adjust for thicker border */
 }
 
 .view-mode-btn.active:not(:last-child) {
@@ -998,7 +1004,7 @@ a:focus {
 }
 
 .view-mode-btn i {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 /* Pane View States */
@@ -1387,7 +1393,7 @@ a:focus {
   align-items: center;
   background-color: var(--header-bg);
   border-bottom: 1px solid var(--border-color);
-  height: 36px;
+  height: 32px;
   overflow: visible;  /* ← was: overflow: hidden */
   flex-shrink: 0;
   padding: 0 4px;
@@ -1416,8 +1422,8 @@ a:focus {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 10px 0 12px;
+  height: 27px;
+  padding: 0 8px 0 10px;
   min-width: 100px;
   max-width: 180px;
   background-color: var(--button-bg);
@@ -1502,8 +1508,8 @@ a:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 5px;
   background: none;
   border: 1px solid transparent;
@@ -1637,8 +1643,8 @@ a:focus {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 26px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 8px;
   border-radius: 5px;
   background: none;
   border: 1px solid var(--border-color);
