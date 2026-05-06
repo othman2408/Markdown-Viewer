@@ -1931,10 +1931,7 @@ This is a fully client-side application. Your content never leaves your browser 
       }
     });
 
-    const numberTokens = Array.from(referenceDefinitions.keys())
-      .sort(function(a, b) { return b - a; });
-    if (numberTokens.length === 0) return;
-    const referenceRegex = new RegExp('\\[(?:' + numberTokens.join('|') + ')\\]', 'g');
+    const referenceRegex = /\[(\d+)\](?!\s*:)/g;
     const nodesToProcess = [];
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
     while (walker.nextNode()) {
@@ -1956,7 +1953,7 @@ This is a fully client-side application. Your content never leaves your browser 
       while ((match = referenceRegex.exec(text)) !== null) {
         const before = text.slice(lastIndex, match.index);
         if (before) fragment.appendChild(document.createTextNode(before));
-        const number = parseInt(match[0].slice(1, -1), 10);
+        const number = parseInt(match[1], 10);
         const definition = referenceDefinitions.get(number);
         if (definition && definition.url) {
           const link = document.createElement('a');
