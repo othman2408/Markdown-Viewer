@@ -1931,8 +1931,7 @@ This is a fully client-side application. Your content never leaves your browser 
     });
 
     const numberTokens = Array.from(referenceDefinitions.keys())
-      .map(String)
-      .sort(function(a, b) { return b.length - a.length; });
+      .sort(function(a, b) { return b - a; });
     if (numberTokens.length === 0) return;
     const referenceRegex = new RegExp('\\[(?:' + numberTokens.join('|') + ')\\]', 'g');
     const nodesToProcess = [];
