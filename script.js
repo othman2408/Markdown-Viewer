@@ -3015,16 +3015,19 @@ This is a fully client-side application. Your content never leaves your browser 
       editorHighlightLayer.scrollLeft = scrollLeft;
       return;
     }
-    let html = '';
+    const fragment = document.createDocumentFragment();
     let lastIndex = 0;
     findMatches.forEach(function(match, index) {
-      html += escapeHtml(text.slice(lastIndex, match.start));
-      const matchText = escapeHtml(text.slice(match.start, match.end));
-      html += '<mark class="find-highlight' + (index === activeFindIndex ? ' active' : '') + '">' + matchText + '</mark>';
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.start)));
+      const mark = document.createElement('mark');
+      mark.className = 'find-highlight' + (index === activeFindIndex ? ' active' : '');
+      mark.textContent = text.slice(match.start, match.end);
+      fragment.appendChild(mark);
       lastIndex = match.end;
     });
-    html += escapeHtml(text.slice(lastIndex));
-    editorHighlightLayer.innerHTML = html;
+    fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    editorHighlightLayer.textContent = '';
+    editorHighlightLayer.appendChild(fragment);
     editorHighlightLayer.scrollTop = scrollTop;
     editorHighlightLayer.scrollLeft = scrollLeft;
   }
@@ -3040,10 +3043,10 @@ This is a fully client-side application. Your content never leaves your browser 
     const haystack = value.toLowerCase();
     const needle = query.toLowerCase();
     const matches = [];
-    let index = 0;
-    while (needle && (index = haystack.indexOf(needle, index)) !== -1) {
+    let index = haystack.indexOf(needle);
+    while (index !== -1) {
       matches.push({ start: index, end: index + needle.length });
-      index += needle.length;
+      index = haystack.indexOf(needle, index + needle.length);
     }
     return matches;
   }
