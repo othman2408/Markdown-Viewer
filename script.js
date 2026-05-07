@@ -2173,8 +2173,9 @@ This is a fully client-side application. Your content never leaves your browser 
     const isAllowed = allowedAlignments.has(align);
     if (!isAllowed) {
       console.warn('Unsupported alignment:', align);
+      return;
     }
-    const safeAlign = isAllowed ? align : 'left';
+    const safeAlign = align;
     const value = markdownEditor.value;
     const start = markdownEditor.selectionStart;
     const end = markdownEditor.selectionEnd;
