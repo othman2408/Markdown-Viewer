@@ -3106,9 +3106,6 @@ This is a fully client-side application. Your content never leaves your browser 
       paddingTop: parseFloat(styles.paddingTop) || 0,
       paddingBottom: parseFloat(styles.paddingBottom) || 0,
     };
-    if (lineNumberMeasure) {
-      lineNumberMeasure.style.width = `${markdownEditor.clientWidth}px`;
-    }
     const fragment = document.createDocumentFragment();
     lines.forEach(function(line, index) {
       const lineNumber = document.createElement('div');
