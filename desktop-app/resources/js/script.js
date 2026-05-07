@@ -291,6 +291,7 @@ document.addEventListener("DOMContentLoaded", function () {
     },
   };
   const GITHUB_ALERT_MARKER_REGEX = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s+|$)/i;
+  const GITHUB_ALERT_MARKER_HTML_REGEX = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s|&nbsp;|<br\s*\/?>)*/i;
 
   function enhanceGitHubAlerts(container) {
     if (!container) return;
@@ -306,8 +307,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       if (!firstParagraph) return;
 
-      const firstParagraphHtml = firstParagraph.innerHTML.trim();
-      const markerMatch = firstParagraphHtml.match(GITHUB_ALERT_MARKER_REGEX);
+    const firstParagraphHtml = firstParagraph.innerHTML.trim();
+    const markerMatch = firstParagraph.textContent.trim().match(GITHUB_ALERT_MARKER_REGEX);
       if (!markerMatch) return;
 
       const alertType = markerMatch[1].toLowerCase();
@@ -336,9 +337,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       blockquote.insertBefore(title, blockquote.firstChild);
 
-      const remainingHtml = firstParagraphHtml
-        .replace(GITHUB_ALERT_MARKER_REGEX, "")
-        .trim();
+    const remainingHtml = firstParagraphHtml
+      .replace(GITHUB_ALERT_MARKER_HTML_REGEX, "")
+      .trim();
       if (remainingHtml) {
         firstParagraph.innerHTML = remainingHtml;
       } else {
@@ -1076,7 +1077,7 @@ This is a fully client-side application. Your content never leaves your browser 
       const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container'],
-        ADD_ATTR: ['id', 'class', 'style'],
+        ADD_ATTR: ['id', 'class', 'style', 'align'],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
       });
       markdownPreview.innerHTML = sanitizedHtml;
@@ -2166,6 +2167,23 @@ This is a fully client-side application. Your content never leaves your browser 
         imageObjectUrls.delete(url);
       }
     });
+  }
+
+  function insertAlignmentBlock(align) {
+    const value = markdownEditor.value;
+    const start = markdownEditor.selectionStart;
+    const end = markdownEditor.selectionEnd;
+    const selected = value.slice(start, end);
+    const hasSelection = start !== end;
+    const blockStart = `<div align="${align}">\n`;
+    const blockEnd = `\n</div>`;
+    const block = `${blockStart}${hasSelection ? selected : ''}${blockEnd}`;
+    const needsLeadingBreak = start > 0 && value[start - 1] !== '\n';
+    const needsTrailingBreak = end < value.length && value[end] !== '\n';
+    const replacement = (needsLeadingBreak ? '\n' : '') + block + (needsTrailingBreak ? '\n' : '');
+    const contentStart = start + (needsLeadingBreak ? 1 : 0) + blockStart.length;
+    const contentEnd = contentStart + (hasSelection ? selected.length : 0);
+    replaceEditorRange(start, end, replacement, contentStart, hasSelection ? contentEnd : contentStart);
   }
 
   function insertMarkdownBlock(block, startOverride, endOverride) {
@@ -3348,6 +3366,9 @@ This is a fully client-side application. Your content never leaves your browser 
     else if (action === 'strike') wrapEditorSelection('~~', '~~', 'struck text');
     else if (action === 'italic') wrapEditorSelection('*', '*', 'italic text');
     else if (action === 'quote') transformEditorLines(function(line) { return line ? '> ' + line.replace(/^>\s?/, '') : '>'; });
+    else if (action === 'align-left') insertAlignmentBlock('left');
+    else if (action === 'align-center') insertAlignmentBlock('center');
+    else if (action === 'align-right') insertAlignmentBlock('right');
     else if (action === 'title-case') transformSelectionOrCurrentLine(toTitleCase);
     else if (action === 'uppercase') transformSelectionOrCurrentLine(function(text) { return text.toUpperCase(); });
     else if (action === 'lowercase') transformSelectionOrCurrentLine(function(text) { return text.toLowerCase(); });
@@ -3720,7 +3741,7 @@ This is a fully client-side application. Your content never leaves your browser 
       const html = marked.parse(markdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container'], 
-        ADD_ATTR: ['id', 'class', 'style']
+        ADD_ATTR: ['id', 'class', 'style', 'align']
       });
       const tempContainer = document.createElement("div");
       tempContainer.innerHTML = sanitizedHtml;
@@ -4338,7 +4359,7 @@ This is a fully client-side application. Your content never leaves your browser 
       const html = marked.parse(markdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath'],
-        ADD_ATTR: ['id', 'class', 'style', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start']
       });
 
       const tempElement = document.createElement("div");
