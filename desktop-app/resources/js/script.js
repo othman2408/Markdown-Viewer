@@ -290,7 +290,7 @@ document.addEventListener("DOMContentLoaded", function () {
       path: "M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z",
     },
   };
-  const GITHUB_ALERT_MARKER_REPLACEMENT_REGEX = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:(?:\s|&nbsp;|<br\s*\/?>)+|$)/i;
+  const GITHUB_ALERT_MARKER_REGEX = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:(?:\s|&nbsp;|<br\s*\/?>)+|$)/i;
 
   function enhanceGitHubAlerts(container) {
     if (!container) return;
@@ -307,7 +307,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!firstParagraph) return;
 
     const firstParagraphHtml = firstParagraph.innerHTML.trim();
-    const markerMatch = firstParagraphHtml.match(GITHUB_ALERT_MARKER_REPLACEMENT_REGEX);
+    const markerMatch = firstParagraphHtml.match(GITHUB_ALERT_MARKER_REGEX);
       if (!markerMatch) return;
 
       const alertType = markerMatch[1].toLowerCase();
@@ -337,7 +337,7 @@ document.addEventListener("DOMContentLoaded", function () {
       blockquote.insertBefore(title, blockquote.firstChild);
 
     const remainingHtml = firstParagraphHtml
-      .replace(GITHUB_ALERT_MARKER_REPLACEMENT_REGEX, "")
+      .replace(GITHUB_ALERT_MARKER_REGEX, "")
       .trim();
       if (remainingHtml) {
         firstParagraph.innerHTML = remainingHtml;
