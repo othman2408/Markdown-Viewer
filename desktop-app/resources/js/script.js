@@ -80,6 +80,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const githubImportCancelBtn = document.getElementById("github-import-cancel");
   const githubImportSubmitBtn = document.getElementById("github-import-submit");
   const editorHighlightLayer = document.getElementById("editor-highlight-layer");
+  const lineNumbers = document.getElementById("line-numbers");
   const clearFormattingModal = document.getElementById("clear-formatting-modal");
   const clearFormattingConfirm = document.getElementById("clear-formatting-confirm");
   const clearFormattingCancel = document.getElementById("clear-formatting-cancel");
@@ -229,7 +230,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const markedOptions = {
     gfm: true,
-    breaks: false,
+    breaks: true,
     pedantic: false,
     sanitize: false,
     smartypants: false,
@@ -237,6 +238,11 @@ document.addEventListener("DOMContentLoaded", function () {
     headerIds: true,
     mangle: false,
   };
+  const LINE_NUMBER_GUTTER_MIN_CH = 3;
+  const LINE_NUMBER_GUTTER_PADDING_CH = 1;
+  const LINE_NUMBER_EMPTY_PLACEHOLDER = '\u200b';
+  let lineNumberMeasure = null;
+  let lineNumberUpdateFrame = null;
 
   const renderer = new marked.Renderer();
   renderer.code = function (code, language) {
@@ -1109,6 +1115,7 @@ This is a fully client-side application. Your content never leaves your browser 
       updateDocumentStats();
       updateFindHighlights();
       cleanupImageObjectUrls();
+      scheduleLineNumberUpdate();
     } catch (e) {
       console.error("Markdown rendering failed:", e);
       const safeMessage = escapeHtml(e && e.message ? e.message : 'Unknown error');
@@ -3042,6 +3049,97 @@ This is a fully client-side application. Your content never leaves your browser 
     editorHighlightLayer.scrollLeft = markdownEditor.scrollLeft;
   }
 
+  function updateLineNumberGutter(lineCount) {
+    if (!editorPaneElement) return;
+    const digits = String(Math.max(1, lineCount)).length;
+    const gutterSize = `${Math.max(LINE_NUMBER_GUTTER_MIN_CH, digits + LINE_NUMBER_GUTTER_PADDING_CH)}ch`;
+    editorPaneElement.style.setProperty('--line-number-gutter', gutterSize);
+  }
+
+  function ensureLineNumberMeasure() {
+    if (!lineNumbers) return;
+    if (!lineNumberMeasure) {
+      lineNumberMeasure = document.createElement('div');
+      lineNumberMeasure.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(lineNumberMeasure);
+    }
+    const styles = window.getComputedStyle(markdownEditor);
+    lineNumberMeasure.style.position = 'absolute';
+    lineNumberMeasure.style.visibility = 'hidden';
+    lineNumberMeasure.style.whiteSpace = 'pre-wrap';
+    lineNumberMeasure.style.wordWrap = 'break-word';
+    lineNumberMeasure.style.boxSizing = 'border-box';
+    lineNumberMeasure.style.padding = styles.padding;
+    lineNumberMeasure.style.fontFamily = styles.fontFamily;
+    lineNumberMeasure.style.fontSize = styles.fontSize;
+    lineNumberMeasure.style.lineHeight = styles.lineHeight;
+    lineNumberMeasure.style.letterSpacing = styles.letterSpacing;
+    lineNumberMeasure.style.width = `${markdownEditor.clientWidth}px`;
+    lineNumberMeasure.style.top = '-9999px';
+    lineNumberMeasure.style.left = '-9999px';
+  }
+
+  function getLineHeight(styles) {
+    const computed = parseFloat(styles.lineHeight);
+    if (!Number.isNaN(computed)) return computed;
+    const fontSize = parseFloat(styles.fontSize) || 14;
+    return fontSize * 1.5;
+  }
+
+  function getWrappedLineCount(line, lineHeight, paddingSum) {
+    if (!lineNumberMeasure) return 1;
+    lineNumberMeasure.textContent = line.length ? line : LINE_NUMBER_EMPTY_PLACEHOLDER;
+    const contentHeight = lineNumberMeasure.scrollHeight - paddingSum;
+    return Math.max(1, Math.round(contentHeight / lineHeight));
+  }
+
+  function updateLineNumbers() {
+    if (!lineNumbers || !markdownEditor) return;
+    const lines = (markdownEditor.value || '').split('\n');
+    const lineCount = Math.max(1, lines.length);
+    updateLineNumberGutter(lineCount);
+    ensureLineNumberMeasure();
+    const styles = window.getComputedStyle(markdownEditor);
+    const lineHeight = getLineHeight(styles);
+    const paddingSum =
+      (parseFloat(styles.paddingTop) || 0) +
+      (parseFloat(styles.paddingBottom) || 0);
+    const existingItems = lineNumbers.children;
+    if (existingItems.length !== lineCount) {
+      const fragment = document.createDocumentFragment();
+      lines.forEach(function(line, index) {
+        const lineNumber = document.createElement('div');
+        lineNumber.className = 'line-number';
+        lineNumber.textContent = index + 1;
+        const wrapCount = getWrappedLineCount(line, lineHeight, paddingSum);
+        lineNumber.style.height = `${wrapCount * lineHeight}px`;
+        fragment.appendChild(lineNumber);
+      });
+      lineNumbers.textContent = '';
+      lineNumbers.appendChild(fragment);
+    } else {
+      for (let i = 0; i < lineCount; i += 1) {
+        const wrapCount = getWrappedLineCount(lines[i], lineHeight, paddingSum);
+        existingItems[i].style.height = `${wrapCount * lineHeight}px`;
+      }
+    }
+    syncLineNumberScroll();
+  }
+
+  function scheduleLineNumberUpdate() {
+    if (!lineNumbers) return;
+    if (lineNumberUpdateFrame) return;
+    lineNumberUpdateFrame = window.requestAnimationFrame(function() {
+      lineNumberUpdateFrame = null;
+      updateLineNumbers();
+    });
+  }
+
+  function syncLineNumberScroll() {
+    if (!lineNumbers) return;
+    lineNumbers.scrollTop = markdownEditor.scrollTop;
+  }
+
   function computeFindMatches(value, query) {
     if (!query) return [];
     const haystack = value.toLowerCase();
@@ -3377,6 +3475,7 @@ This is a fully client-side application. Your content never leaves your browser 
     const previewPercent = 100 - editorWidthPercent;
     editorPaneElement.style.flex = `0 0 calc(${editorWidthPercent}% - 4px)`;
     previewPaneElement.style.flex = `0 0 calc(${previewPercent}% - 4px)`;
+    scheduleLineNumberUpdate();
   }
 
   function resetPaneWidths() {
@@ -3460,6 +3559,7 @@ This is a fully client-side application. Your content never leaves your browser 
 
   // Initialize resizer - Story 1.3
   initResizer();
+  window.addEventListener('resize', scheduleLineNumberUpdate);
 
   // View Mode Button Event Listeners - Story 1.1
   viewModeButtons.forEach(btn => {
@@ -3489,6 +3589,7 @@ This is a fully client-side application. Your content never leaves your browser 
     } else {
       updateFindHighlights();
     }
+    scheduleLineNumberUpdate();
   });
 
   initMarkdownFormatToolbar();
@@ -3530,6 +3631,7 @@ This is a fully client-side application. Your content never leaves your browser 
   editorPane.addEventListener("scroll", function() {
     syncEditorToPreview();
     syncHighlightScroll();
+    syncLineNumberScroll();
   });
   previewPane.addEventListener("scroll", syncPreviewToEditor);
   toggleSyncButton.addEventListener("click", toggleSyncScrolling);
