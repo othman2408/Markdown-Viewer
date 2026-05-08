@@ -215,9 +215,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const isRtl = direction === "rtl";
     const toggleLabel = isRtl ? "Switch to LTR" : "Switch to RTL";
     if (directionToggle) {
-      directionToggle.innerHTML = isRtl
-        ? '<i class="bi bi-text-left"></i>'
-        : '<i class="bi bi-text-right"></i>';
+      directionToggle.textContent = isRtl ? "R" : "L";
       directionToggle.setAttribute("title", toggleLabel);
       directionToggle.setAttribute("aria-label", toggleLabel);
       directionToggle.setAttribute("aria-pressed", isRtl.toString());
@@ -232,7 +230,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const savedDirection = loadGlobalState().direction;
   const initialDirection = savedDirection === "rtl" ? "rtl" : "ltr";
-  document.documentElement.setAttribute("dir", initialDirection);
+  function applyDirectionToContent(direction) {
+    if (markdownEditor) markdownEditor.setAttribute("dir", direction);
+    if (markdownPreview) markdownPreview.setAttribute("dir", direction);
+  }
+  applyDirectionToContent(initialDirection);
   updateDirectionToggleUI(initialDirection);
 
   const initMermaid = () => {
@@ -3588,9 +3590,9 @@ This is a fully client-side application. Your content never leaves your browser 
       if (directionToggle) {
         directionToggle.click();
       } else {
-        const direction =
-          document.documentElement.getAttribute("dir") === "rtl" ? "ltr" : "rtl";
-        document.documentElement.setAttribute("dir", direction);
+        const currentDir = markdownEditor ? markdownEditor.getAttribute("dir") : "ltr";
+        const direction = currentDir === "rtl" ? "ltr" : "rtl";
+        applyDirectionToContent(direction);
         saveGlobalState({ direction });
         updateDirectionToggleUI(direction);
       }
@@ -3703,9 +3705,9 @@ This is a fully client-side application. Your content never leaves your browser 
   toggleSyncButton.addEventListener("click", toggleSyncScrolling);
   if (directionToggle) {
     directionToggle.addEventListener("click", function () {
-      const direction =
-        document.documentElement.getAttribute("dir") === "rtl" ? "ltr" : "rtl";
-      document.documentElement.setAttribute("dir", direction);
+      const currentDir = markdownEditor ? markdownEditor.getAttribute("dir") : "ltr";
+      const direction = currentDir === "rtl" ? "ltr" : "rtl";
+      applyDirectionToContent(direction);
       saveGlobalState({ direction });
       updateDirectionToggleUI(direction);
     });
