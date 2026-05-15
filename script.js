@@ -276,8 +276,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const BLOCK_MATH_MARKER_PATTERN = /^\$\$/m;
   const BLOCK_MATH_PATTERN = /^\$\$[ \t]*\n?([\s\S]*?)\n?\$\$[ \t]*(?:\n|$)/;
   const DEFINITION_LIST_ITEM_PATTERN = /^:[ \t]+(.*)$/;
-  const SUPERSCRIPT_PATTERN = /^\^([^^\n]+)\^/;
-  const SUBSCRIPT_PATTERN = /^~(?!~)([^~\n]+)~/;
+  const SUPERSCRIPT_PATTERN = /^\^(?!\s)([^^\n]*?\S)\^(?!\^)/;
+  const SUBSCRIPT_PATTERN = /^~(?!~)(?!\s)([^~\n]*?\S)~(?!~)/;
   const HIGHLIGHT_PATTERN = /^==(?=\S)([\s\S]*?\S)==/;
   const MARKDOWN_LIST_MARKER_PATTERN = /^(\s*)(?:[-*+]\s+|\d+\.\s+|>\s+)/;
   const EMPTY_LINE_PATTERN = /^\s*$/;
