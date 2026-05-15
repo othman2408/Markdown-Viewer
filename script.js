@@ -273,6 +273,33 @@ document.addEventListener("DOMContentLoaded", function () {
   let lineNumberUpdateFrame = null;
 
   const renderer = new marked.Renderer();
+  const BLOCK_MATH_MARKER_PATTERN = /^\$\$/m;
+  const BLOCK_MATH_PATTERN = /^\$\$[ \t]*\n?([\s\S]*?)\n?\$\$[ \t]*(?:\n|$)/;
+  const blockMathExtension = {
+    name: 'blockMath',
+    level: 'block',
+    start(src) {
+      const match = src.match(BLOCK_MATH_MARKER_PATTERN);
+      if (!match) {
+        return undefined;
+      }
+      return match.index;
+    },
+    tokenizer(src) {
+      const match = BLOCK_MATH_PATTERN.exec(src);
+      if (!match) {
+        return undefined;
+      }
+      return {
+        type: 'blockMath',
+        raw: match[0],
+        text: match[1],
+      };
+    },
+    renderer(token) {
+      return `<div class="math-block">$$\n${token.text}\n$$</div>\n`;
+    }
+  };
   renderer.code = function (code, language) {
     if (language === 'mermaid') {
       const uniqueId = 'mermaid-diagram-' + Math.random().toString(36).substr(2, 9);
@@ -285,6 +312,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }).value;
     return `<pre><code class="hljs ${validLanguage}">${highlightedCode}</code></pre>`;
   };
+
+  marked.use({
+    extensions: [blockMathExtension]
+  });
 
   marked.setOptions({
     ...markedOptions,
