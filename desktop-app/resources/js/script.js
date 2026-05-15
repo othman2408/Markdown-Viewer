@@ -285,20 +285,28 @@ document.addEventListener("DOMContentLoaded", function () {
   const footnoteOrder = [];
   const footnoteRefCounts = new Map();
   const footnoteFirstRefId = new Map();
+  let anonymousFootnoteCounter = 0;
 
   function resetExtendedMarkdownState() {
     footnoteDefinitions.clear();
     footnoteOrder.length = 0;
     footnoteRefCounts.clear();
     footnoteFirstRefId.clear();
+    anonymousFootnoteCounter = 0;
   }
 
   function normalizeFootnoteId(id) {
-    return String(id || "")
+    const normalized = String(id || "")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "footnote";
+      .replace(/^-+|-+$/g, "");
+    if (normalized) {
+      return normalized;
+    }
+
+    anonymousFootnoteCounter += 1;
+    return `footnote-${anonymousFootnoteCounter}`;
   }
 
   function escapeHtmlAttribute(value) {
