@@ -286,6 +286,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const footnoteRefCounts = new Map();
   const footnoteFirstRefId = new Map();
   let anonymousFootnoteCounter = 0;
+  let suppressFootnotePreprocess = false;
 
   function resetExtendedMarkdownState() {
     footnoteDefinitions.clear();
@@ -318,6 +319,15 @@ document.addEventListener("DOMContentLoaded", function () {
       .replace(/>/g, "&gt;");
   }
 
+  function parseInlineWithoutFootnotes(text) {
+    suppressFootnotePreprocess = true;
+    try {
+      return marked.parseInline(text);
+    } finally {
+      suppressFootnotePreprocess = false;
+    }
+  }
+
   function renderDefinitionContent(content, options = {}) {
     const { appendHtml = "" } = options;
     const paragraphs = String(content || "")
@@ -335,7 +345,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     return paragraphs
       .map((paragraph) => {
-        const renderedParagraph = marked.parseInline(paragraph);
+        const renderedParagraph = parseInlineWithoutFootnotes(paragraph);
         const safeParagraph = typeof DOMPurify !== "undefined"
           ? DOMPurify.sanitize(renderedParagraph)
           : renderedParagraph;
@@ -554,7 +564,7 @@ document.addEventListener("DOMContentLoaded", function () {
       };
     },
     renderer(token) {
-      const termHtml = marked.parseInline(token.term);
+      const termHtml = parseInlineWithoutFootnotes(token.term);
       const definitionHtml = token.definitions
         .map((definition) => `<dd>${renderDefinitionContent(definition)}</dd>`)
         .join("");
@@ -651,6 +661,9 @@ document.addEventListener("DOMContentLoaded", function () {
     ],
     hooks: {
       preprocess(markdown) {
+        if (suppressFootnotePreprocess) {
+          return markdown;
+        }
         resetExtendedMarkdownState();
         return applyFootnotes(extractFootnoteDefinitions(markdown));
       },
@@ -4191,7 +4204,8 @@ This is a fully client-side application. Your content never leaves your browser 
           tex: {
               inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
               displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-              processEscapes: true
+              processEscapes: true,
+              packages: { '[+]': ['ams', 'boldsymbol'] }
           }
       };
   </script>
