@@ -4201,6 +4201,7 @@ This is a fully client-side application. Your content never leaves your browser 
   <link rel="stylesheet" href="${cssTheme}">
   <script>
       window.MathJax = {
+          loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
           tex: {
               inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
               displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
