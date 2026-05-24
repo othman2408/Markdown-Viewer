@@ -5,6 +5,14 @@ Non-code commits (documentation, planning, README-only updates) are excluded.
 
 ---
 
+## v3.6.0
+ 
+- **Description:** Introduced a full Share Modal replacing the old inline copy-URL flow, with view-only and edit sharing modes, animated open/close transitions, clipboard copy feedback, Escape/backdrop-click dismissal, and a privacy notice. Enhanced share hash parsing to extract the `edit=1` flag and open the editor in the correct split or preview mode. Conducted a comprehensive audit fixing security, accessibility, performance, and desktop integration issues across the codebase: disabled `allowTaint` in `html2canvas` to prevent cross-origin taint exploits; added WAI-ARIA compliant keyboard navigation for tabs and the split-pane resizer; expanded touch targets to WCAG 2.1 AA minimums; fixed RTL editor pane padding and scrollbar layout shift; added new CSS design tokens (`--text-secondary`, `--font-mono`, `--color-danger-fg`); switched tab shortcuts to `Alt+Shift+T/W` on web to avoid hijacking browser shortcuts; made file extension matching case-insensitive; fixed shortcut key case sensitivity for the sync-scroll toggle; and redirected share links from localhost/Neutralino origins to the production URL. Fixed HTML export to correctly parse and render YAML frontmatter as a styled table before the document body. Updated desktop Neutralino config (application ID, filesystem permissions), hardened `main.js` with `typeof Neutralino` guards, fixed tray icon path and error handling, and replaced direct `applyContent()` DOM calls with a proper `NL_INITIAL_FILE_CONTENT` / `NL_IMPORT_EXTERNAL_FILE` handoff. Fixed Find & Replace capture group corruption, aligned exported Mermaid CDN to `v11.6.0`, added `aria-hidden` to all 11 modals, fixed active-tab 1px layout jump, and smoothed mobile menu transitions. Excluded the desktop app from Docker builds and added a CI guard to prevent image publishing on pull requests.
+- **Date:** 2026-05-24
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/2bb281adc1c811f7dca2b331b4867791b52b7401
+
+---
+
 ## v3.5.5
 
 - **Description:** Overhauled footnote rendering to support multi-paragraph footnotes displayed inline, restored correct nested list indentation, and fixed footnote backref spacing and paragraph-splitting patterns. Broadened footnote continuation indentation handling and hardened inline parsing for content without footnotes. Also added MathJax loader configuration to support additional LaTeX packages, ensuring extended math notation renders correctly in both web and desktop modes.
