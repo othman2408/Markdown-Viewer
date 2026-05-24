@@ -4295,8 +4295,9 @@ This is a fully client-side application. Your content never leaves your browser 
 
   exportHtml.addEventListener("click", function () {
     try {
-      const markdown = markdownEditor.value;
-      const html = marked.parse(markdown);
+      const { frontmatter, body } = parseFrontmatter(markdownEditor.value);
+      const tableHtml = frontmatter ? renderFrontmatterTable(frontmatter) : '';
+      const html = tableHtml + marked.parse(body);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'], 
         ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled']
@@ -4394,6 +4395,24 @@ This is a fully client-side application. Your content never leaves your browser 
       .markdown-alert-warning { color: ${isDarkTheme ? "#d29922" : "#9a6700"}; border-left-color: ${isDarkTheme ? "#d29922" : "#9a6700"}; background-color: ${isDarkTheme ? "rgba(210, 153, 34, 0.18)" : "#fff8c5"}; }
       .markdown-alert-caution { color: ${isDarkTheme ? "#f85149" : "#cf222e"}; border-left-color: ${isDarkTheme ? "#f85149" : "#cf222e"}; background-color: ${isDarkTheme ? "rgba(248, 81, 73, 0.18)" : "#ffebe9"}; }
       .markdown-alert > *:not(.markdown-alert-title) { color: ${isDarkTheme ? "#c9d1d9" : "#24292e"}; }
+
+      .frontmatter-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 24px;
+          font-size: 14px;
+      }
+      .frontmatter-table th,
+      .frontmatter-table td {
+          border: 1px solid ${isDarkTheme ? "#30363d" : "#e1e4e8"};
+          padding: 8px 12px;
+          text-align: left;
+      }
+      .frontmatter-table th {
+          font-weight: 600;
+          background-color: ${isDarkTheme ? "#161b22" : "#f6f8fa"};
+          width: 150px;
+      }
 
       @media (max-width: 767px) {
           .markdown-body {
