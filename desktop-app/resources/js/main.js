@@ -82,11 +82,20 @@ function onTrayMenuItemClicked(event) {
   }
 }
 
-/*
-    Function to handle the window close event by gracefully exiting the Neutralino application.
-*/
-function onWindowClose() {
-  Neutralino.app.exit();
+async function onWindowClose() {
+  try {
+    let response = await Neutralino.os.showMessageBox(
+      "Exit Markdown Viewer",
+      "Are you sure you want to close the application? Any unsaved changes in your tabs may be lost.",
+      "YES_NO",
+      "QUESTION"
+    );
+    if (response === "YES") {
+      Neutralino.app.exit();
+    }
+  } catch (e) {
+    Neutralino.app.exit();
+  }
 }
 
 // Initialize Neutralino if in native environment

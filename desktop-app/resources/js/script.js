@@ -1243,33 +1243,49 @@ This is a fully client-side application. Your content never leaves your browser 
       activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 
-    // Arrow-key keyboard navigation inside tabList (WAI-ARIA compliance)
+    // Arrow-key keyboard navigation inside tabList (WAI-ARIA compliance with manual selection)
     tabList.onkeydown = function(e) {
-      const currentActiveItem = tabList.querySelector('.tab-item.active');
-      if (!currentActiveItem) return;
       const items = Array.from(tabList.querySelectorAll('.tab-item'));
-      const activeIdx = items.indexOf(currentActiveItem);
+      if (items.length === 0) return;
+      
+      const focusedItem = document.activeElement.closest('.tab-item');
+      if (!focusedItem) return;
+      
+      const activeIdx = items.indexOf(focusedItem);
+      if (activeIdx === -1) return;
       
       let targetIdx = -1;
       if (e.key === 'ArrowRight') {
         targetIdx = (activeIdx + 1) % items.length;
       } else if (e.key === 'ArrowLeft') {
         targetIdx = (activeIdx - 1 + items.length) % items.length;
+      } else if (e.key === 'Home') {
+        targetIdx = 0;
+      } else if (e.key === 'End') {
+        targetIdx = items.length - 1;
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        const activeFocused = document.activeElement;
-        if (activeFocused && activeFocused.classList.contains('tab-item')) {
-          const tabId = activeFocused.getAttribute('data-tab-id');
-          switchTab(tabId);
-        }
+        const tabId = focusedItem.getAttribute('data-tab-id');
+        switchTab(tabId);
+        // After switch tab, focus the active item in the newly rendered tab bar
+        requestAnimationFrame(function() {
+          const newActive = tabList.querySelector(`.tab-item[data-tab-id="${tabId}"]`);
+          if (newActive) newActive.focus();
+        });
+        return;
       }
       
       if (targetIdx !== -1) {
         e.preventDefault();
-        const targetTabId = items[targetIdx].getAttribute('data-tab-id');
-        switchTab(targetTabId);
-        const newActiveItem = tabList.querySelector(`.tab-item[data-tab-id="${targetTabId}"]`);
-        if (newActiveItem) newActiveItem.focus();
+        // Update roving tabindex focus without triggering heavy re-renders
+        items.forEach(function(item, idx) {
+          if (idx === targetIdx) {
+            item.setAttribute('tabindex', '0');
+            item.focus();
+          } else {
+            item.setAttribute('tabindex', '-1');
+          }
+        });
       }
     };
 
@@ -3769,7 +3785,7 @@ This is a fully client-side application. Your content never leaves your browser 
     if (!query) return;
     const replacement = findReplaceWith ? findReplaceWith.value : '';
     const regex = new RegExp(escapeRegExp(query), 'gi');
-    markdownEditor.value = markdownEditor.value.replace(regex, replacement);
+    markdownEditor.value = markdownEditor.value.replace(regex, () => replacement);
     markdownEditor.dispatchEvent(new Event('input', { bubbles: true }));
     refreshFindMatches({ resetIndex: true });
     if (findMatches.length) {
@@ -4078,7 +4094,13 @@ This is a fully client-side application. Your content never leaves your browser 
       mobileToggleSync.classList.remove("sync-active");
     }
   });
-  mobileImportBtn.addEventListener("click", () => fileInput.click());
+  mobileImportBtn.addEventListener("click", () => {
+    if (typeof Neutralino !== 'undefined') {
+      nativeImportMarkdown();
+    } else {
+      fileInput.click();
+    }
+  });
   mobileImportGithubBtn.addEventListener("click", () => {
     closeMobileMenu();
     openGitHubImportModal();
@@ -4231,10 +4253,78 @@ This is a fully client-side application. Your content never leaves your browser 
     renderMarkdown();
   });
 
+  async function nativeSaveMarkdown() {
+    try {
+      const content = markdownEditor.value;
+      const result = await Neutralino.os.showSaveDialog("Save Markdown File", {
+        filters: [
+          { name: "Markdown files (*.md)", extensions: ["md", "markdown"] },
+          { name: "All files (*.*)", extensions: ["*"] }
+        ]
+      });
+      if (result) {
+        await Neutralino.filesystem.writeFile(result, content);
+        const fileName = result.split(/[/\\]/).pop().replace(/\.(md|markdown)$/i, "");
+        const activeTab = tabs.find(function(t) { return t.id === activeTabId; });
+        if (activeTab) {
+          activeTab.title = fileName;
+          activeTab.content = content;
+          saveTabsToStorage(tabs);
+          renderTabBar(tabs, activeTabId);
+        }
+      }
+    } catch (e) {
+      console.error("Native save failed:", e);
+      alert("Native save failed: " + e.message);
+    }
+  }
+
+  async function nativeSaveHtml(htmlContent) {
+    try {
+      const result = await Neutralino.os.showSaveDialog("Save HTML document", {
+        filters: [
+          { name: "HTML documents (*.html)", extensions: ["html", "htm"] }
+        ]
+      });
+      if (result) {
+        await Neutralino.filesystem.writeFile(result, htmlContent);
+      }
+    } catch (e) {
+      console.error("Native HTML save failed:", e);
+      alert("Native HTML save failed: " + e.message);
+    }
+  }
+
+  async function nativeImportMarkdown() {
+    try {
+      const result = await Neutralino.os.showOpenDialog("Open Markdown file", {
+        filters: [
+          { name: "Markdown files (*.md)", extensions: ["md", "markdown"] },
+          { name: "All files (*.*)", extensions: ["*"] }
+        ],
+        multiSelections: true
+      });
+      if (result && result.length > 0) {
+        for (const filePath of result) {
+          const content = await Neutralino.filesystem.readFile(filePath);
+          const fileName = filePath.split(/[/\\]/).pop().replace(/\.(md|markdown)$/i, "");
+          newTab(content, fileName);
+        }
+      }
+    } catch (e) {
+      console.error("Native import failed:", e);
+      alert("Native import failed: " + e.message);
+    }
+  }
+
   if (importFromFileButton) {
     importFromFileButton.addEventListener("click", function (e) {
       e.preventDefault();
-      fileInput.click();
+      if (typeof Neutralino !== 'undefined') {
+        nativeImportMarkdown();
+      } else {
+        fileInput.click();
+      }
     });
   }
 
@@ -4282,6 +4372,10 @@ This is a fully client-side application. Your content never leaves your browser 
   });
 
   exportMd.addEventListener("click", function () {
+    if (typeof Neutralino !== 'undefined') {
+      nativeSaveMarkdown();
+      return;
+    }
     try {
       const blob = new Blob([markdownEditor.value], {
         type: "text/markdown;charset=utf-8",
@@ -4297,13 +4391,15 @@ This is a fully client-side application. Your content never leaves your browser 
     try {
       const { frontmatter, body } = parseFrontmatter(markdownEditor.value);
       const tableHtml = frontmatter ? renderFrontmatterTable(frontmatter) : '';
-      const html = tableHtml + marked.parse(body);
+      const referenceData = extractReferenceDefinitions(body);
+      const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'], 
         ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled']
       });
       const tempContainer = document.createElement("div");
       tempContainer.innerHTML = sanitizedHtml;
+      applyReferencePreviewLinks(tempContainer, referenceData.definitions);
       enhanceGitHubAlerts(tempContainer);
       const enhancedHtml = tempContainer.innerHTML;
       const isDarkTheme =
@@ -4330,7 +4426,7 @@ This is a fully client-side application. Your content never leaves your browser 
       };
   </script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>
   <style>
       body {
           background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
@@ -4414,6 +4510,50 @@ This is a fully client-side application. Your content never leaves your browser 
           width: 150px;
       }
 
+      /* Footnote styles */
+      .footnotes {
+          margin-top: 1.5rem;
+          font-size: 0.9em;
+          border-top: 1px solid ${isDarkTheme ? "#30363d" : "#eaecef"};
+          padding-top: 8px;
+      }
+      .footnotes ol {
+          padding-left: 1.5em;
+      }
+      .footnotes ol > li::marker {
+          content: "[" counter(list-item) "] ";
+          font-weight: 600;
+      }
+      .footnotes li > p {
+          margin: 0.2em 0;
+      }
+      .footnote-ref a,
+      .footnote-backref {
+          text-decoration: none;
+      }
+      .footnote-backref {
+          margin-left: 0.4em;
+      }
+      a.reference-link {
+          font-size: 0.75em;
+          letter-spacing: -0.02em;
+          line-height: 1;
+          vertical-align: super;
+          position: relative;
+          top: 0.08em;
+      }
+
+      /* Mermaid and Math styles */
+      .mermaid-container {
+          position: relative;
+          margin-bottom: 16px;
+      }
+      .math-block {
+          margin: 1em 0;
+          overflow-x: auto;
+          text-align: center;
+      }
+
       @media (max-width: 767px) {
           .markdown-body {
               padding: 15px;
@@ -4444,7 +4584,11 @@ This is a fully client-side application. Your content never leaves your browser 
 </body>
 </html>`;
       const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
-      saveAs(blob, "document.html");
+      if (typeof Neutralino !== 'undefined') {
+        nativeSaveHtml(fullHtml);
+      } else {
+        saveAs(blob, "document.html");
+      }
     } catch (e) {
       console.error("HTML export failed:", e);
       alert("HTML export failed: " + e.message);

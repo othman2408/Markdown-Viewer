@@ -1349,6 +1349,12 @@ a:focus {
   cursor: col-resize !important;
 }
 
+.resizing #markdown-preview,
+.resizing #markdown-editor,
+.resizing .line-numbers {
+  pointer-events: none !important;
+}
+
 /* ========================================
    MOBILE VIEW MODE CONTROLS - Story 1.4
    ======================================== */
