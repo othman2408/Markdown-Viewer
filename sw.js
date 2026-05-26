@@ -5,6 +5,7 @@ const ASSETS = [
   './script.js',
   './styles.css',
   './assets/icon.jpg',
+  './manifest.json',
   // CDN Stylesheets
   'https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.3.0/github-markdown.min.css',

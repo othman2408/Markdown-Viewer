@@ -2,7 +2,7 @@
   "name": "markdown-viewer-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Neutralinojs desktop port of Markdown Viewer",
+  "description": "A premium client-side GitHub-style Markdown editor and live preview tool for desktop, featuring math rendering, diagrams, syntax highlighting, and PDF/HTML exports.",
   "scripts": {
     "setup": "node setup-binaries.js",
     "postsetup": "node prepare.js",
