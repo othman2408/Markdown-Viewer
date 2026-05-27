@@ -3915,6 +3915,9 @@ This is a fully client-side application. Your content never leaves your browser 
   let isFrDocked = false;
   let dragOffset = { x: 0, y: 0 };
   let isPanelDragging = false;
+  let lastFloatingLeft = null;
+  let lastFloatingTop = null;
+  let lastFloatingRight = null;
 
   function initFindReplacePanelDrag() {
     const handle = document.getElementById('find-replace-drag-handle');
@@ -3935,9 +3938,15 @@ This is a fully client-side application. Your content never leaves your browser 
       // Keep panel inside viewport boundaries
       const maxX = window.innerWidth - panel.offsetWidth;
       const maxY = window.innerHeight - panel.offsetHeight;
-      panel.style.left = `${Math.max(0, Math.min(maxX, x))}px`;
-      panel.style.top = `${Math.max(0, Math.min(maxY, y))}px`;
+      const newLeft = `${Math.max(0, Math.min(maxX, x))}px`;
+      const newTop = `${Math.max(0, Math.min(maxY, y))}px`;
+      panel.style.left = newLeft;
+      panel.style.top = newTop;
       panel.style.right = 'auto';
+
+      lastFloatingLeft = newLeft;
+      lastFloatingTop = newTop;
+      lastFloatingRight = 'auto';
     };
 
     const stopDrag = () => {
@@ -4015,9 +4024,9 @@ This is a fully client-side application. Your content never leaves your browser 
       contentCont.classList.remove('fr-docked');
       contentCont.style.setProperty('--dock-width', '0px');
 
-      panel.style.top = '';
-      panel.style.left = '';
-      panel.style.right = '';
+      panel.style.left = lastFloatingLeft !== null ? lastFloatingLeft : '';
+      panel.style.top = lastFloatingTop !== null ? lastFloatingTop : '';
+      panel.style.right = lastFloatingRight !== null ? lastFloatingRight : '';
       
       dockBtn.innerHTML = '<i class="bi bi-layout-sidebar-reverse"></i>';
       dockBtn.title = "Toggle Dock Mode";
@@ -4065,9 +4074,9 @@ This is a fully client-side application. Your content never leaves your browser 
       contentCont.classList.remove('fr-docked');
       contentCont.style.setProperty('--dock-width', '0px');
 
-      panel.style.top = '';
-      panel.style.left = '';
-      panel.style.right = '';
+      panel.style.left = lastFloatingLeft !== null ? lastFloatingLeft : '';
+      panel.style.top = lastFloatingTop !== null ? lastFloatingTop : '';
+      panel.style.right = lastFloatingRight !== null ? lastFloatingRight : '';
       
       dockBtn.innerHTML = '<i class="bi bi-layout-sidebar-reverse"></i>';
       dockBtn.title = "Toggle Dock Mode";
@@ -4446,6 +4455,19 @@ This is a fully client-side application. Your content never leaves your browser 
     if (scopeSelect) {
       scopeSelect.addEventListener('change', () => {
         refreshFindMatches({ resetIndex: true });
+      });
+    }
+
+    // Reset position handler
+    const resetBtn = document.getElementById('find-replace-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        lastFloatingLeft = null;
+        lastFloatingTop = null;
+        lastFloatingRight = null;
+        modal.style.left = '';
+        modal.style.top = '';
+        modal.style.right = '';
       });
     }
 
@@ -4870,8 +4892,14 @@ This is a fully client-side application. Your content never leaves your browser 
     const maxX = window.innerWidth - panel.offsetWidth;
     const maxY = window.innerHeight - panel.offsetHeight;
     
-    panel.style.left = `${Math.max(0, Math.min(maxX, leftVal))}px`;
-    panel.style.top = `${Math.max(0, Math.min(maxY, topVal))}px`;
+    const constrainedLeft = `${Math.max(0, Math.min(maxX, leftVal))}px`;
+    const constrainedTop = `${Math.max(0, Math.min(maxY, topVal))}px`;
+    
+    panel.style.left = constrainedLeft;
+    panel.style.top = constrainedTop;
+    
+    lastFloatingLeft = constrainedLeft;
+    lastFloatingTop = constrainedTop;
   }
 
   window.addEventListener('resize', () => {
