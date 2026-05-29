@@ -3,15 +3,15 @@
   "applicationId": "com.markdownviewer.desktop",
   "version": "1.0.0",
   "defaultMode": "window",
-  "port": 0,
+  "port": 28915,
   "documentRoot": "/resources/",
   "url": "/",
   "enableServer": true,
   "enableNativeAPI": true,
   "tokenSecurity": "one-time",
   "logging": {
-    "enabled": true,
-    "writeToLogFile": true
+    "enabled": false,
+    "writeToLogFile": false
   },
   "nativeAllowList": [
     "app.exit",
@@ -40,7 +40,7 @@
       "maximize": false,
       "hidden": false,
       "resizable": true,
-      "exitProcessOnClose": false
+      "exitProcessOnClose": true
     },
     "browser": {
       "globalVariables": {},
