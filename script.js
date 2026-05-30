@@ -3064,7 +3064,10 @@ This is a fully client-side application. Your content never leaves your browser 
 
     function insertEmojis() {
       if (!emojiSelection.size) return;
-      const ordered = Array.from(emojiSelection);
+      // Retain the modal's visual/definition order of emojis, consistent with the Symbols modal
+      const ordered = emojiItems
+        .filter(item => emojiSelection.has(item.shortcode))
+        .map(item => item.shortcode);
       const insertion = ordered.join(' ');
       modal.style.display = 'none';
       cleanup();
@@ -7195,12 +7198,12 @@ This is a fully client-side application. Your content never leaves your browser 
   // Accessibility dynamic screen reader announcer helper
   function announceToScreenReader(message) {
     const announcer = document.getElementById('app-accessibility-announcer');
-    if (announcer) {
-      announcer.textContent = '';
-      setTimeout(() => {
-        announcer.textContent = message;
-      }, 50);
-    }
+    if (!announcer) return;
+    announcer.textContent = '';
+    clearTimeout(announceToScreenReader._timeoutId);
+    announceToScreenReader._timeoutId = setTimeout(() => {
+      announcer.textContent = message;
+    }, 50);
   }
 
   // Visual skeleton loader generator for emoji list
