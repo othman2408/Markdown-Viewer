@@ -346,9 +346,10 @@ document.addEventListener("DOMContentLoaded", function () {
     return paragraphs
       .map((paragraph) => {
         const renderedParagraph = parseInlineWithoutFootnotes(paragraph);
-        const safeParagraph = typeof DOMPurify !== "undefined"
-          ? DOMPurify.sanitize(renderedParagraph)
-          : renderedParagraph;
+        if (typeof DOMPurify === "undefined") {
+          throw new ReferenceError("DOMPurify is not defined. Secure rendering aborted.");
+        }
+        const safeParagraph = DOMPurify.sanitize(renderedParagraph);
         return `<p>${safeParagraph}</p>`;
       })
       .join("");
