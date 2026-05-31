@@ -866,7 +866,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // PERF-012: Inlined default template to eliminate network request, FOUC, and layout shifts
   const defaultMarkdownTemplate = document.getElementById('default-markdown');
-  const sampleMarkdown = defaultMarkdownTemplate ? defaultMarkdownTemplate.textContent.trim() : '# Welcome to Markdown Viewer\n\nStart typing your markdown here...';
+  let templateText = '';
+  if (defaultMarkdownTemplate) {
+    if (defaultMarkdownTemplate.content && typeof defaultMarkdownTemplate.content.textContent === 'string') {
+      templateText = defaultMarkdownTemplate.content.textContent.trim();
+    } else {
+      templateText = defaultMarkdownTemplate.textContent ? defaultMarkdownTemplate.textContent.trim() : '';
+    }
+  }
+  const sampleMarkdown = templateText || '# Welcome to Markdown Viewer\n\nStart typing your markdown here...';
 
   if (!markdownEditor.value) {
     markdownEditor.value = sampleMarkdown;
