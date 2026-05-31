@@ -1004,7 +1004,8 @@ document.addEventListener("DOMContentLoaded", function () {
     menuBtn.setAttribute('aria-controls', menuId);
     menuBtn.setAttribute('draggable', 'false');
     menuBtn.title = 'File options';
-    menuBtn.innerHTML = '&#8943;';
+    // PERF-007: Replace HTML entity with plain unicode character set via textContent
+    menuBtn.textContent = '⋯';
 
     const dropdown = document.createElement('div');
     dropdown.id = menuId;
@@ -1062,7 +1063,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!tabList) return;
     closeTabMenus();
     removeTabMenuDropdowns();
-    tabList.innerHTML = '';
+    // PERF-007: Use textContent instead of innerHTML to clear elements faster
+    tabList.textContent = '';
     tabsArr.forEach(function(tab) {
       const item = document.createElement('div');
       item.className = 'tab-item' + (tab.id === currentActiveTabId ? ' active' : '');
@@ -1081,10 +1083,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
       item.appendChild(titleSpan);
       item.appendChild(tabMenu.button);
-
-      item.addEventListener('click', function() {
-        switchTab(tab.id);
-      });
 
       item.addEventListener('dragstart', function() {
         draggedTabId = tab.id;
@@ -1120,6 +1118,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
       tabList.appendChild(item);
     });
+
+    // PERF-006: Event delegation — single click handler for all tabs
+    tabList.onclick = function(e) {
+      const tabItem = e.target.closest('.tab-item');
+      if (!tabItem) return;
+      // Don't switch tab if clicking the menu button
+      if (e.target.closest('.tab-menu-btn')) return;
+      const tabId = tabItem.getAttribute('data-tab-id');
+      if (tabId) switchTab(tabId);
+    };
 
     // "+ Create" button at end of tab list
     const newBtn = document.createElement('button');
@@ -1188,7 +1196,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderMobileTabList(tabsArr, currentActiveTabId) {
     const mobileTabList = document.getElementById('mobile-tab-list');
     if (!mobileTabList) return;
-    mobileTabList.innerHTML = '';
+    // PERF-007: Clear element content using textContent instead of innerHTML
+    mobileTabList.textContent = '';
     tabsArr.forEach(function(tab) {
       const item = document.createElement('div');
       item.className = 'mobile-tab-item' + (tab.id === currentActiveTabId ? ' active' : '');
@@ -2894,7 +2903,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     searchInput.value = '';
     emojiSelection.clear();
-    grid.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    grid.textContent = '';
     grid.scrollTop = 0;
     emojiItems = [];
 
@@ -2925,7 +2935,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function renderEmojiChunk(clear = false) {
       if (clear) {
-        grid.innerHTML = '';
+        // PERF-007: Clear elements using textContent
+        grid.textContent = '';
         emojiItems = [];
         renderedCount = 0;
       }
@@ -3037,7 +3048,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!entries.length) {
         emptyMessage.textContent = 'Unable to load emojis.';
         emptyMessage.style.display = 'block';
-        grid.innerHTML = '';
+        // PERF-007: Clear elements using textContent
+        grid.textContent = '';
         emojiItems = [];
         announceToScreenReader("Failed to load emojis.");
         return;
@@ -3072,7 +3084,8 @@ document.addEventListener("DOMContentLoaded", function () {
     confirmBtn.disabled = true;
     searchInput.value = '';
     symbolSelection.clear();
-    grid.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    grid.textContent = '';
 
     const sectionEntries = [];
     SYMBOL_SECTIONS.forEach((section) => {
@@ -3202,7 +3215,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const start = markdownEditor.selectionStart;
     const end = markdownEditor.selectionEnd;
     modal.style.display = 'flex';
-    grid.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    grid.textContent = '';
 
     const alertTypes = ['note', 'tip', 'important', 'warning', 'caution'];
     let selectedType = alertTypes[0];
@@ -4424,7 +4438,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const draftLines = draftValue.split('\n');
 
-    container.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    container.textContent = '';
     const fragment = document.createDocumentFragment();
 
     const maxLines = Math.max(lines.length, draftLines.length);
@@ -6608,7 +6623,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function closeMermaidModal() {
     if (!mermaidZoomModal.classList.contains('active')) return;
     mermaidZoomModal.classList.remove('active');
-    mermaidModalDiagram.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    mermaidModalDiagram.textContent = '';
     modalCurrentSvgEl = null;
     modalZoomScale = 1;
     modalPanX = 0;
@@ -6620,7 +6636,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
 
-    mermaidModalDiagram.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    mermaidModalDiagram.textContent = '';
     modalZoomScale = 1;
     modalPanX = 0;
     modalPanY = 0;
@@ -7225,7 +7242,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderEmojiSkeletons() {
     const grid = document.getElementById('emoji-modal-grid');
     if (!grid) return;
-    grid.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    grid.textContent = '';
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < 18; i++) {
       const item = document.createElement('div');
@@ -7259,7 +7277,8 @@ document.addEventListener("DOMContentLoaded", function () {
   // Visual skeleton loader generator for GitHub file list tree
   function renderGitHubImportTreeSkeleton() {
     if (!githubImportTree) return;
-    githubImportTree.innerHTML = '';
+    // PERF-007: Clear elements using textContent
+    githubImportTree.textContent = '';
     
     const wrapper = document.createElement('div');
     wrapper.className = 'github-import-tree-skeleton';
