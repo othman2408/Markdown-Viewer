@@ -3,13 +3,24 @@
 All notable code changes to **Markdown Viewer** are documented here.
 Non-code commits (documentation, planning, README-only updates) are excluded.
 
+## v3.7.0
+
+- **Description:** Complete architectural performance engineering transformation and application modernization.
+  - **Performance:** Implemented eager-to-asynchronous dependency loading (Mermaid, MathJax, JoyPixels, pako, PDF export tools) unblocking critical path initial downloads; established a content-aware preview render bypass using a differential content hashing check (`_lastRenderedContent`); shifted to paint-aligned `requestAnimationFrame` for scroll synchronization.
+  - **DOM & Selectors:** Centralized tab list operations using a single event click delegation listener; optimized element resets by replacing 12 hot-path `innerHTML` clearing and setting lines with high-speed `textContent` updates; consolidated Find & Replace panel CSS custom variables into the top-level `:root` and `[data-theme="dark"]` scopes.
+  - **Desktop Build (prepare.js):** Programmatically stripped web-only SEO meta tags, canonical links, hreflang tags, manifests, and JSON-LD schema headers from compiled desktop resource index.html files.
+- **Date:** 2026-05-31
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/6813c1123d0da103f1032b575db4f11799ea0a0a
+
+---
+
 ## v3.6.6
 
 - **Description:** Implemented extensive security hardening, accessibility remediation, and high-performance user experience upgrades. 
   - **Security (PR 130):** Hardened offline desktop-app configuration by restricting the WebSocket communication server, enabling system process automatic cleanup on window close, and implementing secure build-time cryptographic dependency checks verifying SHA-384 integrity parameters of external assets.
   - **UX & Performance (PR 131):** Overhauled workspace loading layouts with theme-aware dual-motion skeleton loaders (combining opacity pulses and horizontal shimmers), establishing visual alignment symmetry between the Editor and Preview panes. Introduced an asynchronous task scheduler for processing large markdown files (>15KB) that yields the call stack to the browser to paint preview skeletons immediately on pasting, avoiding interface freezes and ensuring completely responsive input. Added clearTimeout debouncers to dynamic live-region screen reader announcers and expanded accessible visually-hidden CSS clipping boundaries.
 - **Date:** 2026-05-31
-- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/pull/131
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/28c3a7499f8be89f25b6bef32d9fa0bf9a703560
 
 ---
 
