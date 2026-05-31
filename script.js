@@ -1139,18 +1139,21 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     // "+ Create" button at end of tab list (placed outside tabList to prevent ARIA child violation)
-    const newBtn = document.createElement('button');
-    newBtn.className = 'tab-new-btn';
-    newBtn.title = 'New Tab (Ctrl+T)';
-    newBtn.setAttribute('aria-label', 'Open new tab');
-    newBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
-    newBtn.addEventListener('click', function() { newTab(); });
-    
-    const resetBtn = document.getElementById('tab-reset-btn');
-    if (resetBtn) {
-      tabList.parentElement.insertBefore(newBtn, resetBtn);
-    } else {
-      tabList.parentElement.appendChild(newBtn);
+    let newBtn = tabList.parentElement.querySelector('.tab-new-btn');
+    if (!newBtn) {
+      newBtn = document.createElement('button');
+      newBtn.className = 'tab-new-btn';
+      newBtn.title = 'New Tab (Ctrl+T)';
+      newBtn.setAttribute('aria-label', 'Open new tab');
+      newBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
+      newBtn.addEventListener('click', function() { newTab(); });
+      
+      const resetBtn = document.getElementById('tab-reset-btn');
+      if (resetBtn) {
+        tabList.parentElement.insertBefore(newBtn, resetBtn);
+      } else {
+        tabList.parentElement.appendChild(newBtn);
+      }
     }
 
     // Auto-scroll active tab into view (paint-aligned to prevent forced reflows)
