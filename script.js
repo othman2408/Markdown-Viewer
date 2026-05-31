@@ -12,6 +12,19 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  const _loadedStyles = new Set();
+  function loadStyle(url) {
+    if (_loadedStyles.has(url)) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = url;
+      link.onload = function() { _loadedStyles.add(url); resolve(); };
+      link.onerror = function() { reject(new Error('Failed to load style: ' + url)); };
+      document.head.appendChild(link);
+    });
+  }
+
   // CDN URLs for lazy-loaded libraries
   const CDN = {
     mermaid: 'https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js',
@@ -19,7 +32,8 @@ document.addEventListener("DOMContentLoaded", function () {
     jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     html2canvas: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
     pako: 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
-    joypixels: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/lib/js/joypixels.min.js'
+    joypixels: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/lib/js/joypixels.min.js',
+    joypixels_css: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/extras/css/joypixels.min.css'
   };
 
   let markdownRenderTimeout = null;
@@ -1129,19 +1143,27 @@ document.addEventListener("DOMContentLoaded", function () {
       if (tabId) switchTab(tabId);
     };
 
-    // "+ Create" button at end of tab list
+    // "+ Create" button at end of tab list (placed outside tabList to prevent ARIA child violation)
     const newBtn = document.createElement('button');
     newBtn.className = 'tab-new-btn';
     newBtn.title = 'New Tab (Ctrl+T)';
     newBtn.setAttribute('aria-label', 'Open new tab');
     newBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
     newBtn.addEventListener('click', function() { newTab(); });
-    tabList.appendChild(newBtn);
+    
+    const resetBtn = document.getElementById('tab-reset-btn');
+    if (resetBtn) {
+      tabList.parentElement.insertBefore(newBtn, resetBtn);
+    } else {
+      tabList.parentElement.appendChild(newBtn);
+    }
 
-    // Auto-scroll active tab into view
+    // Auto-scroll active tab into view (paint-aligned to prevent forced reflows)
     const activeItem = tabList.querySelector('.tab-item.active');
     if (activeItem) {
-      activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      requestAnimationFrame(function() {
+        activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
     }
 
     // Arrow-key keyboard navigation inside tabList (WAI-ARIA compliance with manual selection)
@@ -1581,6 +1603,9 @@ document.addEventListener("DOMContentLoaded", function () {
           // Configure and load MathJax on first use
           window.MathJax = {
             loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
+            options: {
+              a11y: { inTabOrder: false }
+            },
             tex: {
               inlineMath: [['$', '$'], ['\\(', '\\)']],
               displayMath: [['$$', '$$'], ['\\[', '\\]']],
@@ -2103,7 +2128,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // PERF-002: Lazy-load JoyPixels on first use
     if (typeof joypixels === 'undefined') {
-      loadScript(CDN.joypixels).then(function() { processEmojis(element); });
+      Promise.all([
+        loadScript(CDN.joypixels),
+        loadStyle(CDN.joypixels_css)
+      ]).then(function() { processEmojis(element); });
       return;
     }
     
@@ -3645,15 +3673,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateFindHighlights() {
     if (!editorHighlightLayer) return;
+    if (!isFindModalOpen || !findReplaceInput || !findReplaceInput.value || !findMatches.length) {
+      if (editorHighlightLayer.textContent !== '') {
+        editorHighlightLayer.textContent = '';
+      }
+      return;
+    }
     const text = markdownEditor.value || '';
     const scrollTop = markdownEditor.scrollTop;
     const scrollLeft = markdownEditor.scrollLeft;
-    if (!isFindModalOpen || !findReplaceInput || !findReplaceInput.value || !findMatches.length) {
-      editorHighlightLayer.textContent = text;
-      editorHighlightLayer.scrollTop = scrollTop;
-      editorHighlightLayer.scrollLeft = scrollLeft;
-      return;
-    }
     const fragment = document.createDocumentFragment();
     let lastIndex = 0;
     findMatches.forEach(function(match, index) {
@@ -3684,29 +3712,6 @@ document.addEventListener("DOMContentLoaded", function () {
     editorPaneElement.style.setProperty('--line-number-gutter', gutterSize);
   }
 
-  function ensureLineNumberMeasure() {
-    if (!lineNumbers) return;
-    if (!lineNumberMeasure) {
-      lineNumberMeasure = document.createElement('div');
-      lineNumberMeasure.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(lineNumberMeasure);
-    }
-    const styles = window.getComputedStyle(markdownEditor);
-    lineNumberMeasure.style.position = 'absolute';
-    lineNumberMeasure.style.visibility = 'hidden';
-    lineNumberMeasure.style.whiteSpace = 'pre-wrap';
-    lineNumberMeasure.style.wordWrap = 'break-word';
-    lineNumberMeasure.style.boxSizing = 'border-box';
-    lineNumberMeasure.style.padding = styles.padding;
-    lineNumberMeasure.style.fontFamily = styles.fontFamily;
-    lineNumberMeasure.style.fontSize = styles.fontSize;
-    lineNumberMeasure.style.lineHeight = styles.lineHeight;
-    lineNumberMeasure.style.letterSpacing = styles.letterSpacing;
-    lineNumberMeasure.style.width = `${markdownEditor.clientWidth}px`;
-    lineNumberMeasure.style.top = '-9999px';
-    lineNumberMeasure.style.left = '-9999px';
-  }
-
   function getLineHeight(styles) {
     const computed = parseFloat(styles.lineHeight);
     if (!Number.isNaN(computed)) return computed;
@@ -3714,35 +3719,88 @@ document.addEventListener("DOMContentLoaded", function () {
     return fontSize * 1.5;
   }
 
-  function getWrappedLineCount(line, lineHeight, paddingSum) {
-    if (!lineNumberMeasure) return 1;
-    lineNumberMeasure.textContent = line.length ? line : LINE_NUMBER_EMPTY_PLACEHOLDER;
-    const contentHeight = lineNumberMeasure.scrollHeight - paddingSum;
-    return Math.max(1, Math.round(contentHeight / lineHeight));
+  function getWrappedLineCountMonospace(lineText, maxCharsPerLine) {
+    if (!lineText) return 1;
+    const words = lineText.replace(/\t/g, '    ').split(' ');
+    let linesCount = 1;
+    let currentLineLength = 0;
+    
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const wordLength = word.length;
+      
+      if (wordLength === 0) {
+        if (currentLineLength + 1 > maxCharsPerLine) {
+          linesCount++;
+          currentLineLength = 1;
+        } else {
+          currentLineLength++;
+        }
+        continue;
+      }
+      
+      if (wordLength > maxCharsPerLine) {
+        const remainingSpace = maxCharsPerLine - currentLineLength;
+        if (remainingSpace > 0 && currentLineLength > 0) {
+          const firstPart = wordLength - remainingSpace;
+          linesCount += 1 + Math.floor(firstPart / maxCharsPerLine);
+          currentLineLength = firstPart % maxCharsPerLine;
+        } else {
+          linesCount += Math.floor(wordLength / maxCharsPerLine);
+          currentLineLength = wordLength % maxCharsPerLine;
+        }
+        continue;
+      }
+      
+      const spaceRequired = currentLineLength === 0 ? 0 : 1;
+      if (currentLineLength + spaceRequired + wordLength > maxCharsPerLine) {
+        linesCount++;
+        currentLineLength = wordLength;
+      } else {
+        currentLineLength += spaceRequired + wordLength;
+      }
+    }
+    
+    return Math.max(1, linesCount);
   }
 
   const lineCache = new Map();
   let lastEditorWidth = 0;
+  let charWidth = 0;
+  let maxCharsPerLine = 0;
 
   function updateLineNumbers() {
     if (!lineNumbers || !markdownEditor) return;
     const lines = (markdownEditor.value || '').split('\n');
     const lineCount = Math.max(1, lines.length);
 
-    // Clear height cache if editor width has changed
     const currentWidth = markdownEditor.clientWidth;
-    if (currentWidth !== lastEditorWidth) {
+    const styles = window.getComputedStyle(markdownEditor);
+    const paddingLeft = parseFloat(styles.paddingLeft) || 10;
+    const paddingRight = parseFloat(styles.paddingRight) || 10;
+    const availableWidth = currentWidth - paddingLeft - paddingRight;
+
+    // Measure character width exactly once per resize / layout width change
+    if (currentWidth !== lastEditorWidth || charWidth === 0) {
       lineCache.clear();
       lastEditorWidth = currentWidth;
+      
+      const testSpan = document.createElement('span');
+      testSpan.style.fontFamily = styles.fontFamily;
+      testSpan.style.fontSize = styles.fontSize;
+      testSpan.style.visibility = 'hidden';
+      testSpan.style.position = 'absolute';
+      testSpan.style.whiteSpace = 'pre';
+      testSpan.textContent = 'a'.repeat(100);
+      document.body.appendChild(testSpan);
+      charWidth = testSpan.getBoundingClientRect().width / 100;
+      document.body.removeChild(testSpan);
+      
+      maxCharsPerLine = Math.max(1, Math.floor(availableWidth / charWidth));
     }
 
     updateLineNumberGutter(lineCount);
-    ensureLineNumberMeasure();
-    const styles = window.getComputedStyle(markdownEditor);
     const lineHeight = getLineHeight(styles);
-    const paddingSum =
-      (parseFloat(styles.paddingTop) || 0) +
-      (parseFloat(styles.paddingBottom) || 0);
 
     const existingItems = lineNumbers.children;
     const existingCount = existingItems.length;
@@ -3762,12 +3820,12 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // Update only the heights and numbers that changed, querying cache
+    // Update only the heights and numbers that changed, using monospace simulator to avoid forced reflows
     for (let i = 0; i < lineCount; i += 1) {
       const lineText = lines[i];
       let wrapHeight = lineCache.get(lineText);
       if (wrapHeight === undefined) {
-        const wrapCount = getWrappedLineCount(lineText, lineHeight, paddingSum);
+        const wrapCount = getWrappedLineCountMonospace(lineText, maxCharsPerLine);
         wrapHeight = wrapCount * lineHeight;
         lineCache.set(lineText, wrapHeight);
       }
