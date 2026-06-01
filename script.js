@@ -106,7 +106,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileExportPdf     = document.getElementById("mobile-export-pdf");
   const mobileCopyMarkdown  = document.getElementById("mobile-copy-markdown");
   const mobileThemeToggle   = document.getElementById("mobile-theme-toggle");
-  const mobileDirectionToggle = document.getElementById("mobile-direction-toggle");
   const shareButton         = document.getElementById("share-button");
   const mobileShareButton   = document.getElementById("mobile-share-button");
   const githubImportModal = document.getElementById("github-import-modal");
@@ -263,12 +262,6 @@ document.addEventListener("DOMContentLoaded", function () {
       directionToggle.setAttribute("title", toggleLabel);
       directionToggle.setAttribute("aria-label", toggleLabel);
       directionToggle.setAttribute("aria-pressed", isRtl.toString());
-    }
-    if (mobileDirectionToggle) {
-      const icon = isRtl
-        ? '<i class="bi bi-text-left me-2"></i>'
-        : '<i class="bi bi-text-right me-2"></i>';
-      mobileDirectionToggle.innerHTML = `${icon} ${toggleLabel}`;
     }
   }
 
@@ -5037,19 +5030,6 @@ document.addEventListener("DOMContentLoaded", function () {
   mobileExportHtml.addEventListener("click", () => exportHtml.click());
   mobileExportPdf.addEventListener("click", () => exportPdf.click());
   mobileCopyMarkdown.addEventListener("click", () => copyMarkdownButton.click());
-  if (mobileDirectionToggle) {
-    mobileDirectionToggle.addEventListener("click", () => {
-      if (directionToggle) {
-        directionToggle.click();
-      } else {
-        const currentDir = markdownEditor ? markdownEditor.getAttribute("dir") : "ltr";
-        const direction = currentDir === "rtl" ? "ltr" : "rtl";
-        applyDirectionToContent(direction);
-        saveGlobalState({ direction });
-        updateDirectionToggleUI(direction);
-      }
-    });
-  }
   mobileThemeToggle.addEventListener("click", () => {
     themeToggle.click();
     mobileThemeToggle.innerHTML = themeToggle.innerHTML + " Toggle Dark Mode";
@@ -7242,11 +7222,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (dirToggle) {
       const isRtl = document.body.style.direction === 'rtl';
       dirToggle.title = isRtl ? dict.switchLtr : dict.switchRtl;
-    }
-    const mDirToggle = document.getElementById('mobile-direction-toggle');
-    if (mDirToggle) {
-      const isRtl = document.body.style.direction === 'rtl';
-      mDirToggle.innerHTML = `<i class="bi bi-text-right me-2"></i> ${isRtl ? dict.switchLtr : dict.switchRtl}`;
     }
 
     // Modal Titles
