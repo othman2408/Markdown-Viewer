@@ -73,10 +73,12 @@
   padding: 0;
 }
 
-html,
-body {
-  height: 100%;
-  overflow: hidden;
+@media (min-width: 768px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
 }
 
 body {
@@ -84,6 +86,7 @@ body {
   color: var(--text-color);
   /* PERF-021: Removed background-color transition to avoid full-viewport repaint on theme toggle */
   transition: color 0.15s ease;
+  min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Hiragino Kaku Gothic ProN", Meiryo, "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
