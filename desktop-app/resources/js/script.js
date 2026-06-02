@@ -5513,13 +5513,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   themeToggle.addEventListener("click", function () {
     _lastRenderedContent = null;
-
-    if (_themeTransitionTimeout) {
-      clearTimeout(_themeTransitionTimeout);
-    }
-    // Smoothly transition all background, border, text, fill, and stroke colors on the entire page
-    document.documentElement.classList.add("theme-transitioning");
-
     const theme =
       document.documentElement.getAttribute("data-theme") === "dark"
         ? "light"
@@ -5532,10 +5525,6 @@ document.addEventListener("DOMContentLoaded", function () {
     } else {
       themeToggle.innerHTML = '<i class="bi bi-moon"></i>';
     }
-
-    _themeTransitionTimeout = setTimeout(function() {
-      document.documentElement.classList.remove("theme-transitioning");
-    }, 300);
     
     // PERF-004: Only re-render Mermaid diagrams on theme change instead of full renderMarkdown()
     // CSS custom properties handle all other theme transitions automatically.
@@ -5556,7 +5545,7 @@ document.addEventListener("DOMContentLoaded", function () {
         clearTimeout(_mermaidThemeReinitTimeout);
       }
       
-      // Wait 150ms for the fade-out animation to complete, then re-render in the background
+      // Wait 200ms for the fade-out animation to complete, then re-render in the background
       _mermaidThemeReinitTimeout = setTimeout(function() {
         initMermaid(true); // Force re-init with new theme
         try {
@@ -5600,7 +5589,7 @@ document.addEventListener("DOMContentLoaded", function () {
             c.classList.remove('theme-switching');
           });
         }
-      }, 150); // 150ms delay perfectly aligns with our 150ms CSS fade transition!
+      }, 200); // 200ms delay perfectly aligns with our CSS fade transition!
     }
   });
 
