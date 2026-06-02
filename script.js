@@ -286,6 +286,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Track last Mermaid theme to avoid redundant re-initialization (PERF-005)
   let _lastMermaidTheme = null;
+  let _mermaidThemeReinitTimeout = null;
+  let _themeTransitionTimeout = null;
   const initMermaid = (forceReinit) => {
     if (typeof mermaid === 'undefined') return; // PERF-002: Not loaded yet
     const currentTheme = document.documentElement.getAttribute("data-theme");
@@ -696,7 +698,7 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
-      return `<div class="mermaid-container is-loading"><div class="mermaid" id="${uniqueId}">${escapedCode}</div></div>`;
+      return `<div class="mermaid-container is-loading"><div class="mermaid" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
     
     const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
@@ -1564,7 +1566,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled'],
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
       });
       markdownPreview.innerHTML = sanitizedHtml;
@@ -5534,9 +5536,23 @@ document.addEventListener("DOMContentLoaded", function () {
         if (mermaidNodes.length > 0) {
           // Clear existing rendered Mermaid SVGs and re-render with new theme
           mermaidNodes.forEach(function(node) {
+            // Restore original diagram code to prevent parsing already-rendered SVG as source
+            const originalCode = node.getAttribute('data-original-code');
+            if (originalCode) {
+              const decodedCode = decodeURIComponent(originalCode);
+              const escapedCode = decodedCode
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+              node.innerHTML = escapedCode;
+            }
             node.removeAttribute('data-processed');
             const container = node.closest('.mermaid-container');
-            if (container) container.classList.add('is-loading');
+            if (container) {
+              container.classList.add('is-loading');
+              const oldToolbar = container.querySelector('.mermaid-toolbar');
+              if (oldToolbar) oldToolbar.remove();
+            }
           });
           Promise.resolve(mermaid.init(undefined, mermaidNodes))
             .then(function() {
@@ -5700,7 +5716,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'], 
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code']
       });
       const tempContainer = document.createElement("div");
       tempContainer.innerHTML = sanitizedHtml;
@@ -6400,7 +6416,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = marked.parse(markdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled', 'data-original-code']
       });
 
       const tempElement = document.createElement("div");

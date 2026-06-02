@@ -56,6 +56,16 @@ document.addEventListener("DOMContentLoaded", function () {
   let activeFindIndex = -1;
   let lastFindQuery = '';
 
+  // Custom Editor History State Manager variables
+  const tabHistories = {};
+  let currentHistoryTabId = null;
+  let lastPushedValue = '';
+  let typingTimeout = null;
+  let lastInputType = null; // 'insert', 'delete', 'programmatic', or null
+  let lastCursorStart = 0;
+  let lastCursorEnd = 0;
+  let pendingState = null;
+
   const markdownEditor = document.getElementById("markdown-editor");
   const markdownPreview = document.getElementById("markdown-preview");
   const markdownFormatToolbar = document.getElementById("markdown-format-toolbar");
@@ -106,7 +116,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileExportPdf     = document.getElementById("mobile-export-pdf");
   const mobileCopyMarkdown  = document.getElementById("mobile-copy-markdown");
   const mobileThemeToggle   = document.getElementById("mobile-theme-toggle");
-  const mobileDirectionToggle = document.getElementById("mobile-direction-toggle");
   const shareButton         = document.getElementById("share-button");
   const mobileShareButton   = document.getElementById("mobile-share-button");
   const githubImportModal = document.getElementById("github-import-modal");
@@ -264,12 +273,6 @@ document.addEventListener("DOMContentLoaded", function () {
       directionToggle.setAttribute("aria-label", toggleLabel);
       directionToggle.setAttribute("aria-pressed", isRtl.toString());
     }
-    if (mobileDirectionToggle) {
-      const icon = isRtl
-        ? '<i class="bi bi-text-left me-2"></i>'
-        : '<i class="bi bi-text-right me-2"></i>';
-      mobileDirectionToggle.innerHTML = `${icon} ${toggleLabel}`;
-    }
   }
 
   const savedDirection = loadGlobalState().direction;
@@ -283,6 +286,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Track last Mermaid theme to avoid redundant re-initialization (PERF-005)
   let _lastMermaidTheme = null;
+  let _mermaidThemeReinitTimeout = null;
+  let _themeTransitionTimeout = null;
   const initMermaid = (forceReinit) => {
     if (typeof mermaid === 'undefined') return; // PERF-002: Not loaded yet
     const currentTheme = document.documentElement.getAttribute("data-theme");
@@ -693,7 +698,7 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
-      return `<div class="mermaid-container is-loading"><div class="mermaid" id="${uniqueId}">${escapedCode}</div></div>`;
+      return `<div class="mermaid-container is-loading"><div class="mermaid" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
     
     const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
@@ -1277,11 +1282,26 @@ document.addEventListener("DOMContentLoaded", function () {
   function switchTab(tabId) {
     if (tabId === activeTabId) return;
     saveCurrentTabState();
+    
+    // Clear typing timeout and reset tracking for the new tab
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    lastInputType = null;
+    pendingState = null;
+    
     activeTabId = tabId;
     saveActiveTabId(activeTabId);
     const tab = tabs.find(function(t) { return t.id === tabId; });
     if (!tab) return;
     markdownEditor.value = tab.content;
+    
+    initTabHistory(tabId, tab.content);
+    lastPushedValue = tab.content;
+    currentHistoryTabId = tabId;
+    updateUndoRedoButtons();
+    
     restoreViewMode(tab.viewMode);
     renderMarkdown();
     requestAnimationFrame(function() {
@@ -1306,6 +1326,12 @@ document.addEventListener("DOMContentLoaded", function () {
   function closeTab(tabId) {
     const idx = tabs.findIndex(function(t) { return t.id === tabId; });
     if (idx === -1) return;
+    
+    // Clean up history of the closed tab
+    if (tabHistories[tabId]) {
+      delete tabHistories[tabId];
+    }
+    
     tabs.splice(idx, 1);
     if (tabs.length === 0) {
       // Auto-create new "Untitled" when last tab is deleted
@@ -1472,6 +1498,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     const activeTab = tabs.find(function(t) { return t.id === activeTabId; });
     markdownEditor.value = activeTab.content;
+    initTabHistory(activeTabId, activeTab.content);
+    updateUndoRedoButtons();
     restoreViewMode(activeTab.viewMode);
     renderMarkdown();
     const editorPane = document.querySelector('.editor-pane');
@@ -1538,7 +1566,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled'],
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
       });
       markdownPreview.innerHTML = sanitizedHtml;
@@ -2389,12 +2417,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function replaceEditorRange(start, end, replacement, selectStart, selectEnd) {
+    pushProgrammaticHistoryState();
     markdownEditor.focus();
     markdownEditor.setRangeText(replacement, start, end, 'end');
     const nextStart = typeof selectStart === 'number' ? selectStart : start + replacement.length;
     const nextEnd = typeof selectEnd === 'number' ? selectEnd : nextStart;
     markdownEditor.setSelectionRange(nextStart, nextEnd);
     markdownEditor.dispatchEvent(new Event('input', { bubbles: true }));
+    lastPushedValue = markdownEditor.value;
+    lastInputType = 'programmatic';
   }
 
   function wrapEditorSelection(prefix, suffix, placeholder) {
@@ -2596,6 +2627,286 @@ document.addEventListener("DOMContentLoaded", function () {
       .replace(/(\*|_)(.*?)\1/g, '$2')
       .replace(/~~(.*?)~~/g, '$1')
       .replace(/`([^`]+)`/g, '$1');
+  }
+
+  function getOrCreateTabHistory(tabId) {
+    if (!tabId) return { undoStack: [], redoStack: [] };
+    if (!tabHistories[tabId]) {
+      tabHistories[tabId] = {
+        undoStack: [],
+        redoStack: []
+      };
+    }
+    return tabHistories[tabId];
+  }
+
+  function initTabHistory(tabId, initialValue) {
+    const hist = getOrCreateTabHistory(tabId);
+    if (hist.undoStack.length === 0) {
+      hist.undoStack.push({
+        value: initialValue || '',
+        selectionStart: 0,
+        selectionEnd: 0
+      });
+      lastPushedValue = initialValue || '';
+      currentHistoryTabId = tabId;
+      pendingState = null;
+    }
+  }
+
+  function pushProgrammaticHistoryState() {
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    
+    const tabId = activeTabId;
+    const hist = getOrCreateTabHistory(tabId);
+    const currentValue = markdownEditor.value;
+    
+    if (pendingState) {
+      hist.undoStack.push(pendingState);
+      if (hist.undoStack.length > 200) {
+        hist.undoStack.shift();
+      }
+      hist.redoStack.length = 0;
+      pendingState = null;
+      lastPushedValue = currentValue;
+    } else if (currentValue !== lastPushedValue) {
+      hist.undoStack.push({
+        value: currentValue,
+        selectionStart: markdownEditor.selectionStart,
+        selectionEnd: markdownEditor.selectionEnd
+      });
+      if (hist.undoStack.length > 200) {
+        hist.undoStack.shift();
+      }
+      hist.redoStack.length = 0;
+      lastPushedValue = currentValue;
+    }
+    updateUndoRedoButtons();
+  }
+
+  function commitPendingState() {
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    if (!pendingState) return;
+    
+    const tabId = activeTabId;
+    const hist = getOrCreateTabHistory(tabId);
+    
+    hist.undoStack.push(pendingState);
+    if (hist.undoStack.length > 200) {
+      hist.undoStack.shift();
+    }
+    
+    hist.redoStack.length = 0;
+    lastPushedValue = markdownEditor.value;
+    pendingState = null;
+    updateUndoRedoButtons();
+  }
+
+  function handleKeystrokeHistory(e) {
+    const currentValue = markdownEditor.value;
+    if (currentValue === lastPushedValue) return;
+    
+    const inputType = e ? e.inputType : '';
+    
+    if (!pendingState) {
+      pendingState = {
+        value: lastPushedValue,
+        selectionStart: lastCursorStart,
+        selectionEnd: lastCursorEnd
+      };
+    }
+    
+    let shouldCommit = false;
+    
+    if (inputType === 'insertLineBreak' || inputType === 'insertParagraph' || inputType === 'insertFromPaste' || lastInputType === 'programmatic') {
+      shouldCommit = true;
+    } else if (e && e.data === ' ') {
+      shouldCommit = true;
+    } else {
+      const isDelete = inputType.startsWith('delete');
+      const wasDelete = lastInputType === 'delete';
+      const isInsert = inputType.startsWith('insert');
+      const wasInsert = lastInputType === 'insert';
+      
+      if ((isDelete && wasInsert) || (isInsert && wasDelete)) {
+        shouldCommit = true;
+      }
+    }
+    
+    if (shouldCommit) {
+      commitPendingState();
+    }
+    
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    typingTimeout = setTimeout(function() {
+      commitPendingState();
+    }, 1000);
+    
+    if (inputType.startsWith('delete')) {
+      lastInputType = 'delete';
+    } else if (inputType.startsWith('insert')) {
+      lastInputType = 'insert';
+    } else {
+      lastInputType = 'other';
+    }
+  }
+
+  function updateLastCursor() {
+    if (markdownEditor) {
+      lastCursorStart = markdownEditor.selectionStart;
+      lastCursorEnd = markdownEditor.selectionEnd;
+    }
+  }
+
+  function updateUndoRedoButtons() {
+    const undoBtn = document.querySelector('[data-md-action="undo"]');
+    const redoBtn = document.querySelector('[data-md-action="redo"]');
+    if (!undoBtn || !redoBtn) return;
+    
+    const tabId = activeTabId;
+    const hist = getOrCreateTabHistory(tabId);
+    
+    const canUndo = hist.undoStack.length > 0 || pendingState !== null;
+    const canRedo = hist.redoStack.length > 0;
+    
+    undoBtn.disabled = !canUndo;
+    undoBtn.classList.toggle('disabled', !canUndo);
+    
+    redoBtn.disabled = !canRedo;
+    redoBtn.classList.toggle('disabled', !canRedo);
+  }
+
+  function executeUndo() {
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    
+    const tabId = activeTabId;
+    const hist = getOrCreateTabHistory(tabId);
+    const currentValue = markdownEditor.value;
+    
+    let stateToRestore = null;
+    
+    if (pendingState) {
+      stateToRestore = pendingState;
+      pendingState = null;
+      
+      hist.redoStack.push({
+        value: currentValue,
+        selectionStart: markdownEditor.selectionStart,
+        selectionEnd: markdownEditor.selectionEnd
+      });
+      if (hist.redoStack.length > 200) {
+        hist.redoStack.shift();
+      }
+    } else if (hist.undoStack.length > 0) {
+      const topState = hist.undoStack.pop();
+      if (topState) {
+        stateToRestore = topState;
+        
+        hist.redoStack.push({
+          value: currentValue,
+          selectionStart: markdownEditor.selectionStart,
+          selectionEnd: markdownEditor.selectionEnd
+        });
+        if (hist.redoStack.length > 200) {
+          hist.redoStack.shift();
+        }
+      }
+    }
+    
+    if (stateToRestore) {
+      markdownEditor.value = stateToRestore.value;
+      markdownEditor.setSelectionRange(stateToRestore.selectionStart, stateToRestore.selectionEnd);
+      lastPushedValue = stateToRestore.value;
+      lastInputType = null;
+      
+      markdownEditor.dispatchEvent(new Event('input', { bubbles: true }));
+      saveCurrentTabState();
+    }
+    
+    updateUndoRedoButtons();
+  }
+
+  function executeRedo() {
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    
+    const tabId = activeTabId;
+    const hist = getOrCreateTabHistory(tabId);
+    const currentValue = markdownEditor.value;
+    
+    if (hist.redoStack.length > 0) {
+      const stateToRestore = hist.redoStack.pop();
+      
+      hist.undoStack.push({
+        value: currentValue,
+        selectionStart: markdownEditor.selectionStart,
+        selectionEnd: markdownEditor.selectionEnd
+      });
+      if (hist.undoStack.length > 200) {
+        hist.undoStack.shift();
+      }
+      
+      markdownEditor.value = stateToRestore.value;
+      markdownEditor.setSelectionRange(stateToRestore.selectionStart, stateToRestore.selectionEnd);
+      lastPushedValue = stateToRestore.value;
+      lastInputType = null;
+      pendingState = null;
+      
+      markdownEditor.dispatchEvent(new Event('input', { bubbles: true }));
+      saveCurrentTabState();
+    }
+    
+    updateUndoRedoButtons();
+  }
+
+  function stripMarkdownFormatting(text) {
+    if (!text) return '';
+    return text
+      // Remove fenced code block syntax
+      .replace(/^```[a-zA-Z0-9-]*\r?\n?/gm, '')
+      .replace(/```\r?$/gm, '')
+      // Remove reference link definitions (e.g., [id]: url "title")
+      .replace(/^\[[^\]]+\]:\s*\S+(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/gm, '')
+      // Strip basic markdown constructs (headers, blockquotes, lists, bold, italic, strikethrough, code)
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^>\s?/gm, '')
+      .replace(/^(\s*)([-*+]|\d+\.)\s+/gm, '$1')
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      // HTML alignment tags or custom tags (strip the tags, keep inner text)
+      .replace(/<[^>]+>/g, '')
+      // Bold, Italic, Strikethrough, Inline code
+      .replace(/(\*\*|__)(.*?)\1/g, '$2')
+      .replace(/(\*|_)(.*?)\1/g, '$2')
+      .replace(/~~(.*?)~~/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      // Remove horizontal rules
+      .replace(/^\s*[-*_]{3,}\s*$/gm, '');
+  }
+
+  function applyClearFormatting() {
+    const fullText = markdownEditor.value;
+    pushProgrammaticHistoryState();
+    replaceEditorRange(0, fullText.length, '', 0, 0);
+    
+    // Force immediate visual rendering and gutter update
+    renderMarkdown();
+    updateLineNumbers();
+    updateFindHighlights();
+    saveCurrentTabState();
   }
 
   function toTitleCase(text) {
@@ -4795,10 +5106,12 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function runMarkdownTool(action, button) {
-    if (action === 'undo' || action === 'redo') {
-      markdownEditor.focus();
-      document.execCommand(action);
-      markdownEditor.dispatchEvent(new Event('input', { bubbles: true }));
+    if (action === 'undo') {
+      executeUndo();
+      return;
+    }
+    if (action === 'redo') {
+      executeRedo();
       return;
     }
 
@@ -5037,19 +5350,6 @@ document.addEventListener("DOMContentLoaded", function () {
   mobileExportHtml.addEventListener("click", () => exportHtml.click());
   mobileExportPdf.addEventListener("click", () => exportPdf.click());
   mobileCopyMarkdown.addEventListener("click", () => copyMarkdownButton.click());
-  if (mobileDirectionToggle) {
-    mobileDirectionToggle.addEventListener("click", () => {
-      if (directionToggle) {
-        directionToggle.click();
-      } else {
-        const currentDir = markdownEditor ? markdownEditor.getAttribute("dir") : "ltr";
-        const direction = currentDir === "rtl" ? "ltr" : "rtl";
-        applyDirectionToContent(direction);
-        saveGlobalState({ direction });
-        updateDirectionToggleUI(direction);
-      }
-    });
-  }
   mobileThemeToggle.addEventListener("click", () => {
     themeToggle.click();
     mobileThemeToggle.innerHTML = themeToggle.innerHTML + " Toggle Dark Mode";
@@ -5143,7 +5443,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  markdownEditor.addEventListener("input", function() {
+  markdownEditor.addEventListener("input", function(e) {
+    handleKeystrokeHistory(e);
     debouncedRender();
     clearTimeout(saveTabStateTimeout);
     saveTabStateTimeout = setTimeout(saveCurrentTabState, 500);
@@ -5154,6 +5455,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     scheduleLineNumberUpdate();
   });
+
+  markdownEditor.addEventListener('keydown', updateLastCursor);
+  markdownEditor.addEventListener('keyup', updateLastCursor);
+  markdownEditor.addEventListener('mousedown', updateLastCursor);
+  markdownEditor.addEventListener('mouseup', updateLastCursor);
+  markdownEditor.addEventListener('focus', updateLastCursor);
 
   initMarkdownFormatToolbar();
   initFindReplaceModal();
@@ -5229,9 +5536,23 @@ document.addEventListener("DOMContentLoaded", function () {
         if (mermaidNodes.length > 0) {
           // Clear existing rendered Mermaid SVGs and re-render with new theme
           mermaidNodes.forEach(function(node) {
+            // Restore original diagram code to prevent parsing already-rendered SVG as source
+            const originalCode = node.getAttribute('data-original-code');
+            if (originalCode) {
+              const decodedCode = decodeURIComponent(originalCode);
+              const escapedCode = decodedCode
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+              node.innerHTML = escapedCode;
+            }
             node.removeAttribute('data-processed');
             const container = node.closest('.mermaid-container');
-            if (container) container.classList.add('is-loading');
+            if (container) {
+              container.classList.add('is-loading');
+              const oldToolbar = container.querySelector('.mermaid-toolbar');
+              if (oldToolbar) oldToolbar.remove();
+            }
           });
           Promise.resolve(mermaid.init(undefined, mermaidNodes))
             .then(function() {
@@ -5395,7 +5716,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'], 
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code']
       });
       const tempContainer = document.createElement("div");
       tempContainer.innerHTML = sanitizedHtml;
@@ -6095,7 +6416,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = marked.parse(markdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled', 'data-original-code']
       });
 
       const tempElement = document.createElement("div");
@@ -6571,6 +6892,19 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   document.addEventListener("keydown", function (e) {
+    if (document.activeElement === markdownEditor) {
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+      if (isCmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        executeUndo();
+        return;
+      } else if ((isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'z') || (isCmdOrCtrl && e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        executeRedo();
+        return;
+      }
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
       exportMd.click();
@@ -7242,11 +7576,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (dirToggle) {
       const isRtl = document.body.style.direction === 'rtl';
       dirToggle.title = isRtl ? dict.switchLtr : dict.switchRtl;
-    }
-    const mDirToggle = document.getElementById('mobile-direction-toggle');
-    if (mDirToggle) {
-      const isRtl = document.body.style.direction === 'rtl';
-      mDirToggle.innerHTML = `<i class="bi bi-text-right me-2"></i> ${isRtl ? dict.switchLtr : dict.switchRtl}`;
     }
 
     // Modal Titles
