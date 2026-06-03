@@ -3,6 +3,18 @@
 All notable code changes to **Markdown Viewer** are documented here.
 Non-code commits (documentation, planning, README-only updates) are excluded.
 
+## v3.7.2
+
+- **Description:** Implemented custom editor history, a new clear document action, tab layout enhancements, and visual optimizations for theme switching.
+  - **Editor Undo/Redo & Actions:** Implemented custom, robust in-memory document editing history state trackers (Undo/Redo stack) and added a dedicated "Clear Document" toolbar button.
+  - **Tabs Layout & Overflow:** Relocated the "New Tab" button and engineered dynamic container overflow handling to prevent navigation toolbar wrap.
+  - **Mermaid.js Theme Change Synchronization:** Deferred diagram re-rendering and added synchronized fade transitions during theme changes to prevent structural canvas errors, while preserving instant color switches.
+  - **Accessibility & CSS Refactoring:** Removed redundant mobile layout direction buttons; enabled window scroll on mobile viewports for menu access; and cleaned up outer layout scrollbars.
+- **Date:** 2026-06-03
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/4a9cc6a0b602a377a1e30e64205fff7733472ed8
+
+---
+
 ## v3.7.1
 
 - **Description:** Scoped performance optimizations, accessibility remediation, onboarding template stabilization, and library upgrades.
