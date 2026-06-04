@@ -45,6 +45,16 @@ document.addEventListener("DOMContentLoaded", function () {
   let _lastRenderedContent = null;
   const LARGE_DOCUMENT_THRESHOLD = 15000;
   const HUGE_DOCUMENT_THRESHOLD = 100000;
+  const PREVIEW_ENGINE_V2_ENABLED = true;
+  const PREVIEW_WORKER_THRESHOLD = 50000;
+  const PREVIEW_WORKER_TIMEOUT = 12000;
+  const PREVIEW_SEGMENT_MIN_BLOCKS = 8;
+  const PREVIEW_BLOCK_REUSE_LIMIT = 12000;
+  const PREVIEW_SANITIZE_OPTIONS = {
+    ADD_TAGS: ['mjx-container', 'input'],
+    ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+  };
   const RENDER_DELAY = 100;
   const LARGE_RENDER_DELAY = 160;
   const HUGE_RENDER_DELAY = 240;
@@ -56,7 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // View Mode State - Story 1.1
   let currentViewMode = 'split'; // 'editor', 'split', or 'preview'
-  const APP_VERSION = '3.7.5';
+  const APP_VERSION = '3.7.6';
   let activeModal = null;
   let lastFocusedElement = null;
   let isFindModalOpen = false;
@@ -73,6 +83,13 @@ document.addEventListener("DOMContentLoaded", function () {
   let lastCursorStart = 0;
   let lastCursorEnd = 0;
   let pendingState = null;
+  let previewWorker = null;
+  let previewWorkerUnavailable = false;
+  let previewWorkerRequestCounter = 0;
+  let previewWorkerFailureCount = 0;
+  const previewWorkerRequests = new Map();
+  const previewSegmentHtmlCache = new Map();
+  let previewSegmentCacheTabId = null;
 
   const markdownEditor = document.getElementById("markdown-editor");
   const markdownPreview = document.getElementById("markdown-preview");
@@ -385,6 +402,196 @@ document.addEventListener("DOMContentLoaded", function () {
       .replace(/'/g, "&#39;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  function sanitizePreviewHtml(html) {
+    if (typeof DOMPurify === "undefined") {
+      throw new ReferenceError("DOMPurify is not defined. Secure rendering aborted.");
+    }
+    return DOMPurify.sanitize(html, PREVIEW_SANITIZE_OPTIONS);
+  }
+
+  function getLoadedScriptUrl(needle, fallbackUrl) {
+    const scripts = document.getElementsByTagName("script");
+    for (let i = 0; i < scripts.length; i += 1) {
+      const src = scripts[i].getAttribute("src") || "";
+      if (src.includes(needle)) {
+        try {
+          return new URL(src, window.location.href).toString();
+        } catch (e) {
+          return src;
+        }
+      }
+    }
+    return fallbackUrl;
+  }
+
+  function getPreviewWorkerUrl() {
+    const scripts = document.getElementsByTagName("script");
+    let scriptUrl = "";
+    for (let i = scripts.length - 1; i >= 0; i -= 1) {
+      const src = scripts[i].getAttribute("src") || "";
+      if (src.includes("script.js")) {
+        scriptUrl = src;
+        break;
+      }
+    }
+
+    try {
+      return new URL("preview-worker.js", scriptUrl ? new URL(scriptUrl, window.location.href) : window.location.href).toString();
+    } catch (e) {
+      return "preview-worker.js";
+    }
+  }
+
+  function getPreviewWorkerLibraryUrls() {
+    return {
+      marked: getLoadedScriptUrl("marked", "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"),
+      highlight: getLoadedScriptUrl("highlight", "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"),
+    };
+  }
+
+  function isSegmentedPreviewSafe(markdown) {
+    if (!markdown || markdown.length < PREVIEW_WORKER_THRESHOLD) return false;
+    if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(markdown)) return false;
+    if (/^\[[^\]\n]+\]:\s+\S+/m.test(markdown)) return false;
+    if (/\[\^[^\]\n]+\]/.test(markdown)) return false;
+    if (/\n:[ \t]+/.test(markdown)) return false;
+    if (/^\s{0,3}<\/?[a-zA-Z][\w:-]*(?:\s|>|\/>)/m.test(markdown)) return false;
+    return true;
+  }
+
+  function shouldUsePreviewWorker(rawVal, context) {
+    if (!PREVIEW_ENGINE_V2_ENABLED || previewWorkerUnavailable || context.disableWorker) return false;
+    if (typeof Worker === "undefined" || typeof URL === "undefined") return false;
+    return isSegmentedPreviewSafe(rawVal);
+  }
+
+  function resetPreviewSegmentCache(previewDocumentId) {
+    if (previewSegmentCacheTabId !== previewDocumentId) {
+      previewSegmentHtmlCache.clear();
+      previewSegmentCacheTabId = previewDocumentId;
+    }
+  }
+
+  function trimPreviewSegmentCache() {
+    while (previewSegmentHtmlCache.size > PREVIEW_BLOCK_REUSE_LIMIT) {
+      const firstKey = previewSegmentHtmlCache.keys().next().value;
+      previewSegmentHtmlCache.delete(firstKey);
+    }
+  }
+
+  function buildSegmentedPreviewHtml(blocks, previewDocumentId) {
+    resetPreviewSegmentCache(previewDocumentId);
+    const htmlParts = [];
+
+    blocks.forEach(function(block, index) {
+      const hash = String(block.hash || "");
+      const cacheKey = `${hash}:${block.sourceLength || 0}:${block.htmlLength || (block.html ? block.html.length : 0)}`;
+      let sanitizedBlock = previewSegmentHtmlCache.get(cacheKey);
+      if (sanitizedBlock === undefined) {
+        sanitizedBlock = sanitizePreviewHtml(block.html || "");
+        previewSegmentHtmlCache.set(cacheKey, sanitizedBlock);
+      }
+      const blockId = block.id || `preview-block-${index}`;
+      htmlParts.push(
+        `<section class="preview-render-block" style="content-visibility: auto; contain-intrinsic-size: auto 220px;" data-preview-block-id="${escapeHtmlAttribute(blockId)}" data-preview-block-hash="${escapeHtmlAttribute(cacheKey)}">${sanitizedBlock}</section>`
+      );
+    });
+
+    trimPreviewSegmentCache();
+    return htmlParts.join("");
+  }
+
+  function markPreviewWorkerFailure(error) {
+    previewWorkerFailureCount += 1;
+    if (previewWorkerFailureCount >= 2) {
+      previewWorkerUnavailable = true;
+    }
+    if (previewWorker) {
+      try {
+        previewWorker.terminate();
+      } catch (e) {
+        // Ignore worker shutdown failures; fallback rendering will continue on main.
+      }
+      previewWorker = null;
+    }
+    previewWorkerRequests.forEach(function(pending) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(error || new Error("Preview worker unavailable."));
+    });
+    previewWorkerRequests.clear();
+  }
+
+  function recordPreviewWorkerRenderFailure() {
+    previewWorkerFailureCount += 1;
+    if (previewWorkerFailureCount < 2) return;
+    previewWorkerUnavailable = true;
+    if (previewWorker) {
+      try {
+        previewWorker.terminate();
+      } catch (e) {
+        // Ignore worker shutdown failures; fallback rendering will continue on main.
+      }
+      previewWorker = null;
+    }
+  }
+
+  function getPreviewWorker() {
+    if (previewWorkerUnavailable) return null;
+    if (previewWorker) return previewWorker;
+    try {
+      previewWorker = new Worker(getPreviewWorkerUrl());
+      previewWorker.onmessage = function(event) {
+        const data = event.data || {};
+        const pending = previewWorkerRequests.get(data.requestId);
+        if (!pending) return;
+        clearTimeout(pending.timeoutId);
+        previewWorkerRequests.delete(data.requestId);
+        if (data.type === "render-result") {
+          previewWorkerFailureCount = 0;
+          pending.resolve(data.result);
+        } else {
+          recordPreviewWorkerRenderFailure();
+          pending.reject(new Error(data.error || "Preview worker render failed."));
+        }
+      };
+      previewWorker.onerror = function(event) {
+        markPreviewWorkerFailure(event && event.message ? new Error(event.message) : new Error("Preview worker failed."));
+      };
+    } catch (e) {
+      markPreviewWorkerFailure(e);
+      return null;
+    }
+    return previewWorker;
+  }
+
+  function requestPreviewWorkerRender(rawVal, context) {
+    const worker = getPreviewWorker();
+    if (!worker) {
+      return Promise.reject(new Error("Preview worker unavailable."));
+    }
+
+    const requestId = ++previewWorkerRequestCounter;
+    return new Promise(function(resolve, reject) {
+      const timeoutId = setTimeout(function() {
+        previewWorkerRequests.delete(requestId);
+        recordPreviewWorkerRenderFailure();
+        reject(new Error("Preview worker timed out."));
+      }, PREVIEW_WORKER_TIMEOUT);
+
+      previewWorkerRequests.set(requestId, { resolve, reject, timeoutId });
+      worker.postMessage({
+        type: "render",
+        requestId,
+        markdown: rawVal,
+        options: {
+          minimumBlocks: PREVIEW_SEGMENT_MIN_BLOCKS,
+          libraryUrls: getPreviewWorkerLibraryUrls(),
+          renderId: context.renderId,
+        },
+      });
+    });
   }
 
   function parseInlineWithoutFootnotes(text) {
@@ -1716,7 +1923,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  function canReusePreviewNode(currentNode, nextNode) {
+  function canReusePreviewNode(currentNode, nextNode, options) {
     if (!currentNode || !nextNode || currentNode.nodeType !== nextNode.nodeType) return false;
 
     if (currentNode.nodeType === Node.TEXT_NODE) {
@@ -1736,6 +1943,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const nextEl = nextNode;
     if ((currentEl.id || nextEl.id) && currentEl.id !== nextEl.id) return false;
 
+    if (
+      options &&
+      options.reusePreviewBlocks &&
+      currentEl.dataset &&
+      nextEl.dataset &&
+      currentEl.dataset.previewBlockHash &&
+      currentEl.dataset.previewBlockHash === nextEl.dataset.previewBlockHash
+    ) {
+      return true;
+    }
+
     if (currentEl.outerHTML === nextEl.outerHTML) return true;
 
     if (currentEl.tagName === 'DETAILS' && nextEl.tagName === 'DETAILS' && currentEl.hasAttribute('open')) {
@@ -1745,10 +1963,17 @@ document.addEventListener("DOMContentLoaded", function () {
     return false;
   }
 
-  function patchPreviewDom(container, html) {
+  function patchPreviewDom(container, html, options) {
+    const result = {
+      fullReplace: false,
+      updatedNodes: [],
+    };
+
     if (!previewHasCommittedRender || previewContainsSkeleton()) {
       container.innerHTML = html;
-      return;
+      result.fullReplace = true;
+      result.updatedNodes = [container];
+      return result;
     }
 
     const template = document.createElement('template');
@@ -1758,7 +1983,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (nextNodes.length > 6000 || currentNodeCount > 6000) {
       container.replaceChildren(...nextNodes);
-      return;
+      result.fullReplace = true;
+      result.updatedNodes = [container];
+      return result;
     }
 
     let index = 0;
@@ -1773,25 +2000,31 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (!currentNode) {
         container.appendChild(nextNode);
+        result.updatedNodes.push(nextNode);
         index += 1;
         continue;
       }
 
-      if (canReusePreviewNode(currentNode, nextNode)) {
+      if (canReusePreviewNode(currentNode, nextNode, options)) {
         index += 1;
         continue;
       }
 
+      result.updatedNodes.push(nextNode);
       currentNode.replaceWith(nextNode);
       index += 1;
     }
+
+    return result;
   }
 
   function commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context) {
     const shouldRestoreScroll = previewHasCommittedRender && !previewContainsSkeleton();
     const scrollSnapshot = shouldRestoreScroll ? capturePreviewScroll() : null;
 
-    patchPreviewDom(markdownPreview, sanitizedHtml);
+    const patchResult = patchPreviewDom(markdownPreview, sanitizedHtml, {
+      reusePreviewBlocks: context.previewEngineMode === 'segmented' && !context.force,
+    });
     applyReferencePreviewLinks(markdownPreview, referenceData.definitions);
     enhanceGitHubAlerts(markdownPreview);
 
@@ -1802,6 +2035,191 @@ document.addEventListener("DOMContentLoaded", function () {
     markdownPreview.dataset.renderState = 'ready';
 
     restorePreviewScroll(scrollSnapshot);
+    return patchResult;
+  }
+
+  function getPreviewPostProcessRoots(patchResult) {
+    if (!patchResult || patchResult.fullReplace || !patchResult.updatedNodes || patchResult.updatedNodes.length === 0) {
+      return [markdownPreview];
+    }
+
+    const roots = [];
+    const seen = new Set();
+    patchResult.updatedNodes.forEach(function(node) {
+      const root = node && node.nodeType === Node.ELEMENT_NODE ? node : (node && node.parentElement);
+      if (root && !seen.has(root)) {
+        seen.add(root);
+        roots.push(root);
+      }
+    });
+
+    return roots.length ? roots : [markdownPreview];
+  }
+
+  function queryPreviewRoots(roots, selector) {
+    const matches = [];
+    const seen = new Set();
+    roots.forEach(function(root) {
+      if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+      if (root.matches && root.matches(selector) && !seen.has(root)) {
+        seen.add(root);
+        matches.push(root);
+      }
+      root.querySelectorAll(selector).forEach(function(node) {
+        if (!seen.has(node)) {
+          seen.add(node);
+          matches.push(node);
+        }
+      });
+    });
+    return matches;
+  }
+
+  function markPreviewRootsReady(roots) {
+    queryPreviewRoots(roots, '.mermaid-container.is-loading').forEach(function(container) {
+      container.classList.remove('is-loading');
+    });
+  }
+
+  function postProcessPreview(rawVal, context, patchResult) {
+    const roots = getPreviewPostProcessRoots(patchResult);
+
+    roots.forEach(function(root) {
+      processEmojis(root);
+    });
+
+    queryPreviewRoots(roots, 'input[type="checkbox"]').forEach(function(input) {
+      if (!input.hasAttribute('aria-label')) {
+        const parentText = input.parentElement ? input.parentElement.textContent.trim() : '';
+        input.setAttribute('aria-label', parentText || 'Task item');
+      }
+    });
+
+    try {
+      const mermaidNodes = queryPreviewRoots(roots, '.mermaid');
+      if (mermaidNodes.length > 0) {
+        const renderMermaidNodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          initMermaid(false);
+          Promise.resolve(mermaid.init(undefined, mermaidNodes))
+            .then(() => {
+              if (context.renderId !== previewRenderGeneration) return;
+              markPreviewRootsReady(roots);
+              addMermaidToolbars();
+            })
+            .catch((e) => {
+              if (context.renderId !== previewRenderGeneration) return;
+              console.warn("Mermaid rendering failed:", e);
+              markPreviewRootsReady(roots);
+              addMermaidToolbars();
+            });
+        };
+        if (typeof mermaid === 'undefined') {
+          loadScript(CDN.mermaid).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            initMermaid(true);
+            renderMermaidNodes();
+          }).catch(function(e) { console.warn('Failed to load mermaid:', e); });
+        } else {
+          renderMermaidNodes();
+        }
+      }
+    } catch (e) {
+      console.warn("Mermaid rendering failed:", e);
+    }
+
+    const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '');
+    if (hasMath) {
+      const typesetTargets = roots.filter(function(root) {
+        return root && root.nodeType === Node.ELEMENT_NODE && /\$\$|\$[^$]|\\\(|\\\[/.test(root.textContent || '');
+      });
+      const mathTargets = typesetTargets.length ? typesetTargets : roots;
+      if (window.MathJax) {
+        try {
+          MathJax.typesetPromise(mathTargets).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            queryPreviewRoots(mathTargets, 'mjx-container[tabindex="0"]').forEach(function(mjx) {
+              mjx.removeAttribute('tabindex');
+            });
+          }).catch(function(err) {
+            console.warn('MathJax typesetting failed:', err);
+          });
+        } catch (e) {
+          console.warn("MathJax rendering failed:", e);
+        }
+      } else {
+        window.MathJax = {
+          loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
+          options: {
+            a11y: { inTabOrder: false }
+          },
+          tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            processEscapes: true,
+            packages: { '[+]': ['ams', 'boldsymbol'] }
+          }
+        };
+        loadScript(CDN.mathjax).then(function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          try {
+            MathJax.typesetPromise(mathTargets).then(function() {
+              if (context.renderId !== previewRenderGeneration) return;
+              queryPreviewRoots(mathTargets, 'mjx-container[tabindex="0"]').forEach(function(mjx) {
+                mjx.removeAttribute('tabindex');
+              });
+            }).catch(function(err) {
+              console.warn('MathJax typesetting failed:', err);
+            });
+          } catch (e) {
+            console.warn('MathJax rendering failed:', e);
+          }
+        }).catch(function(e) { console.warn('Failed to load MathJax:', e); });
+      }
+    }
+
+    updateDocumentStats();
+    updateFindHighlights();
+    cleanupImageObjectUrls();
+    scheduleLineNumberUpdate();
+  }
+
+  function executeMainThreadRender(rawVal, context) {
+    const { frontmatter, body } = parseFrontmatter(rawVal);
+    const tableHtml = frontmatter ? renderFrontmatterTable(frontmatter) : '';
+    const referenceData = extractReferenceDefinitions(body);
+    const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
+    const sanitizedHtml = sanitizePreviewHtml(html);
+
+    if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+
+    previewSegmentHtmlCache.clear();
+    const patchResult = commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context);
+    postProcessPreview(rawVal, context, patchResult);
+  }
+
+  function executeWorkerRender(rawVal, context) {
+    requestPreviewWorkerRender(rawVal, context)
+      .then(function(result) {
+        if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+        if (!result || result.mode !== 'segmented' || !Array.isArray(result.blocks) || result.blocks.length < PREVIEW_SEGMENT_MIN_BLOCKS) {
+          executeMainThreadRender(rawVal, Object.assign({}, context, { disableWorker: true }));
+          return;
+        }
+
+        const segmentedHtml = buildSegmentedPreviewHtml(result.blocks, context.previewDocumentId);
+        if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+
+        const patchResult = commitPreviewHtml(segmentedHtml, { definitions: new Map() }, rawVal, Object.assign({}, context, {
+          previewEngineMode: 'segmented',
+        }));
+        postProcessPreview(rawVal, context, patchResult);
+      })
+      .catch(function(error) {
+        if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+        console.warn('Preview worker unavailable; falling back to main-thread renderer:', error);
+        executeMainThreadRender(rawVal, Object.assign({}, context, { disableWorker: true }));
+      });
   }
 
   function renderMarkdown(options) {
@@ -1867,121 +2285,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      const { frontmatter, body } = parseFrontmatter(rawVal);
-      const tableHtml = frontmatter ? renderFrontmatterTable(frontmatter) : '';
-      const referenceData = extractReferenceDefinitions(body);
-      const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
-      const sanitizedHtml = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['mjx-container', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
-        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
-      });
-
-      if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
-
-      commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context);
-
-      processEmojis(markdownPreview);
-
-      // Add accessible dynamic labels to task list checkboxes matching their parent text
-      markdownPreview.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
-        if (!input.hasAttribute('aria-label')) {
-          const parentText = input.parentElement ? input.parentElement.textContent.trim() : '';
-          input.setAttribute('aria-label', parentText || 'Task item');
-        }
-      });
-      
-      // PERF-002: Lazy-load mermaid only when diagrams are present
-      try {
-        const mermaidNodes = markdownPreview.querySelectorAll('.mermaid');
-        if (mermaidNodes.length > 0) {
-          const renderMermaidNodes = function() {
-            if (context.renderId !== previewRenderGeneration) return;
-            initMermaid(false);
-            Promise.resolve(mermaid.init(undefined, mermaidNodes))
-              .then(() => {
-                if (context.renderId !== previewRenderGeneration) return;
-                markdownPreview.querySelectorAll('.mermaid-container.is-loading').forEach((container) => {
-                  container.classList.remove('is-loading');
-                });
-                addMermaidToolbars();
-              })
-              .catch((e) => {
-                if (context.renderId !== previewRenderGeneration) return;
-                console.warn("Mermaid rendering failed:", e);
-                markdownPreview.querySelectorAll('.mermaid-container.is-loading').forEach((container) => {
-                  container.classList.remove('is-loading');
-                });
-                addMermaidToolbars();
-              });
-          };
-          if (typeof mermaid === 'undefined') {
-            loadScript(CDN.mermaid).then(function() {
-              if (context.renderId !== previewRenderGeneration) return;
-              initMermaid(true);
-              renderMermaidNodes();
-            }).catch(function(e) { console.warn('Failed to load mermaid:', e); });
-          } else {
-            renderMermaidNodes();
-          }
-        }
-      } catch (e) {
-        console.warn("Mermaid rendering failed:", e);
+      if (shouldUsePreviewWorker(rawVal, context)) {
+        executeWorkerRender(rawVal, context);
+      } else {
+        executeMainThreadRender(rawVal, context);
       }
-
-      // PERF-002: Lazy-load MathJax only when math syntax is detected
-      const rawText = rawVal || '';
-      const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawText);
-      if (hasMath) {
-        if (window.MathJax) {
-          try {
-            MathJax.typesetPromise([markdownPreview]).then(function() {
-              if (context.renderId !== previewRenderGeneration) return;
-              markdownPreview.querySelectorAll('mjx-container[tabindex="0"]').forEach(function(mjx) {
-                mjx.removeAttribute('tabindex');
-              });
-            }).catch(function(err) {
-              console.warn('MathJax typesetting failed:', err);
-            });
-          } catch (e) {
-            console.warn("MathJax rendering failed:", e);
-          }
-        } else {
-          // Configure and load MathJax on first use
-          window.MathJax = {
-            loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
-            options: {
-              a11y: { inTabOrder: false }
-            },
-            tex: {
-              inlineMath: [['$', '$'], ['\\(', '\\)']],
-              displayMath: [['$$', '$$'], ['\\[', '\\]']],
-              processEscapes: true,
-              packages: { '[+]': ['ams', 'boldsymbol'] }
-            }
-          };
-          loadScript(CDN.mathjax).then(function() {
-            if (context.renderId !== previewRenderGeneration) return;
-            try {
-              MathJax.typesetPromise([markdownPreview]).then(function() {
-                if (context.renderId !== previewRenderGeneration) return;
-                markdownPreview.querySelectorAll('mjx-container[tabindex="0"]').forEach(function(mjx) {
-                  mjx.removeAttribute('tabindex');
-                });
-              }).catch(function(err) {
-                console.warn('MathJax typesetting failed:', err);
-              });
-            } catch (e) {
-              console.warn('MathJax rendering failed:', e);
-            }
-          }).catch(function(e) { console.warn('Failed to load MathJax:', e); });
-        }
-      }
-
-      updateDocumentStats();
-      updateFindHighlights();
-      cleanupImageObjectUrls();
-      scheduleLineNumberUpdate();
     } catch (e) {
       console.error("Markdown rendering failed:", e);
       const safeMessage = escapeHtml(e && e.message ? e.message : 'Unknown error');

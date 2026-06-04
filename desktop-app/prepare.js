@@ -46,6 +46,9 @@ function copyDirSync(src, dest, excludePatterns) {
 fs.copyFileSync(path.join(ROOT_DIR, "script.js"), path.join(jsDest, "script.js"));
 console.log("✓ Copied script.js → resources/js/script.js");
 
+fs.copyFileSync(path.join(ROOT_DIR, "preview-worker.js"), path.join(jsDest, "preview-worker.js"));
+console.log("Copied preview-worker.js to resources/js/preview-worker.js");
+
 fs.copyFileSync(path.join(ROOT_DIR, "styles.css"), path.join(RESOURCES_DIR, "styles.css"));
 console.log("✓ Copied styles.css → resources/styles.css");
 
