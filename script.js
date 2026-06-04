@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // View Mode State - Story 1.1
   let currentViewMode = 'split'; // 'editor', 'split', or 'preview'
-  const APP_VERSION = '3.7.4';
+  const APP_VERSION = '3.7.5';
   let activeModal = null;
   let lastFocusedElement = null;
   let isFindModalOpen = false;
@@ -329,8 +329,16 @@ document.addEventListener("DOMContentLoaded", function () {
   const LINE_NUMBER_GUTTER_MIN_CH = 3;
   const LINE_NUMBER_GUTTER_PADDING_CH = 1;
   const LINE_NUMBER_EMPTY_PLACEHOLDER = '\u200b';
+  const LINE_CACHE_MAX_ENTRIES = 5000;
+  const LARGE_EDITOR_WORK_DELAY = 180;
+  const HUGE_EDITOR_WORK_DELAY = 320;
+  const FIND_REFRESH_DELAY = 120;
+  const LARGE_FIND_REFRESH_DELAY = 320;
   let lineNumberMeasure = null;
   let lineNumberUpdateFrame = null;
+  let lineNumberUpdateTimeout = null;
+  let editorOverlayScrollFrame = null;
+  let findRefreshTimeout = null;
 
   const renderer = new marked.Renderer();
   const BLOCK_MATH_MARKER_PATTERN = /^\$\$/m;
@@ -1649,6 +1657,17 @@ document.addEventListener("DOMContentLoaded", function () {
     return RENDER_DELAY;
   }
 
+  function getEditorWorkDelay(markdown) {
+    const length = markdown.length;
+    if (length >= HUGE_DOCUMENT_THRESHOLD) return HUGE_EDITOR_WORK_DELAY;
+    if (length >= LARGE_DOCUMENT_THRESHOLD) return LARGE_EDITOR_WORK_DELAY;
+    return 0;
+  }
+
+  function isEditorVisible() {
+    return currentViewMode === 'editor' || currentViewMode === 'split';
+  }
+
   function deferPreviewWork(callback, rawLength) {
     let cancelled = false;
     let rafId = null;
@@ -2557,13 +2576,36 @@ document.addEventListener("DOMContentLoaded", function () {
     }, delay);
   }
 
+  function countWordsFast(text) {
+    let count = 0;
+    let inWord = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const code = text.charCodeAt(i);
+      if (
+        code === 32 ||
+        code === 9 ||
+        code === 10 ||
+        code === 13 ||
+        code === 12 ||
+        code === 11 ||
+        code === 160
+      ) {
+        inWord = false;
+      } else if (!inWord) {
+        count += 1;
+        inWord = true;
+      }
+    }
+    return count;
+  }
+
   function updateDocumentStats() {
     const text = markdownEditor.value;
 
     const charCount = text.length;
     charCountElement.textContent = charCount.toLocaleString();
 
-    const wordCount = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+    const wordCount = countWordsFast(text);
     wordCountElement.textContent = wordCount.toLocaleString();
 
     const readingTimeMinutes = Math.ceil(wordCount / 200);
@@ -2682,6 +2724,13 @@ document.addEventListener("DOMContentLoaded", function () {
     // Re-render markdown when switching to a view that includes preview
     if (mode === 'split' || mode === 'preview') {
       renderMarkdown({ reason: 'view-switch' });
+    }
+
+    if (mode === 'split' || mode === 'editor') {
+      refreshEditorWidth();
+      scheduleLineNumberUpdate({ force: true });
+      updateFindHighlights();
+      scheduleEditorOverlayScrollSync();
     }
   }
 
@@ -4287,6 +4336,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateFindHighlights() {
     if (!editorHighlightLayer) return;
+    if (!isEditorVisible()) return;
     if (!isFindModalOpen || !findReplaceInput || !findReplaceInput.value || !findMatches.length) {
       if (editorHighlightLayer.textContent !== '') {
         editorHighlightLayer.textContent = '';
@@ -4317,6 +4367,15 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!editorHighlightLayer) return;
     editorHighlightLayer.scrollTop = cachedScrollTop;
     editorHighlightLayer.scrollLeft = cachedScrollLeft;
+  }
+
+  function scheduleEditorOverlayScrollSync() {
+    if (editorOverlayScrollFrame) return;
+    editorOverlayScrollFrame = requestAnimationFrame(function() {
+      editorOverlayScrollFrame = null;
+      syncHighlightScroll();
+      syncLineNumberScroll();
+    });
   }
 
   function updateLineNumberGutter(lineCount) {
@@ -4388,6 +4447,26 @@ document.addEventListener("DOMContentLoaded", function () {
   let cachedScrollTop = 0;
   let cachedScrollLeft = 0;
   let isGeometryInitialized = false;
+  let lastLineNumberLineCount = 0;
+  let lastLineNumberDocumentLength = 0;
+
+  function countLinesFast(text) {
+    if (!text) return 1;
+    let count = 1;
+    for (let i = 0; i < text.length; i += 1) {
+      if (text.charCodeAt(i) === 10) count += 1;
+    }
+    return count;
+  }
+
+  function countLinesBeforeIndex(text, endIndex) {
+    let count = 0;
+    const max = Math.max(0, Math.min(text.length, endIndex));
+    for (let i = 0; i < max; i += 1) {
+      if (text.charCodeAt(i) === 10) count += 1;
+    }
+    return count;
+  }
 
   function initEditorGeometry() {
     if (!markdownEditor) return;
@@ -4427,16 +4506,53 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     cachedEditorWidth = markdownEditor.clientWidth;
     const availableWidth = cachedEditorWidth - cachedPaddingLeft - cachedPaddingRight;
-    cachedMaxCharsPerLine = Math.max(1, Math.floor(availableWidth / cachedCharWidth));
+    const nextMaxCharsPerLine = Math.max(1, Math.floor(availableWidth / cachedCharWidth));
+    if (nextMaxCharsPerLine !== cachedMaxCharsPerLine) {
+      cachedMaxCharsPerLine = nextMaxCharsPerLine;
+      lineCache.clear();
+    }
     
     cachedScrollTop = markdownEditor.scrollTop;
     cachedScrollLeft = markdownEditor.scrollLeft;
   }
 
-  function updateLineNumbers() {
+  function updateLineNumberItem(item, index, lineText, lineHeight) {
+    if (!item) return;
+    let wrapHeight = lineCache.get(lineText);
+    if (wrapHeight === undefined) {
+      const wrapCount = getWrappedLineCountMonospace(lineText, cachedMaxCharsPerLine);
+      wrapHeight = wrapCount * lineHeight;
+      if (lineCache.size >= LINE_CACHE_MAX_ENTRIES) {
+        lineCache.clear();
+      }
+      lineCache.set(lineText, wrapHeight);
+    }
+
+    const targetText = String(index + 1);
+    if (item.textContent !== targetText) {
+      item.textContent = targetText;
+    }
+    const targetHeight = `${wrapHeight}px`;
+    if (item.style.height !== targetHeight) {
+      item.style.height = targetHeight;
+    }
+  }
+
+  function updateActiveLineNumberHeight(text, lineCount, lineHeight) {
+    const caret = markdownEditor.selectionStart || 0;
+    const lineIndex = Math.min(lineCount - 1, countLinesBeforeIndex(text, caret));
+    const lineStart = text.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
+    const lineEndIndex = text.indexOf('\n', caret);
+    const lineEnd = lineEndIndex === -1 ? text.length : lineEndIndex;
+    updateLineNumberItem(lineNumbers.children[lineIndex], lineIndex, text.slice(lineStart, lineEnd), lineHeight);
+  }
+
+  function updateLineNumbers(options) {
+    const opts = options || {};
     if (!lineNumbers || !markdownEditor) return;
-    const lines = (markdownEditor.value || '').split('\n');
-    const lineCount = Math.max(1, lines.length);
+    if (!isEditorVisible()) return;
+    const text = markdownEditor.value || '';
+    const lineCount = countLinesFast(text);
 
     if (cachedEditorWidth === 0) {
       refreshEditorWidth();
@@ -4447,6 +4563,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const existingItems = lineNumbers.children;
     const existingCount = existingItems.length;
+    const isLargeEditorDocument = text.length >= LARGE_DOCUMENT_THRESHOLD;
+    const canUseActiveLineFastPath =
+      isLargeEditorDocument &&
+      !opts.force &&
+      lineCount === lastLineNumberLineCount &&
+      existingCount === lineCount;
+
+    if (canUseActiveLineFastPath) {
+      updateActiveLineNumberHeight(text, lineCount, lineHeight);
+      lastLineNumberDocumentLength = text.length;
+      syncLineNumberScroll();
+      return;
+    }
+
+    const lines = text.split('\n');
 
     // Adjust the number of DOM elements in-place to avoid complete tear-down
     if (existingCount < lineCount) {
@@ -4465,35 +4596,52 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Update only the heights and numbers that changed, using monospace simulator to avoid forced reflows
     for (let i = 0; i < lineCount; i += 1) {
-      const lineText = lines[i];
-      let wrapHeight = lineCache.get(lineText);
-      if (wrapHeight === undefined) {
-        const wrapCount = getWrappedLineCountMonospace(lineText, cachedMaxCharsPerLine);
-        wrapHeight = wrapCount * lineHeight;
-        lineCache.set(lineText, wrapHeight);
-      }
-
-      const item = existingItems[i];
-      const targetText = String(i + 1);
-      if (item.textContent !== targetText) {
-        item.textContent = targetText;
-      }
-      const targetHeight = `${wrapHeight}px`;
-      if (item.style.height !== targetHeight) {
-        item.style.height = targetHeight;
-      }
+      updateLineNumberItem(existingItems[i], i, lines[i], lineHeight);
     }
 
+    lastLineNumberLineCount = lineCount;
+    lastLineNumberDocumentLength = text.length;
     syncLineNumberScroll();
   }
 
-  function scheduleLineNumberUpdate() {
+  function scheduleLineNumberUpdate(options) {
+    const opts = options || {};
     if (!lineNumbers) return;
-    if (lineNumberUpdateFrame) return;
-    lineNumberUpdateFrame = window.requestAnimationFrame(function() {
-      lineNumberUpdateFrame = null;
-      updateLineNumbers();
-    });
+    if (!isEditorVisible()) return;
+
+    if (opts.force) {
+      if (lineNumberUpdateTimeout) {
+        clearTimeout(lineNumberUpdateTimeout);
+        lineNumberUpdateTimeout = null;
+      }
+      if (lineNumberUpdateFrame) {
+        cancelAnimationFrame(lineNumberUpdateFrame);
+        lineNumberUpdateFrame = null;
+      }
+    } else if (lineNumberUpdateFrame || lineNumberUpdateTimeout) {
+      return;
+    }
+
+    const text = markdownEditor ? markdownEditor.value || '' : '';
+    const delay = opts.delay !== undefined
+      ? opts.delay
+      : (opts.inputType === 'insertFromPaste' || text.length >= LARGE_DOCUMENT_THRESHOLD ? getEditorWorkDelay(text) : 0);
+
+    const runUpdate = function() {
+      lineNumberUpdateFrame = window.requestAnimationFrame(function() {
+        lineNumberUpdateFrame = null;
+        updateLineNumbers(opts);
+      });
+    };
+
+    if (delay > 0) {
+      lineNumberUpdateTimeout = setTimeout(function() {
+        lineNumberUpdateTimeout = null;
+        runUpdate();
+      }, delay);
+    } else {
+      runUpdate();
+    }
   }
 
   function syncLineNumberScroll() {
@@ -4921,6 +5069,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function refreshFindMatches(options) {
+    clearTimeout(findRefreshTimeout);
+    findRefreshTimeout = null;
     const opts = options || {};
     const query = findReplaceInput ? findReplaceInput.value : '';
     const errorBox = document.getElementById('find-replace-error');
@@ -4969,6 +5119,16 @@ document.addEventListener("DOMContentLoaded", function () {
     updateFindControls();
     updateFindHighlights();
     updateHistoryDropdowns();
+  }
+
+  function scheduleFindRefresh(options) {
+    clearTimeout(findRefreshTimeout);
+    const text = markdownEditor ? markdownEditor.value || '' : '';
+    const delay = text.length >= LARGE_DOCUMENT_THRESHOLD ? LARGE_FIND_REFRESH_DELAY : FIND_REFRESH_DELAY;
+    findRefreshTimeout = setTimeout(function() {
+      findRefreshTimeout = null;
+      refreshFindMatches(options);
+    }, delay);
   }
 
   function selectActiveMatch() {
@@ -5746,11 +5906,13 @@ document.addEventListener("DOMContentLoaded", function () {
     clearTimeout(saveTabStateTimeout);
     saveTabStateTimeout = setTimeout(saveCurrentTabState, 500);
     if (isFindModalOpen) {
-      refreshFindMatches();
+      scheduleFindRefresh();
     } else {
       updateFindHighlights();
     }
-    scheduleLineNumberUpdate();
+    scheduleLineNumberUpdate({
+      inputType: e && typeof e.inputType === 'string' ? e.inputType : '',
+    });
   });
 
   markdownEditor.addEventListener('keydown', updateLastCursor);
@@ -5794,8 +5956,7 @@ document.addEventListener("DOMContentLoaded", function () {
     cachedScrollTop = this.scrollTop;
     cachedScrollLeft = this.scrollLeft;
     syncEditorToPreview();
-    syncHighlightScroll();
-    syncLineNumberScroll();
+    scheduleEditorOverlayScrollSync();
   });
   previewPane.addEventListener("scroll", syncPreviewToEditor);
   toggleSyncButton.addEventListener("click", toggleSyncScrolling);
