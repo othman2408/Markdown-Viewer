@@ -2926,9 +2926,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (scrollSyncTimeout) cancelAnimationFrame(scrollSyncTimeout);
     scrollSyncTimeout = requestAnimationFrame(function() {
+      const editorScrollRange = markdownEditor.scrollHeight - markdownEditor.clientHeight;
       const editorScrollRatio =
-        editorPane.scrollTop /
-        (editorPane.scrollHeight - editorPane.clientHeight);
+        editorScrollRange > 0 ? markdownEditor.scrollTop / editorScrollRange : 0;
       const previewScrollPosition =
         (previewPane.scrollHeight - previewPane.clientHeight) *
         editorScrollRatio;
@@ -2949,15 +2949,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (scrollSyncTimeout) cancelAnimationFrame(scrollSyncTimeout);
     scrollSyncTimeout = requestAnimationFrame(function() {
+      const previewScrollRange = previewPane.scrollHeight - previewPane.clientHeight;
       const previewScrollRatio =
-        previewPane.scrollTop /
-        (previewPane.scrollHeight - previewPane.clientHeight);
+        previewScrollRange > 0 ? previewPane.scrollTop / previewScrollRange : 0;
       const editorScrollPosition =
-        (editorPane.scrollHeight - editorPane.clientHeight) *
+        (markdownEditor.scrollHeight - markdownEditor.clientHeight) *
         previewScrollRatio;
 
       if (!isNaN(editorScrollPosition) && isFinite(editorScrollPosition)) {
-        editorPane.scrollTop = editorScrollPosition;
+        markdownEditor.scrollTop = editorScrollPosition;
+        syncEditorScrollOverlays();
       }
 
       setTimeout(function() {
@@ -4957,6 +4958,68 @@ document.addEventListener("DOMContentLoaded", function () {
     lineNumbers.scrollTop = cachedScrollTop;
   }
 
+  function syncEditorScrollOverlays() {
+    cachedScrollTop = markdownEditor.scrollTop;
+    cachedScrollLeft = markdownEditor.scrollLeft;
+    syncHighlightScroll();
+    syncLineNumberScroll();
+  }
+
+  function clampEditorScrollTop(scrollTop) {
+    const maxScrollTop = Math.max(0, markdownEditor.scrollHeight - markdownEditor.clientHeight);
+    return Math.min(maxScrollTop, Math.max(0, scrollTop));
+  }
+
+  function estimateEditorOffsetForIndex(index) {
+    if (!isGeometryInitialized || cachedEditorWidth !== markdownEditor.clientWidth) {
+      refreshEditorWidth();
+    }
+
+    const styles = window.getComputedStyle(markdownEditor);
+    const paddingTop = parseFloat(styles.paddingTop) || 10;
+    const textBefore = (markdownEditor.value || '').slice(0, Math.max(0, index));
+    const lines = textBefore.split('\n');
+    let visualRows = 0;
+
+    for (let i = 0; i < lines.length - 1; i += 1) {
+      visualRows += getWrappedLineCountMonospace(lines[i], cachedMaxCharsPerLine);
+    }
+
+    const currentLinePrefix = lines[lines.length - 1] || '';
+    visualRows += Math.max(0, getWrappedLineCountMonospace(currentLinePrefix, cachedMaxCharsPerLine) - 1);
+    return paddingTop + (visualRows * cachedLineHeight);
+  }
+
+  function getActiveFindHighlight() {
+    if (!editorHighlightLayer) return null;
+    return editorHighlightLayer.querySelector('.find-highlight.active');
+  }
+
+  function scrollActiveMatchIntoView(match) {
+    let matchTop = null;
+    let matchHeight = cachedLineHeight;
+    let activeHighlight = getActiveFindHighlight();
+
+    if (!activeHighlight) {
+      updateFindHighlights();
+      activeHighlight = getActiveFindHighlight();
+    }
+
+    if (activeHighlight) {
+      matchTop = activeHighlight.offsetTop;
+      matchHeight = activeHighlight.offsetHeight || matchHeight;
+    } else {
+      matchTop = estimateEditorOffsetForIndex(match.start);
+    }
+
+    const targetScrollTop = clampEditorScrollTop(
+      matchTop - (markdownEditor.clientHeight / 2) + (matchHeight / 2)
+    );
+
+    markdownEditor.scrollTop = targetScrollTop;
+    syncEditorScrollOverlays();
+  }
+
   // Class encapsulating Search & Replace Engine
   class FindReplaceEngine {
     constructor(editor) {
@@ -5418,7 +5481,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    if (opts.resetIndex || query !== lastFindQuery) {
+    const shouldResetActiveIndex = opts.resetIndex || query !== lastFindQuery;
+    if (shouldResetActiveIndex) {
       activeFindIndex = findMatches.length ? 0 : -1;
     } else if (activeFindIndex >= findMatches.length) {
       activeFindIndex = findMatches.length - 1;
@@ -5426,6 +5490,9 @@ document.addEventListener("DOMContentLoaded", function () {
     lastFindQuery = query;
     updateFindControls();
     updateFindHighlights();
+    if (shouldResetActiveIndex && findMatches.length && activeFindIndex >= 0) {
+      scrollActiveMatchIntoView(findMatches[activeFindIndex]);
+    }
     updateHistoryDropdowns();
   }
 
@@ -5444,20 +5511,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const match = findMatches[activeFindIndex];
     markdownEditor.focus();
     markdownEditor.setSelectionRange(match.start, match.end);
-    
-    // Explicitly scroll editor to center active match in viewport
+
     try {
-      const styles = window.getComputedStyle(markdownEditor);
-      const lineHeight = parseFloat(styles.lineHeight) || 21;
-      const textBefore = markdownEditor.value.slice(0, match.start);
-      const lineIndex = textBefore.split('\n').length - 1;
-      const editorHeight = markdownEditor.clientHeight;
-      const targetScrollTop = Math.max(0, (lineIndex * lineHeight) - (editorHeight / 2) + (lineHeight / 2));
-      
-      markdownEditor.scrollTop = targetScrollTop;
-      cachedScrollTop = targetScrollTop;
-      syncHighlightScroll();
-      syncLineNumberScroll();
+      scrollActiveMatchIntoView(match);
     } catch (e) {
       console.warn("Viewport centering scroll failed:", e);
     }
@@ -6260,7 +6316,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
   
-  editorPane.addEventListener("scroll", function() {
+  markdownEditor.addEventListener("scroll", function() {
     cachedScrollTop = this.scrollTop;
     cachedScrollLeft = this.scrollLeft;
     syncEditorToPreview();
