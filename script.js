@@ -6571,7 +6571,11 @@ document.addEventListener("DOMContentLoaded", function () {
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>
   <style>
+      html {
+          background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
+      }
       body {
+          margin: 0;
           background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
           color: ${isDarkTheme ? "#c9d1d9" : "#24292e"};
       }
@@ -6708,10 +6712,44 @@ document.addEventListener("DOMContentLoaded", function () {
   <article class="markdown-body">
       ${enhancedHtml}
   </article>
-  <script>
+      <script>
+      function fitMarkdownExportToContent() {
+          var article = document.querySelector('.markdown-body');
+          if (!article) return;
+
+          article.style.width = '';
+          article.style.maxWidth = '980px';
+
+          var overflow = article.scrollWidth - article.clientWidth;
+          if (overflow <= 1) return;
+
+          var styles = window.getComputedStyle(article);
+          var paddingRight = parseFloat(styles.paddingRight) || 0;
+          var borderRight = parseFloat(styles.borderRightWidth) || 0;
+          var borderLeft = parseFloat(styles.borderLeftWidth) || 0;
+          var requiredWidth = Math.ceil(article.scrollWidth + paddingRight + borderLeft + borderRight);
+
+          article.style.width = requiredWidth + 'px';
+          article.style.maxWidth = 'none';
+      }
+
+      function queueMarkdownExportFit() {
+          window.requestAnimationFrame(function () {
+              window.requestAnimationFrame(fitMarkdownExportToContent);
+          });
+      }
+
       window.addEventListener('load', function () {
+          var mathReady = Promise.resolve();
+          var article = document.querySelector('.markdown-body');
+          if (article && window.MutationObserver) {
+              new MutationObserver(queueMarkdownExportFit).observe(article, {
+                  childList: true,
+                  subtree: true
+              });
+          }
           if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-              window.MathJax.typesetPromise().catch(function (err) {
+              mathReady = window.MathJax.typesetPromise().catch(function (err) {
                   console.warn('MathJax typeset failed:', err);
               });
           }
@@ -6722,7 +6760,10 @@ document.addEventListener("DOMContentLoaded", function () {
                   console.warn('Mermaid initialization failed:', e);
               }
           }
+          mathReady.finally(queueMarkdownExportFit);
+          queueMarkdownExportFit();
       });
+      window.addEventListener('resize', queueMarkdownExportFit);
   </script>
 </body>
 </html>`;
@@ -6752,6 +6793,31 @@ document.addEventListener("DOMContentLoaded", function () {
     windowWidth: 1000,      // html2canvas config
     scale: 2                // html2canvas scale factor
   };
+
+  function readPixelStyle(element, propertyName) {
+    const value = window.getComputedStyle(element).getPropertyValue(propertyName);
+    return parseFloat(value) || 0;
+  }
+
+  function fitExportElementToContent(element) {
+    if (!element) return false;
+
+    const overflow = element.scrollWidth - element.clientWidth;
+    if (overflow <= 1) return false;
+
+    const paddingLeft = readPixelStyle(element, 'padding-left');
+    const paddingRight = readPixelStyle(element, 'padding-right');
+    const borderLeft = readPixelStyle(element, 'border-left-width');
+    const borderRight = readPixelStyle(element, 'border-right-width');
+    const boxSizing = window.getComputedStyle(element).boxSizing;
+
+    const requiredWidth = boxSizing === 'border-box'
+      ? Math.ceil(element.scrollWidth + paddingRight + borderLeft + borderRight)
+      : Math.ceil(element.scrollWidth - paddingLeft + paddingRight);
+
+    element.style.width = `${requiredWidth}px`;
+    return true;
+  }
 
   /**
    * Task 1: Identifies all graphic elements that may need page-break handling
@@ -7297,6 +7363,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       await new Promise(resolve => setTimeout(resolve, 500));
+      fitExportElementToContent(tempElement);
+      await new Promise(resolve => requestAnimationFrame(resolve));
 
       // Analyze and apply page-breaks for graphics (Story 1.1 + 1.2)
       const pageBreakAnalysis = applyPageBreaksWithCascade(tempElement, PAGE_CONFIG);
@@ -7325,7 +7393,7 @@ document.addEventListener("DOMContentLoaded", function () {
         useCORS: true,
         allowTaint: false,
         logging: false,
-        windowWidth: 1000,
+        windowWidth: Math.max(PAGE_CONFIG.windowWidth, Math.ceil(tempElement.getBoundingClientRect().width)),
         windowHeight: tempElement.scrollHeight
       });
 
