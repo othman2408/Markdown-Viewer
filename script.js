@@ -7510,18 +7510,27 @@ document.addEventListener("DOMContentLoaded", function () {
       await waitForPdfFrame(progressState);
 
       const mermaidNodes = tempElement.querySelectorAll('.mermaid');
-      if (window.mermaid && mermaidNodes.length > 0) {
+      if (mermaidNodes.length > 0) {
         updatePdfProgress(progressState, 34, "Rendering diagrams");
         try {
-          await runPdfAbortable(progressState, mermaid.run({
-            nodes: mermaidNodes,
-            suppressErrors: true
-          }));
+          if (typeof mermaid === 'undefined') {
+            await runPdfAbortable(progressState, loadScript(CDN.mermaid));
+          }
+          throwIfPdfExportAborted(progressState.signal);
+          initMermaid(true);
+          await runPdfAbortable(progressState, mermaid.init(undefined, mermaidNodes));
+          tempElement.querySelectorAll('.mermaid-container.is-loading').forEach(container => {
+            container.classList.remove('is-loading');
+          });
         } catch (mermaidError) {
           if (mermaidError instanceof PdfExportCancelledError) throw mermaidError;
           console.warn("Mermaid rendering issue:", mermaidError);
+          tempElement.querySelectorAll('.mermaid-container.is-loading').forEach(container => {
+            container.classList.remove('is-loading');
+          });
         }
         throwIfPdfExportAborted(progressState.signal);
+        await waitForPdfFrame(progressState);
       }
 
       if (window.MathJax && markdownLikelyContainsMath(markdown)) {
