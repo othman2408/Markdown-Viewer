@@ -37,9 +37,17 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   let markdownRenderTimeout = null;
+  let pendingPreviewRenderCancel = null;
+  let previewRenderGeneration = 0;
+  let previewHasCommittedRender = false;
+  let previewLastRenderedTabId = null;
   // PERF-003: Track last rendered content to skip redundant renders
   let _lastRenderedContent = null;
+  const LARGE_DOCUMENT_THRESHOLD = 15000;
+  const HUGE_DOCUMENT_THRESHOLD = 100000;
   const RENDER_DELAY = 100;
+  const LARGE_RENDER_DELAY = 160;
+  const HUGE_RENDER_DELAY = 240;
   let syncScrollingEnabled = true;
   let isEditorScrolling = false;
   let isPreviewScrolling = false;
@@ -48,7 +56,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // View Mode State - Story 1.1
   let currentViewMode = 'split'; // 'editor', 'split', or 'preview'
-  const APP_VERSION = '3.7.2';
+  const APP_VERSION = '3.7.4';
   let activeModal = null;
   let lastFocusedElement = null;
   let isFindModalOpen = false;
@@ -1601,6 +1609,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function showPreviewSkeleton() {
     if (markdownPreview && !markdownPreview.querySelector('#markdown-preview-skeleton')) {
+      markdownPreview.setAttribute('aria-busy', 'true');
+      markdownPreview.dataset.renderState = 'loading';
       markdownPreview.innerHTML = `
         <div class="skeleton-preview-container" id="markdown-preview-skeleton" aria-hidden="true">
             <div class="skeleton-placeholder skeleton-title"></div>
@@ -1617,23 +1627,225 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function renderMarkdown() {
-    const rawVal = markdownEditor.value;
-    if (rawVal.length > 15000) {
-      showPreviewSkeleton();
-      setTimeout(function() {
-        if (markdownEditor.value !== rawVal) return;
-        executeRender(rawVal);
-      }, 30);
-    } else {
-      executeRender(rawVal);
+  function previewContainsSkeleton() {
+    return Boolean(markdownPreview && markdownPreview.querySelector('#markdown-preview-skeleton'));
+  }
+
+  function getActivePreviewDocumentId() {
+    return activeTabId || '__single-document__';
+  }
+
+  function clearPendingPreviewWork() {
+    if (pendingPreviewRenderCancel) {
+      pendingPreviewRenderCancel();
+      pendingPreviewRenderCancel = null;
     }
   }
 
-  function executeRender(rawVal) {
-    // PERF-003: Skip render if content hasn't changed
-    if (rawVal === _lastRenderedContent) return;
+  function getPreviewRenderDelay(markdown) {
+    const length = markdown.length;
+    if (length >= HUGE_DOCUMENT_THRESHOLD) return HUGE_RENDER_DELAY;
+    if (length >= LARGE_DOCUMENT_THRESHOLD) return LARGE_RENDER_DELAY;
+    return RENDER_DELAY;
+  }
+
+  function deferPreviewWork(callback, rawLength) {
+    let cancelled = false;
+    let rafId = null;
+    let idleId = null;
+    let timeoutId = null;
+
+    rafId = requestAnimationFrame(function() {
+      rafId = null;
+      if (cancelled) return;
+
+      if ('requestIdleCallback' in window) {
+        idleId = window.requestIdleCallback(function() {
+          idleId = null;
+          if (!cancelled) callback();
+        }, { timeout: rawLength >= HUGE_DOCUMENT_THRESHOLD ? 700 : 350 });
+      } else {
+        timeoutId = setTimeout(function() {
+          timeoutId = null;
+          if (!cancelled) callback();
+        }, 0);
+      }
+    });
+
+    return function cancelDeferredPreviewWork() {
+      cancelled = true;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    };
+  }
+
+  function capturePreviewScroll() {
+    if (!previewPane) return null;
+    return {
+      top: previewPane.scrollTop,
+      left: previewPane.scrollLeft,
+    };
+  }
+
+  function restorePreviewScroll(snapshot) {
+    if (!snapshot || !previewPane) return;
+    requestAnimationFrame(function() {
+      const maxTop = Math.max(0, previewPane.scrollHeight - previewPane.clientHeight);
+      previewPane.scrollTop = Math.min(maxTop, snapshot.top);
+      previewPane.scrollLeft = snapshot.left;
+    });
+  }
+
+  function canReusePreviewNode(currentNode, nextNode) {
+    if (!currentNode || !nextNode || currentNode.nodeType !== nextNode.nodeType) return false;
+
+    if (currentNode.nodeType === Node.TEXT_NODE) {
+      if (currentNode.nodeValue !== nextNode.nodeValue) {
+        currentNode.nodeValue = nextNode.nodeValue;
+      }
+      return true;
+    }
+
+    if (currentNode.nodeType !== Node.ELEMENT_NODE) {
+      return currentNode.nodeValue === nextNode.nodeValue;
+    }
+
+    if (currentNode.nodeName !== nextNode.nodeName) return false;
+
+    const currentEl = currentNode;
+    const nextEl = nextNode;
+    if ((currentEl.id || nextEl.id) && currentEl.id !== nextEl.id) return false;
+
+    if (currentEl.outerHTML === nextEl.outerHTML) return true;
+
+    if (currentEl.tagName === 'DETAILS' && nextEl.tagName === 'DETAILS' && currentEl.hasAttribute('open')) {
+      nextEl.setAttribute('open', '');
+    }
+
+    return false;
+  }
+
+  function patchPreviewDom(container, html) {
+    if (!previewHasCommittedRender || previewContainsSkeleton()) {
+      container.innerHTML = html;
+      return;
+    }
+
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const nextNodes = Array.from(template.content.childNodes);
+    const currentNodeCount = container.childNodes.length;
+
+    if (nextNodes.length > 6000 || currentNodeCount > 6000) {
+      container.replaceChildren(...nextNodes);
+      return;
+    }
+
+    let index = 0;
+    while (index < nextNodes.length || index < container.childNodes.length) {
+      const currentNode = container.childNodes[index];
+      const nextNode = nextNodes[index];
+
+      if (!nextNode) {
+        currentNode.remove();
+        continue;
+      }
+
+      if (!currentNode) {
+        container.appendChild(nextNode);
+        index += 1;
+        continue;
+      }
+
+      if (canReusePreviewNode(currentNode, nextNode)) {
+        index += 1;
+        continue;
+      }
+
+      currentNode.replaceWith(nextNode);
+      index += 1;
+    }
+  }
+
+  function commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context) {
+    const shouldRestoreScroll = previewHasCommittedRender && !previewContainsSkeleton();
+    const scrollSnapshot = shouldRestoreScroll ? capturePreviewScroll() : null;
+
+    patchPreviewDom(markdownPreview, sanitizedHtml);
+    applyReferencePreviewLinks(markdownPreview, referenceData.definitions);
+    enhanceGitHubAlerts(markdownPreview);
+
     _lastRenderedContent = rawVal;
+    previewHasCommittedRender = true;
+    previewLastRenderedTabId = context.previewDocumentId;
+    markdownPreview.removeAttribute('aria-busy');
+    markdownPreview.dataset.renderState = 'ready';
+
+    restorePreviewScroll(scrollSnapshot);
+  }
+
+  function renderMarkdown(options) {
+    options = options || {};
+    const rawVal = markdownEditor.value;
+    const force = options.force === true;
+    const previewDocumentId = getActivePreviewDocumentId();
+    const hasCurrentPreview =
+      previewHasCommittedRender &&
+      previewLastRenderedTabId === previewDocumentId &&
+      _lastRenderedContent === rawVal &&
+      !previewContainsSkeleton();
+
+    if (hasCurrentPreview && !force) return;
+
+    clearPendingPreviewWork();
+    const renderId = ++previewRenderGeneration;
+    const isLargeDocument = rawVal.length >= LARGE_DOCUMENT_THRESHOLD;
+    const isDocumentSwap = previewHasCommittedRender && previewLastRenderedTabId !== previewDocumentId;
+    const needsInitialPreview = !previewHasCommittedRender || previewContainsSkeleton();
+    const shouldShowSkeleton =
+      isLargeDocument &&
+      (options.showSkeleton === true || needsInitialPreview || isDocumentSwap);
+
+    if (shouldShowSkeleton) {
+      showPreviewSkeleton();
+    } else if (markdownPreview) {
+      markdownPreview.setAttribute('aria-busy', 'true');
+      markdownPreview.dataset.renderState = 'refreshing';
+    }
+
+    const runRender = function() {
+      pendingPreviewRenderCancel = null;
+      if (renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+      executeRender(rawVal, {
+        force,
+        renderId,
+        previewDocumentId,
+        reason: options.reason || 'direct',
+      });
+    };
+
+    if (isLargeDocument) {
+      pendingPreviewRenderCancel = deferPreviewWork(runRender, rawVal.length);
+    } else {
+      runRender();
+    }
+  }
+
+  function executeRender(rawVal, context) {
+    context = context || {};
+    // PERF-003: Skip render if content hasn't changed
+    if (
+      !context.force &&
+      rawVal === _lastRenderedContent &&
+      previewLastRenderedTabId === context.previewDocumentId &&
+      previewHasCommittedRender &&
+      !previewContainsSkeleton()
+    ) {
+      markdownPreview.removeAttribute('aria-busy');
+      markdownPreview.dataset.renderState = 'ready';
+      return;
+    }
 
     try {
       const { frontmatter, body } = parseFrontmatter(rawVal);
@@ -1645,9 +1857,10 @@ document.addEventListener("DOMContentLoaded", function () {
         ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
       });
-      markdownPreview.innerHTML = sanitizedHtml;
-      applyReferencePreviewLinks(markdownPreview, referenceData.definitions);
-      enhanceGitHubAlerts(markdownPreview);
+
+      if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+
+      commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context);
 
       processEmojis(markdownPreview);
 
@@ -1664,15 +1877,18 @@ document.addEventListener("DOMContentLoaded", function () {
         const mermaidNodes = markdownPreview.querySelectorAll('.mermaid');
         if (mermaidNodes.length > 0) {
           const renderMermaidNodes = function() {
+            if (context.renderId !== previewRenderGeneration) return;
             initMermaid(false);
             Promise.resolve(mermaid.init(undefined, mermaidNodes))
               .then(() => {
+                if (context.renderId !== previewRenderGeneration) return;
                 markdownPreview.querySelectorAll('.mermaid-container.is-loading').forEach((container) => {
                   container.classList.remove('is-loading');
                 });
                 addMermaidToolbars();
               })
               .catch((e) => {
+                if (context.renderId !== previewRenderGeneration) return;
                 console.warn("Mermaid rendering failed:", e);
                 markdownPreview.querySelectorAll('.mermaid-container.is-loading').forEach((container) => {
                   container.classList.remove('is-loading');
@@ -1682,6 +1898,7 @@ document.addEventListener("DOMContentLoaded", function () {
           };
           if (typeof mermaid === 'undefined') {
             loadScript(CDN.mermaid).then(function() {
+              if (context.renderId !== previewRenderGeneration) return;
               initMermaid(true);
               renderMermaidNodes();
             }).catch(function(e) { console.warn('Failed to load mermaid:', e); });
@@ -1700,6 +1917,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (window.MathJax) {
           try {
             MathJax.typesetPromise([markdownPreview]).then(function() {
+              if (context.renderId !== previewRenderGeneration) return;
               markdownPreview.querySelectorAll('mjx-container[tabindex="0"]').forEach(function(mjx) {
                 mjx.removeAttribute('tabindex');
               });
@@ -1724,8 +1942,10 @@ document.addEventListener("DOMContentLoaded", function () {
             }
           };
           loadScript(CDN.mathjax).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
             try {
               MathJax.typesetPromise([markdownPreview]).then(function() {
+                if (context.renderId !== previewRenderGeneration) return;
                 markdownPreview.querySelectorAll('mjx-container[tabindex="0"]').forEach(function(mjx) {
                   mjx.removeAttribute('tabindex');
                 });
@@ -1747,10 +1967,14 @@ document.addEventListener("DOMContentLoaded", function () {
       console.error("Markdown rendering failed:", e);
       const safeMessage = escapeHtml(e && e.message ? e.message : 'Unknown error');
       const safeMarkdown = escapeHtml(rawVal);
-      markdownPreview.innerHTML = `<div class="alert alert-danger">
+      markdownPreview.removeAttribute('aria-busy');
+      markdownPreview.dataset.renderState = 'error';
+      if (!previewHasCommittedRender || previewContainsSkeleton()) {
+        markdownPreview.innerHTML = `<div class="alert alert-danger">
               <strong>Error rendering markdown:</strong> ${safeMessage}
           </div>
           <pre>${safeMarkdown}</pre>`;
+      }
     }
   }
 
@@ -2223,7 +2447,7 @@ document.addEventListener("DOMContentLoaded", function () {
     loadEmojiEntries()
       .then(() => {
         if (emojiUrlMap.size) {
-          renderMarkdown();
+          renderMarkdown({ force: true, reason: 'emoji-refresh' });
         }
       })
       .finally(() => {
@@ -2327,13 +2551,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function debouncedRender() {
     clearTimeout(markdownRenderTimeout);
-    
-    // For large documents, show the skeleton in the preview pane immediately to provide instant visual feedback
-    if (markdownEditor.value.length > 15000) {
-      showPreviewSkeleton();
-    }
-    
-    markdownRenderTimeout = setTimeout(renderMarkdown, RENDER_DELAY);
+    const delay = getPreviewRenderDelay(markdownEditor.value);
+    markdownRenderTimeout = setTimeout(function() {
+      renderMarkdown({ reason: 'edit' });
+    }, delay);
   }
 
   function updateDocumentStats() {
@@ -2460,7 +2681,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Re-render markdown when switching to a view that includes preview
     if (mode === 'split' || mode === 'preview') {
-      renderMarkdown();
+      renderMarkdown({ reason: 'view-switch' });
     }
   }
 
@@ -6902,7 +7123,7 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       const decoded = decodeMarkdownFromShare(encoded);
       markdownEditor.value = decoded;
-      renderMarkdown();
+      renderMarkdown({ reason: 'document-load', showSkeleton: true });
       saveCurrentTabState();
       // Apply the correct view mode: edit=1 → split, default → preview only
       setViewMode(isEdit ? 'split' : 'preview');
