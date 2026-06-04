@@ -37,9 +37,27 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   let markdownRenderTimeout = null;
+  let pendingPreviewRenderCancel = null;
+  let previewRenderGeneration = 0;
+  let previewHasCommittedRender = false;
+  let previewLastRenderedTabId = null;
   // PERF-003: Track last rendered content to skip redundant renders
   let _lastRenderedContent = null;
+  const LARGE_DOCUMENT_THRESHOLD = 15000;
+  const HUGE_DOCUMENT_THRESHOLD = 100000;
+  const PREVIEW_ENGINE_V2_ENABLED = true;
+  const PREVIEW_WORKER_THRESHOLD = 50000;
+  const PREVIEW_WORKER_TIMEOUT = 12000;
+  const PREVIEW_SEGMENT_MIN_BLOCKS = 8;
+  const PREVIEW_BLOCK_REUSE_LIMIT = 12000;
+  const PREVIEW_SANITIZE_OPTIONS = {
+    ADD_TAGS: ['mjx-container', 'input'],
+    ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+  };
   const RENDER_DELAY = 100;
+  const LARGE_RENDER_DELAY = 160;
+  const HUGE_RENDER_DELAY = 240;
   let syncScrollingEnabled = true;
   let isEditorScrolling = false;
   let isPreviewScrolling = false;
@@ -48,7 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // View Mode State - Story 1.1
   let currentViewMode = 'split'; // 'editor', 'split', or 'preview'
-  const APP_VERSION = '3.7.2';
+  const APP_VERSION = '3.7.6';
   let activeModal = null;
   let lastFocusedElement = null;
   let isFindModalOpen = false;
@@ -65,6 +83,13 @@ document.addEventListener("DOMContentLoaded", function () {
   let lastCursorStart = 0;
   let lastCursorEnd = 0;
   let pendingState = null;
+  let previewWorker = null;
+  let previewWorkerUnavailable = false;
+  let previewWorkerRequestCounter = 0;
+  let previewWorkerFailureCount = 0;
+  const previewWorkerRequests = new Map();
+  const previewSegmentHtmlCache = new Map();
+  let previewSegmentCacheTabId = null;
 
   const markdownEditor = document.getElementById("markdown-editor");
   const markdownPreview = document.getElementById("markdown-preview");
@@ -321,8 +346,16 @@ document.addEventListener("DOMContentLoaded", function () {
   const LINE_NUMBER_GUTTER_MIN_CH = 3;
   const LINE_NUMBER_GUTTER_PADDING_CH = 1;
   const LINE_NUMBER_EMPTY_PLACEHOLDER = '\u200b';
+  const LINE_CACHE_MAX_ENTRIES = 5000;
+  const LARGE_EDITOR_WORK_DELAY = 180;
+  const HUGE_EDITOR_WORK_DELAY = 320;
+  const FIND_REFRESH_DELAY = 120;
+  const LARGE_FIND_REFRESH_DELAY = 320;
   let lineNumberMeasure = null;
   let lineNumberUpdateFrame = null;
+  let lineNumberUpdateTimeout = null;
+  let editorOverlayScrollFrame = null;
+  let findRefreshTimeout = null;
 
   const renderer = new marked.Renderer();
   const BLOCK_MATH_MARKER_PATTERN = /^\$\$/m;
@@ -369,6 +402,196 @@ document.addEventListener("DOMContentLoaded", function () {
       .replace(/'/g, "&#39;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  function sanitizePreviewHtml(html) {
+    if (typeof DOMPurify === "undefined") {
+      throw new ReferenceError("DOMPurify is not defined. Secure rendering aborted.");
+    }
+    return DOMPurify.sanitize(html, PREVIEW_SANITIZE_OPTIONS);
+  }
+
+  function getLoadedScriptUrl(needle, fallbackUrl) {
+    const scripts = document.getElementsByTagName("script");
+    for (let i = 0; i < scripts.length; i += 1) {
+      const src = scripts[i].getAttribute("src") || "";
+      if (src.includes(needle)) {
+        try {
+          return new URL(src, window.location.href).toString();
+        } catch (e) {
+          return src;
+        }
+      }
+    }
+    return fallbackUrl;
+  }
+
+  function getPreviewWorkerUrl() {
+    const scripts = document.getElementsByTagName("script");
+    let scriptUrl = "";
+    for (let i = scripts.length - 1; i >= 0; i -= 1) {
+      const src = scripts[i].getAttribute("src") || "";
+      if (src.includes("script.js")) {
+        scriptUrl = src;
+        break;
+      }
+    }
+
+    try {
+      return new URL("preview-worker.js", scriptUrl ? new URL(scriptUrl, window.location.href) : window.location.href).toString();
+    } catch (e) {
+      return "preview-worker.js";
+    }
+  }
+
+  function getPreviewWorkerLibraryUrls() {
+    return {
+      marked: getLoadedScriptUrl("marked", "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"),
+      highlight: getLoadedScriptUrl("highlight", "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"),
+    };
+  }
+
+  function isSegmentedPreviewSafe(markdown) {
+    if (!markdown || markdown.length < PREVIEW_WORKER_THRESHOLD) return false;
+    if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(markdown)) return false;
+    if (/^\[[^\]\n]+\]:\s+\S+/m.test(markdown)) return false;
+    if (/\[\^[^\]\n]+\]/.test(markdown)) return false;
+    if (/\n:[ \t]+/.test(markdown)) return false;
+    if (/^\s{0,3}<\/?[a-zA-Z][\w:-]*(?:\s|>|\/>)/m.test(markdown)) return false;
+    return true;
+  }
+
+  function shouldUsePreviewWorker(rawVal, context) {
+    if (!PREVIEW_ENGINE_V2_ENABLED || previewWorkerUnavailable || context.disableWorker) return false;
+    if (typeof Worker === "undefined" || typeof URL === "undefined") return false;
+    return isSegmentedPreviewSafe(rawVal);
+  }
+
+  function resetPreviewSegmentCache(previewDocumentId) {
+    if (previewSegmentCacheTabId !== previewDocumentId) {
+      previewSegmentHtmlCache.clear();
+      previewSegmentCacheTabId = previewDocumentId;
+    }
+  }
+
+  function trimPreviewSegmentCache() {
+    while (previewSegmentHtmlCache.size > PREVIEW_BLOCK_REUSE_LIMIT) {
+      const firstKey = previewSegmentHtmlCache.keys().next().value;
+      previewSegmentHtmlCache.delete(firstKey);
+    }
+  }
+
+  function buildSegmentedPreviewHtml(blocks, previewDocumentId) {
+    resetPreviewSegmentCache(previewDocumentId);
+    const htmlParts = [];
+
+    blocks.forEach(function(block, index) {
+      const hash = String(block.hash || "");
+      const cacheKey = `${hash}:${block.sourceLength || 0}:${block.htmlLength || (block.html ? block.html.length : 0)}`;
+      let sanitizedBlock = previewSegmentHtmlCache.get(cacheKey);
+      if (sanitizedBlock === undefined) {
+        sanitizedBlock = sanitizePreviewHtml(block.html || "");
+        previewSegmentHtmlCache.set(cacheKey, sanitizedBlock);
+      }
+      const blockId = block.id || `preview-block-${index}`;
+      htmlParts.push(
+        `<section class="preview-render-block" style="content-visibility: auto; contain-intrinsic-size: auto 220px;" data-preview-block-id="${escapeHtmlAttribute(blockId)}" data-preview-block-hash="${escapeHtmlAttribute(cacheKey)}">${sanitizedBlock}</section>`
+      );
+    });
+
+    trimPreviewSegmentCache();
+    return htmlParts.join("");
+  }
+
+  function markPreviewWorkerFailure(error) {
+    previewWorkerFailureCount += 1;
+    if (previewWorkerFailureCount >= 2) {
+      previewWorkerUnavailable = true;
+    }
+    if (previewWorker) {
+      try {
+        previewWorker.terminate();
+      } catch (e) {
+        // Ignore worker shutdown failures; fallback rendering will continue on main.
+      }
+      previewWorker = null;
+    }
+    previewWorkerRequests.forEach(function(pending) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(error || new Error("Preview worker unavailable."));
+    });
+    previewWorkerRequests.clear();
+  }
+
+  function recordPreviewWorkerRenderFailure() {
+    previewWorkerFailureCount += 1;
+    if (previewWorkerFailureCount < 2) return;
+    previewWorkerUnavailable = true;
+    if (previewWorker) {
+      try {
+        previewWorker.terminate();
+      } catch (e) {
+        // Ignore worker shutdown failures; fallback rendering will continue on main.
+      }
+      previewWorker = null;
+    }
+  }
+
+  function getPreviewWorker() {
+    if (previewWorkerUnavailable) return null;
+    if (previewWorker) return previewWorker;
+    try {
+      previewWorker = new Worker(getPreviewWorkerUrl());
+      previewWorker.onmessage = function(event) {
+        const data = event.data || {};
+        const pending = previewWorkerRequests.get(data.requestId);
+        if (!pending) return;
+        clearTimeout(pending.timeoutId);
+        previewWorkerRequests.delete(data.requestId);
+        if (data.type === "render-result") {
+          previewWorkerFailureCount = 0;
+          pending.resolve(data.result);
+        } else {
+          recordPreviewWorkerRenderFailure();
+          pending.reject(new Error(data.error || "Preview worker render failed."));
+        }
+      };
+      previewWorker.onerror = function(event) {
+        markPreviewWorkerFailure(event && event.message ? new Error(event.message) : new Error("Preview worker failed."));
+      };
+    } catch (e) {
+      markPreviewWorkerFailure(e);
+      return null;
+    }
+    return previewWorker;
+  }
+
+  function requestPreviewWorkerRender(rawVal, context) {
+    const worker = getPreviewWorker();
+    if (!worker) {
+      return Promise.reject(new Error("Preview worker unavailable."));
+    }
+
+    const requestId = ++previewWorkerRequestCounter;
+    return new Promise(function(resolve, reject) {
+      const timeoutId = setTimeout(function() {
+        previewWorkerRequests.delete(requestId);
+        recordPreviewWorkerRenderFailure();
+        reject(new Error("Preview worker timed out."));
+      }, PREVIEW_WORKER_TIMEOUT);
+
+      previewWorkerRequests.set(requestId, { resolve, reject, timeoutId });
+      worker.postMessage({
+        type: "render",
+        requestId,
+        markdown: rawVal,
+        options: {
+          minimumBlocks: PREVIEW_SEGMENT_MIN_BLOCKS,
+          libraryUrls: getPreviewWorkerLibraryUrls(),
+          renderId: context.renderId,
+        },
+      });
+    });
   }
 
   function parseInlineWithoutFootnotes(text) {
@@ -1601,6 +1824,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function showPreviewSkeleton() {
     if (markdownPreview && !markdownPreview.querySelector('#markdown-preview-skeleton')) {
+      markdownPreview.setAttribute('aria-busy', 'true');
+      markdownPreview.dataset.renderState = 'loading';
       markdownPreview.innerHTML = `
         <div class="skeleton-preview-container" id="markdown-preview-skeleton" aria-hidden="true">
             <div class="skeleton-placeholder skeleton-title"></div>
@@ -1617,140 +1842,466 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function renderMarkdown() {
-    const rawVal = markdownEditor.value;
-    if (rawVal.length > 15000) {
-      showPreviewSkeleton();
-      setTimeout(function() {
-        if (markdownEditor.value !== rawVal) return;
-        executeRender(rawVal);
-      }, 30);
-    } else {
-      executeRender(rawVal);
+  function previewContainsSkeleton() {
+    return Boolean(markdownPreview && markdownPreview.querySelector('#markdown-preview-skeleton'));
+  }
+
+  function getActivePreviewDocumentId() {
+    return activeTabId || '__single-document__';
+  }
+
+  function clearPendingPreviewWork() {
+    if (pendingPreviewRenderCancel) {
+      pendingPreviewRenderCancel();
+      pendingPreviewRenderCancel = null;
     }
   }
 
-  function executeRender(rawVal) {
-    // PERF-003: Skip render if content hasn't changed
-    if (rawVal === _lastRenderedContent) return;
-    _lastRenderedContent = rawVal;
+  function getPreviewRenderDelay(markdown) {
+    const length = markdown.length;
+    if (length >= HUGE_DOCUMENT_THRESHOLD) return HUGE_RENDER_DELAY;
+    if (length >= LARGE_DOCUMENT_THRESHOLD) return LARGE_RENDER_DELAY;
+    return RENDER_DELAY;
+  }
 
-    try {
-      const { frontmatter, body } = parseFrontmatter(rawVal);
-      const tableHtml = frontmatter ? renderFrontmatterTable(frontmatter) : '';
-      const referenceData = extractReferenceDefinitions(body);
-      const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
-      const sanitizedHtml = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['mjx-container', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
-        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
-      });
-      markdownPreview.innerHTML = sanitizedHtml;
-      applyReferencePreviewLinks(markdownPreview, referenceData.definitions);
-      enhanceGitHubAlerts(markdownPreview);
+  function getEditorWorkDelay(markdown) {
+    const length = markdown.length;
+    if (length >= HUGE_DOCUMENT_THRESHOLD) return HUGE_EDITOR_WORK_DELAY;
+    if (length >= LARGE_DOCUMENT_THRESHOLD) return LARGE_EDITOR_WORK_DELAY;
+    return 0;
+  }
 
-      processEmojis(markdownPreview);
+  function isEditorVisible() {
+    return currentViewMode === 'editor' || currentViewMode === 'split';
+  }
 
-      // Add accessible dynamic labels to task list checkboxes matching their parent text
-      markdownPreview.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
-        if (!input.hasAttribute('aria-label')) {
-          const parentText = input.parentElement ? input.parentElement.textContent.trim() : '';
-          input.setAttribute('aria-label', parentText || 'Task item');
-        }
-      });
-      
-      // PERF-002: Lazy-load mermaid only when diagrams are present
-      try {
-        const mermaidNodes = markdownPreview.querySelectorAll('.mermaid');
-        if (mermaidNodes.length > 0) {
-          const renderMermaidNodes = function() {
-            initMermaid(false);
-            Promise.resolve(mermaid.init(undefined, mermaidNodes))
-              .then(() => {
-                markdownPreview.querySelectorAll('.mermaid-container.is-loading').forEach((container) => {
-                  container.classList.remove('is-loading');
-                });
-                addMermaidToolbars();
-              })
-              .catch((e) => {
-                console.warn("Mermaid rendering failed:", e);
-                markdownPreview.querySelectorAll('.mermaid-container.is-loading').forEach((container) => {
-                  container.classList.remove('is-loading');
-                });
-                addMermaidToolbars();
-              });
-          };
-          if (typeof mermaid === 'undefined') {
-            loadScript(CDN.mermaid).then(function() {
-              initMermaid(true);
-              renderMermaidNodes();
-            }).catch(function(e) { console.warn('Failed to load mermaid:', e); });
-          } else {
-            renderMermaidNodes();
-          }
-        }
-      } catch (e) {
-        console.warn("Mermaid rendering failed:", e);
+  function deferPreviewWork(callback, rawLength) {
+    let cancelled = false;
+    let rafId = null;
+    let idleId = null;
+    let timeoutId = null;
+
+    rafId = requestAnimationFrame(function() {
+      rafId = null;
+      if (cancelled) return;
+
+      if ('requestIdleCallback' in window) {
+        idleId = window.requestIdleCallback(function() {
+          idleId = null;
+          if (!cancelled) callback();
+        }, { timeout: rawLength >= HUGE_DOCUMENT_THRESHOLD ? 700 : 350 });
+      } else {
+        timeoutId = setTimeout(function() {
+          timeoutId = null;
+          if (!cancelled) callback();
+        }, 0);
+      }
+    });
+
+    return function cancelDeferredPreviewWork() {
+      cancelled = true;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    };
+  }
+
+  function capturePreviewScroll() {
+    if (!previewPane) return null;
+    return {
+      top: previewPane.scrollTop,
+      left: previewPane.scrollLeft,
+    };
+  }
+
+  function restorePreviewScroll(snapshot) {
+    if (!snapshot || !previewPane) return;
+    requestAnimationFrame(function() {
+      const maxTop = Math.max(0, previewPane.scrollHeight - previewPane.clientHeight);
+      previewPane.scrollTop = Math.min(maxTop, snapshot.top);
+      previewPane.scrollLeft = snapshot.left;
+    });
+  }
+
+  function canReusePreviewNode(currentNode, nextNode, options) {
+    if (!currentNode || !nextNode || currentNode.nodeType !== nextNode.nodeType) return false;
+
+    if (currentNode.nodeType === Node.TEXT_NODE) {
+      if (currentNode.nodeValue !== nextNode.nodeValue) {
+        currentNode.nodeValue = nextNode.nodeValue;
+      }
+      return true;
+    }
+
+    if (currentNode.nodeType !== Node.ELEMENT_NODE) {
+      return currentNode.nodeValue === nextNode.nodeValue;
+    }
+
+    if (currentNode.nodeName !== nextNode.nodeName) return false;
+
+    const currentEl = currentNode;
+    const nextEl = nextNode;
+    if ((currentEl.id || nextEl.id) && currentEl.id !== nextEl.id) return false;
+
+    if (
+      options &&
+      options.reusePreviewBlocks &&
+      currentEl.dataset &&
+      nextEl.dataset &&
+      currentEl.dataset.previewBlockHash &&
+      currentEl.dataset.previewBlockHash === nextEl.dataset.previewBlockHash
+    ) {
+      return true;
+    }
+
+    if (currentEl.outerHTML === nextEl.outerHTML) return true;
+
+    if (currentEl.tagName === 'DETAILS' && nextEl.tagName === 'DETAILS' && currentEl.hasAttribute('open')) {
+      nextEl.setAttribute('open', '');
+    }
+
+    return false;
+  }
+
+  function patchPreviewDom(container, html, options) {
+    const result = {
+      fullReplace: false,
+      updatedNodes: [],
+    };
+
+    if (!previewHasCommittedRender || previewContainsSkeleton()) {
+      container.innerHTML = html;
+      result.fullReplace = true;
+      result.updatedNodes = [container];
+      return result;
+    }
+
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const nextNodes = Array.from(template.content.childNodes);
+    const currentNodeCount = container.childNodes.length;
+
+    if (nextNodes.length > 6000 || currentNodeCount > 6000) {
+      container.replaceChildren(...nextNodes);
+      result.fullReplace = true;
+      result.updatedNodes = [container];
+      return result;
+    }
+
+    let index = 0;
+    while (index < nextNodes.length || index < container.childNodes.length) {
+      const currentNode = container.childNodes[index];
+      const nextNode = nextNodes[index];
+
+      if (!nextNode) {
+        currentNode.remove();
+        continue;
       }
 
-      // PERF-002: Lazy-load MathJax only when math syntax is detected
-      const rawText = rawVal || '';
-      const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawText);
-      if (hasMath) {
-        if (window.MathJax) {
+      if (!currentNode) {
+        container.appendChild(nextNode);
+        result.updatedNodes.push(nextNode);
+        index += 1;
+        continue;
+      }
+
+      if (canReusePreviewNode(currentNode, nextNode, options)) {
+        index += 1;
+        continue;
+      }
+
+      result.updatedNodes.push(nextNode);
+      currentNode.replaceWith(nextNode);
+      index += 1;
+    }
+
+    return result;
+  }
+
+  function commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context) {
+    const shouldRestoreScroll = previewHasCommittedRender && !previewContainsSkeleton();
+    const scrollSnapshot = shouldRestoreScroll ? capturePreviewScroll() : null;
+
+    const patchResult = patchPreviewDom(markdownPreview, sanitizedHtml, {
+      reusePreviewBlocks: context.previewEngineMode === 'segmented' && !context.force,
+    });
+    applyReferencePreviewLinks(markdownPreview, referenceData.definitions);
+    enhanceGitHubAlerts(markdownPreview);
+
+    _lastRenderedContent = rawVal;
+    previewHasCommittedRender = true;
+    previewLastRenderedTabId = context.previewDocumentId;
+    markdownPreview.removeAttribute('aria-busy');
+    markdownPreview.dataset.renderState = 'ready';
+
+    restorePreviewScroll(scrollSnapshot);
+    return patchResult;
+  }
+
+  function getPreviewPostProcessRoots(patchResult) {
+    if (!patchResult || patchResult.fullReplace || !patchResult.updatedNodes || patchResult.updatedNodes.length === 0) {
+      return [markdownPreview];
+    }
+
+    const roots = [];
+    const seen = new Set();
+    patchResult.updatedNodes.forEach(function(node) {
+      const root = node && node.nodeType === Node.ELEMENT_NODE ? node : (node && node.parentElement);
+      if (root && !seen.has(root)) {
+        seen.add(root);
+        roots.push(root);
+      }
+    });
+
+    return roots.length ? roots : [markdownPreview];
+  }
+
+  function queryPreviewRoots(roots, selector) {
+    const matches = [];
+    const seen = new Set();
+    roots.forEach(function(root) {
+      if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+      if (root.matches && root.matches(selector) && !seen.has(root)) {
+        seen.add(root);
+        matches.push(root);
+      }
+      root.querySelectorAll(selector).forEach(function(node) {
+        if (!seen.has(node)) {
+          seen.add(node);
+          matches.push(node);
+        }
+      });
+    });
+    return matches;
+  }
+
+  function markPreviewRootsReady(roots) {
+    queryPreviewRoots(roots, '.mermaid-container.is-loading').forEach(function(container) {
+      container.classList.remove('is-loading');
+    });
+  }
+
+  function postProcessPreview(rawVal, context, patchResult) {
+    const roots = getPreviewPostProcessRoots(patchResult);
+
+    roots.forEach(function(root) {
+      processEmojis(root);
+    });
+
+    queryPreviewRoots(roots, 'input[type="checkbox"]').forEach(function(input) {
+      if (!input.hasAttribute('aria-label')) {
+        const parentText = input.parentElement ? input.parentElement.textContent.trim() : '';
+        input.setAttribute('aria-label', parentText || 'Task item');
+      }
+    });
+
+    try {
+      const mermaidNodes = queryPreviewRoots(roots, '.mermaid');
+      if (mermaidNodes.length > 0) {
+        const renderMermaidNodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          initMermaid(false);
+          Promise.resolve(mermaid.init(undefined, mermaidNodes))
+            .then(() => {
+              if (context.renderId !== previewRenderGeneration) return;
+              markPreviewRootsReady(roots);
+              addMermaidToolbars();
+            })
+            .catch((e) => {
+              if (context.renderId !== previewRenderGeneration) return;
+              console.warn("Mermaid rendering failed:", e);
+              markPreviewRootsReady(roots);
+              addMermaidToolbars();
+            });
+        };
+        if (typeof mermaid === 'undefined') {
+          loadScript(CDN.mermaid).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            initMermaid(true);
+            renderMermaidNodes();
+          }).catch(function(e) { console.warn('Failed to load mermaid:', e); });
+        } else {
+          renderMermaidNodes();
+        }
+      }
+    } catch (e) {
+      console.warn("Mermaid rendering failed:", e);
+    }
+
+    const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '');
+    if (hasMath) {
+      const typesetTargets = roots.filter(function(root) {
+        return root && root.nodeType === Node.ELEMENT_NODE && /\$\$|\$[^$]|\\\(|\\\[/.test(root.textContent || '');
+      });
+      const mathTargets = typesetTargets.length ? typesetTargets : roots;
+      if (window.MathJax) {
+        try {
+          MathJax.typesetPromise(mathTargets).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            queryPreviewRoots(mathTargets, 'mjx-container[tabindex="0"]').forEach(function(mjx) {
+              mjx.removeAttribute('tabindex');
+            });
+          }).catch(function(err) {
+            console.warn('MathJax typesetting failed:', err);
+          });
+        } catch (e) {
+          console.warn("MathJax rendering failed:", e);
+        }
+      } else {
+        window.MathJax = {
+          loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
+          options: {
+            a11y: { inTabOrder: false }
+          },
+          tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            processEscapes: true,
+            packages: { '[+]': ['ams', 'boldsymbol'] }
+          }
+        };
+        loadScript(CDN.mathjax).then(function() {
+          if (context.renderId !== previewRenderGeneration) return;
           try {
-            MathJax.typesetPromise([markdownPreview]).then(function() {
-              markdownPreview.querySelectorAll('mjx-container[tabindex="0"]').forEach(function(mjx) {
+            MathJax.typesetPromise(mathTargets).then(function() {
+              if (context.renderId !== previewRenderGeneration) return;
+              queryPreviewRoots(mathTargets, 'mjx-container[tabindex="0"]').forEach(function(mjx) {
                 mjx.removeAttribute('tabindex');
               });
             }).catch(function(err) {
               console.warn('MathJax typesetting failed:', err);
             });
           } catch (e) {
-            console.warn("MathJax rendering failed:", e);
+            console.warn('MathJax rendering failed:', e);
           }
-        } else {
-          // Configure and load MathJax on first use
-          window.MathJax = {
-            loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
-            options: {
-              a11y: { inTabOrder: false }
-            },
-            tex: {
-              inlineMath: [['$', '$'], ['\\(', '\\)']],
-              displayMath: [['$$', '$$'], ['\\[', '\\]']],
-              processEscapes: true,
-              packages: { '[+]': ['ams', 'boldsymbol'] }
-            }
-          };
-          loadScript(CDN.mathjax).then(function() {
-            try {
-              MathJax.typesetPromise([markdownPreview]).then(function() {
-                markdownPreview.querySelectorAll('mjx-container[tabindex="0"]').forEach(function(mjx) {
-                  mjx.removeAttribute('tabindex');
-                });
-              }).catch(function(err) {
-                console.warn('MathJax typesetting failed:', err);
-              });
-            } catch (e) {
-              console.warn('MathJax rendering failed:', e);
-            }
-          }).catch(function(e) { console.warn('Failed to load MathJax:', e); });
-        }
+        }).catch(function(e) { console.warn('Failed to load MathJax:', e); });
       }
+    }
 
-      updateDocumentStats();
-      updateFindHighlights();
-      cleanupImageObjectUrls();
-      scheduleLineNumberUpdate();
+    updateDocumentStats();
+    updateFindHighlights();
+    cleanupImageObjectUrls();
+    scheduleLineNumberUpdate();
+  }
+
+  function executeMainThreadRender(rawVal, context) {
+    const { frontmatter, body } = parseFrontmatter(rawVal);
+    const tableHtml = frontmatter ? renderFrontmatterTable(frontmatter) : '';
+    const referenceData = extractReferenceDefinitions(body);
+    const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
+    const sanitizedHtml = sanitizePreviewHtml(html);
+
+    if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+
+    previewSegmentHtmlCache.clear();
+    const patchResult = commitPreviewHtml(sanitizedHtml, referenceData, rawVal, context);
+    postProcessPreview(rawVal, context, patchResult);
+  }
+
+  function executeWorkerRender(rawVal, context) {
+    requestPreviewWorkerRender(rawVal, context)
+      .then(function(result) {
+        if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+        if (!result || result.mode !== 'segmented' || !Array.isArray(result.blocks) || result.blocks.length < PREVIEW_SEGMENT_MIN_BLOCKS) {
+          executeMainThreadRender(rawVal, Object.assign({}, context, { disableWorker: true }));
+          return;
+        }
+
+        const segmentedHtml = buildSegmentedPreviewHtml(result.blocks, context.previewDocumentId);
+        if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+
+        const patchResult = commitPreviewHtml(segmentedHtml, { definitions: new Map() }, rawVal, Object.assign({}, context, {
+          previewEngineMode: 'segmented',
+        }));
+        postProcessPreview(rawVal, context, patchResult);
+      })
+      .catch(function(error) {
+        if (context.renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+        console.warn('Preview worker unavailable; falling back to main-thread renderer:', error);
+        executeMainThreadRender(rawVal, Object.assign({}, context, { disableWorker: true }));
+      });
+  }
+
+  function renderMarkdown(options) {
+    options = options || {};
+    const rawVal = markdownEditor.value;
+    const force = options.force === true;
+    const previewDocumentId = getActivePreviewDocumentId();
+    const hasCurrentPreview =
+      previewHasCommittedRender &&
+      previewLastRenderedTabId === previewDocumentId &&
+      _lastRenderedContent === rawVal &&
+      !previewContainsSkeleton();
+
+    if (hasCurrentPreview && !force) return;
+
+    clearPendingPreviewWork();
+    const renderId = ++previewRenderGeneration;
+    const isLargeDocument = rawVal.length >= LARGE_DOCUMENT_THRESHOLD;
+    const isDocumentSwap = previewHasCommittedRender && previewLastRenderedTabId !== previewDocumentId;
+    const needsInitialPreview = !previewHasCommittedRender || previewContainsSkeleton();
+    const shouldShowSkeleton =
+      isLargeDocument &&
+      (options.showSkeleton === true || needsInitialPreview || isDocumentSwap);
+
+    if (shouldShowSkeleton) {
+      showPreviewSkeleton();
+    } else if (markdownPreview) {
+      markdownPreview.setAttribute('aria-busy', 'true');
+      markdownPreview.dataset.renderState = 'refreshing';
+    }
+
+    const runRender = function() {
+      pendingPreviewRenderCancel = null;
+      if (renderId !== previewRenderGeneration || markdownEditor.value !== rawVal) return;
+      executeRender(rawVal, {
+        force,
+        renderId,
+        previewDocumentId,
+        reason: options.reason || 'direct',
+      });
+    };
+
+    if (isLargeDocument) {
+      pendingPreviewRenderCancel = deferPreviewWork(runRender, rawVal.length);
+    } else {
+      runRender();
+    }
+  }
+
+  function executeRender(rawVal, context) {
+    context = context || {};
+    // PERF-003: Skip render if content hasn't changed
+    if (
+      !context.force &&
+      rawVal === _lastRenderedContent &&
+      previewLastRenderedTabId === context.previewDocumentId &&
+      previewHasCommittedRender &&
+      !previewContainsSkeleton()
+    ) {
+      markdownPreview.removeAttribute('aria-busy');
+      markdownPreview.dataset.renderState = 'ready';
+      return;
+    }
+
+    try {
+      if (shouldUsePreviewWorker(rawVal, context)) {
+        executeWorkerRender(rawVal, context);
+      } else {
+        executeMainThreadRender(rawVal, context);
+      }
     } catch (e) {
       console.error("Markdown rendering failed:", e);
       const safeMessage = escapeHtml(e && e.message ? e.message : 'Unknown error');
       const safeMarkdown = escapeHtml(rawVal);
-      markdownPreview.innerHTML = `<div class="alert alert-danger">
+      markdownPreview.removeAttribute('aria-busy');
+      markdownPreview.dataset.renderState = 'error';
+      if (!previewHasCommittedRender || previewContainsSkeleton()) {
+        markdownPreview.innerHTML = `<div class="alert alert-danger">
               <strong>Error rendering markdown:</strong> ${safeMessage}
           </div>
           <pre>${safeMarkdown}</pre>`;
+      }
     }
   }
 
@@ -2223,7 +2774,7 @@ document.addEventListener("DOMContentLoaded", function () {
     loadEmojiEntries()
       .then(() => {
         if (emojiUrlMap.size) {
-          renderMarkdown();
+          renderMarkdown({ force: true, reason: 'emoji-refresh' });
         }
       })
       .finally(() => {
@@ -2327,13 +2878,33 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function debouncedRender() {
     clearTimeout(markdownRenderTimeout);
-    
-    // For large documents, show the skeleton in the preview pane immediately to provide instant visual feedback
-    if (markdownEditor.value.length > 15000) {
-      showPreviewSkeleton();
+    const delay = getPreviewRenderDelay(markdownEditor.value);
+    markdownRenderTimeout = setTimeout(function() {
+      renderMarkdown({ reason: 'edit' });
+    }, delay);
+  }
+
+  function countWordsFast(text) {
+    let count = 0;
+    let inWord = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const code = text.charCodeAt(i);
+      if (
+        code === 32 ||
+        code === 9 ||
+        code === 10 ||
+        code === 13 ||
+        code === 12 ||
+        code === 11 ||
+        code === 160
+      ) {
+        inWord = false;
+      } else if (!inWord) {
+        count += 1;
+        inWord = true;
+      }
     }
-    
-    markdownRenderTimeout = setTimeout(renderMarkdown, RENDER_DELAY);
+    return count;
   }
 
   function updateDocumentStats() {
@@ -2342,7 +2913,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const charCount = text.length;
     charCountElement.textContent = charCount.toLocaleString();
 
-    const wordCount = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+    const wordCount = countWordsFast(text);
     wordCountElement.textContent = wordCount.toLocaleString();
 
     const readingTimeMinutes = Math.ceil(wordCount / 200);
@@ -2460,7 +3031,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Re-render markdown when switching to a view that includes preview
     if (mode === 'split' || mode === 'preview') {
-      renderMarkdown();
+      renderMarkdown({ reason: 'view-switch' });
+    }
+
+    if (mode === 'split' || mode === 'editor') {
+      refreshEditorWidth();
+      scheduleLineNumberUpdate({ force: true });
+      updateFindHighlights();
+      scheduleEditorOverlayScrollSync();
     }
   }
 
@@ -4066,6 +4644,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateFindHighlights() {
     if (!editorHighlightLayer) return;
+    if (!isEditorVisible()) return;
     if (!isFindModalOpen || !findReplaceInput || !findReplaceInput.value || !findMatches.length) {
       if (editorHighlightLayer.textContent !== '') {
         editorHighlightLayer.textContent = '';
@@ -4096,6 +4675,15 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!editorHighlightLayer) return;
     editorHighlightLayer.scrollTop = cachedScrollTop;
     editorHighlightLayer.scrollLeft = cachedScrollLeft;
+  }
+
+  function scheduleEditorOverlayScrollSync() {
+    if (editorOverlayScrollFrame) return;
+    editorOverlayScrollFrame = requestAnimationFrame(function() {
+      editorOverlayScrollFrame = null;
+      syncHighlightScroll();
+      syncLineNumberScroll();
+    });
   }
 
   function updateLineNumberGutter(lineCount) {
@@ -4167,6 +4755,26 @@ document.addEventListener("DOMContentLoaded", function () {
   let cachedScrollTop = 0;
   let cachedScrollLeft = 0;
   let isGeometryInitialized = false;
+  let lastLineNumberLineCount = 0;
+  let lastLineNumberDocumentLength = 0;
+
+  function countLinesFast(text) {
+    if (!text) return 1;
+    let count = 1;
+    for (let i = 0; i < text.length; i += 1) {
+      if (text.charCodeAt(i) === 10) count += 1;
+    }
+    return count;
+  }
+
+  function countLinesBeforeIndex(text, endIndex) {
+    let count = 0;
+    const max = Math.max(0, Math.min(text.length, endIndex));
+    for (let i = 0; i < max; i += 1) {
+      if (text.charCodeAt(i) === 10) count += 1;
+    }
+    return count;
+  }
 
   function initEditorGeometry() {
     if (!markdownEditor) return;
@@ -4206,16 +4814,53 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     cachedEditorWidth = markdownEditor.clientWidth;
     const availableWidth = cachedEditorWidth - cachedPaddingLeft - cachedPaddingRight;
-    cachedMaxCharsPerLine = Math.max(1, Math.floor(availableWidth / cachedCharWidth));
+    const nextMaxCharsPerLine = Math.max(1, Math.floor(availableWidth / cachedCharWidth));
+    if (nextMaxCharsPerLine !== cachedMaxCharsPerLine) {
+      cachedMaxCharsPerLine = nextMaxCharsPerLine;
+      lineCache.clear();
+    }
     
     cachedScrollTop = markdownEditor.scrollTop;
     cachedScrollLeft = markdownEditor.scrollLeft;
   }
 
-  function updateLineNumbers() {
+  function updateLineNumberItem(item, index, lineText, lineHeight) {
+    if (!item) return;
+    let wrapHeight = lineCache.get(lineText);
+    if (wrapHeight === undefined) {
+      const wrapCount = getWrappedLineCountMonospace(lineText, cachedMaxCharsPerLine);
+      wrapHeight = wrapCount * lineHeight;
+      if (lineCache.size >= LINE_CACHE_MAX_ENTRIES) {
+        lineCache.clear();
+      }
+      lineCache.set(lineText, wrapHeight);
+    }
+
+    const targetText = String(index + 1);
+    if (item.textContent !== targetText) {
+      item.textContent = targetText;
+    }
+    const targetHeight = `${wrapHeight}px`;
+    if (item.style.height !== targetHeight) {
+      item.style.height = targetHeight;
+    }
+  }
+
+  function updateActiveLineNumberHeight(text, lineCount, lineHeight) {
+    const caret = markdownEditor.selectionStart || 0;
+    const lineIndex = Math.min(lineCount - 1, countLinesBeforeIndex(text, caret));
+    const lineStart = text.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
+    const lineEndIndex = text.indexOf('\n', caret);
+    const lineEnd = lineEndIndex === -1 ? text.length : lineEndIndex;
+    updateLineNumberItem(lineNumbers.children[lineIndex], lineIndex, text.slice(lineStart, lineEnd), lineHeight);
+  }
+
+  function updateLineNumbers(options) {
+    const opts = options || {};
     if (!lineNumbers || !markdownEditor) return;
-    const lines = (markdownEditor.value || '').split('\n');
-    const lineCount = Math.max(1, lines.length);
+    if (!isEditorVisible()) return;
+    const text = markdownEditor.value || '';
+    const lineCount = countLinesFast(text);
 
     if (cachedEditorWidth === 0) {
       refreshEditorWidth();
@@ -4226,6 +4871,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const existingItems = lineNumbers.children;
     const existingCount = existingItems.length;
+    const isLargeEditorDocument = text.length >= LARGE_DOCUMENT_THRESHOLD;
+    const canUseActiveLineFastPath =
+      isLargeEditorDocument &&
+      !opts.force &&
+      lineCount === lastLineNumberLineCount &&
+      existingCount === lineCount;
+
+    if (canUseActiveLineFastPath) {
+      updateActiveLineNumberHeight(text, lineCount, lineHeight);
+      lastLineNumberDocumentLength = text.length;
+      syncLineNumberScroll();
+      return;
+    }
+
+    const lines = text.split('\n');
 
     // Adjust the number of DOM elements in-place to avoid complete tear-down
     if (existingCount < lineCount) {
@@ -4244,35 +4904,52 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Update only the heights and numbers that changed, using monospace simulator to avoid forced reflows
     for (let i = 0; i < lineCount; i += 1) {
-      const lineText = lines[i];
-      let wrapHeight = lineCache.get(lineText);
-      if (wrapHeight === undefined) {
-        const wrapCount = getWrappedLineCountMonospace(lineText, cachedMaxCharsPerLine);
-        wrapHeight = wrapCount * lineHeight;
-        lineCache.set(lineText, wrapHeight);
-      }
-
-      const item = existingItems[i];
-      const targetText = String(i + 1);
-      if (item.textContent !== targetText) {
-        item.textContent = targetText;
-      }
-      const targetHeight = `${wrapHeight}px`;
-      if (item.style.height !== targetHeight) {
-        item.style.height = targetHeight;
-      }
+      updateLineNumberItem(existingItems[i], i, lines[i], lineHeight);
     }
 
+    lastLineNumberLineCount = lineCount;
+    lastLineNumberDocumentLength = text.length;
     syncLineNumberScroll();
   }
 
-  function scheduleLineNumberUpdate() {
+  function scheduleLineNumberUpdate(options) {
+    const opts = options || {};
     if (!lineNumbers) return;
-    if (lineNumberUpdateFrame) return;
-    lineNumberUpdateFrame = window.requestAnimationFrame(function() {
-      lineNumberUpdateFrame = null;
-      updateLineNumbers();
-    });
+    if (!isEditorVisible()) return;
+
+    if (opts.force) {
+      if (lineNumberUpdateTimeout) {
+        clearTimeout(lineNumberUpdateTimeout);
+        lineNumberUpdateTimeout = null;
+      }
+      if (lineNumberUpdateFrame) {
+        cancelAnimationFrame(lineNumberUpdateFrame);
+        lineNumberUpdateFrame = null;
+      }
+    } else if (lineNumberUpdateFrame || lineNumberUpdateTimeout) {
+      return;
+    }
+
+    const text = markdownEditor ? markdownEditor.value || '' : '';
+    const delay = opts.delay !== undefined
+      ? opts.delay
+      : (opts.inputType === 'insertFromPaste' || text.length >= LARGE_DOCUMENT_THRESHOLD ? getEditorWorkDelay(text) : 0);
+
+    const runUpdate = function() {
+      lineNumberUpdateFrame = window.requestAnimationFrame(function() {
+        lineNumberUpdateFrame = null;
+        updateLineNumbers(opts);
+      });
+    };
+
+    if (delay > 0) {
+      lineNumberUpdateTimeout = setTimeout(function() {
+        lineNumberUpdateTimeout = null;
+        runUpdate();
+      }, delay);
+    } else {
+      runUpdate();
+    }
   }
 
   function syncLineNumberScroll() {
@@ -4700,6 +5377,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function refreshFindMatches(options) {
+    clearTimeout(findRefreshTimeout);
+    findRefreshTimeout = null;
     const opts = options || {};
     const query = findReplaceInput ? findReplaceInput.value : '';
     const errorBox = document.getElementById('find-replace-error');
@@ -4748,6 +5427,16 @@ document.addEventListener("DOMContentLoaded", function () {
     updateFindControls();
     updateFindHighlights();
     updateHistoryDropdowns();
+  }
+
+  function scheduleFindRefresh(options) {
+    clearTimeout(findRefreshTimeout);
+    const text = markdownEditor ? markdownEditor.value || '' : '';
+    const delay = text.length >= LARGE_DOCUMENT_THRESHOLD ? LARGE_FIND_REFRESH_DELAY : FIND_REFRESH_DELAY;
+    findRefreshTimeout = setTimeout(function() {
+      findRefreshTimeout = null;
+      refreshFindMatches(options);
+    }, delay);
   }
 
   function selectActiveMatch() {
@@ -5525,11 +6214,13 @@ document.addEventListener("DOMContentLoaded", function () {
     clearTimeout(saveTabStateTimeout);
     saveTabStateTimeout = setTimeout(saveCurrentTabState, 500);
     if (isFindModalOpen) {
-      refreshFindMatches();
+      scheduleFindRefresh();
     } else {
       updateFindHighlights();
     }
-    scheduleLineNumberUpdate();
+    scheduleLineNumberUpdate({
+      inputType: e && typeof e.inputType === 'string' ? e.inputType : '',
+    });
   });
 
   markdownEditor.addEventListener('keydown', updateLastCursor);
@@ -5573,8 +6264,7 @@ document.addEventListener("DOMContentLoaded", function () {
     cachedScrollTop = this.scrollTop;
     cachedScrollLeft = this.scrollLeft;
     syncEditorToPreview();
-    syncHighlightScroll();
-    syncLineNumberScroll();
+    scheduleEditorOverlayScrollSync();
   });
   previewPane.addEventListener("scroll", syncPreviewToEditor);
   toggleSyncButton.addEventListener("click", toggleSyncScrolling);
@@ -6902,7 +7592,7 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       const decoded = decodeMarkdownFromShare(encoded);
       markdownEditor.value = decoded;
-      renderMarkdown();
+      renderMarkdown({ reason: 'document-load', showSkeleton: true });
       saveCurrentTabState();
       // Apply the correct view mode: edit=1 → split, default → preview only
       setViewMode(isEdit ? 'split' : 'preview');
