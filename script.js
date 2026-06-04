@@ -6753,6 +6753,190 @@ document.addEventListener("DOMContentLoaded", function () {
     scale: 2                // html2canvas scale factor
   };
 
+  const PDF_EXPORT_DEBUG = false;
+  let activePdfExport = null;
+
+  class PdfExportCancelledError extends Error {
+    constructor() {
+      super("PDF generation cancelled.");
+      this.name = "PdfExportCancelledError";
+    }
+  }
+
+  function logPdfExportDebug(...args) {
+    if (PDF_EXPORT_DEBUG) console.log(...args);
+  }
+
+  function throwIfPdfExportAborted(signal) {
+    if (signal && signal.aborted) {
+      throw new PdfExportCancelledError();
+    }
+  }
+
+  function runPdfAbortable(state, promise) {
+    throwIfPdfExportAborted(state.signal);
+
+    return new Promise((resolve, reject) => {
+      const handleAbort = () => reject(new PdfExportCancelledError());
+      state.signal.addEventListener("abort", handleAbort, { once: true });
+
+      Promise.resolve(promise)
+        .then(resolve, reject)
+        .finally(() => {
+          state.signal.removeEventListener("abort", handleAbort);
+        });
+    });
+  }
+
+  function formatPdfExportEta(ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return "Calculating...";
+    const seconds = Math.ceil(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+  }
+
+  function createPdfProgressState() {
+    const abortController = new AbortController();
+    const overlay = document.createElement("div");
+    overlay.className = "pdf-progress-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "pdf-progress-title");
+
+    overlay.innerHTML = `
+      <div class="pdf-progress-modal">
+        <div class="pdf-progress-header">
+          <p class="pdf-progress-title" id="pdf-progress-title">Generating PDF</p>
+          <button type="button" class="modal-close-btn pdf-progress-cancel-icon" aria-label="Cancel PDF generation" title="Cancel PDF generation">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="pdf-progress-percent">0%</div>
+        <div class="pdf-progress-track"
+             role="progressbar"
+             aria-label="PDF generation progress"
+             aria-valuemin="0"
+             aria-valuemax="100"
+             aria-valuenow="0">
+          <div class="pdf-progress-fill"></div>
+        </div>
+        <div class="pdf-progress-details">
+          <div class="pdf-progress-detail">
+            <span>Current Step</span>
+            <strong class="pdf-progress-step">Preparing</strong>
+          </div>
+          <div class="pdf-progress-detail">
+            <span>Estimated remaining</span>
+            <strong class="pdf-progress-eta">Calculating...</strong>
+          </div>
+        </div>
+        <div class="pdf-progress-actions">
+          <button type="button" class="reset-modal-btn reset-modal-cancel pdf-progress-cancel">Cancel</button>
+        </div>
+      </div>`;
+
+    const state = {
+      abortController,
+      signal: abortController.signal,
+      startedAt: performance.now(),
+      overlay,
+      fill: overlay.querySelector(".pdf-progress-fill"),
+      percentText: overlay.querySelector(".pdf-progress-percent"),
+      progressBar: overlay.querySelector(".pdf-progress-track"),
+      stepText: overlay.querySelector(".pdf-progress-step"),
+      etaText: overlay.querySelector(".pdf-progress-eta"),
+      cancelButtons: overlay.querySelectorAll(".pdf-progress-cancel, .pdf-progress-cancel-icon"),
+      triggerHtml: new Map(),
+      tempElement: null,
+      cleanedUp: false
+    };
+
+    state.cancelButtons.forEach(button => {
+      button.addEventListener("click", () => cancelPdfExport(state));
+    });
+
+    return state;
+  }
+
+  function updatePdfProgress(state, percent, step) {
+    if (!state || state.cleanedUp) return;
+    const nextPercent = Math.max(0, Math.min(100, Math.round(percent)));
+    state.fill.style.width = `${nextPercent}%`;
+    state.percentText.textContent = `${nextPercent}%`;
+    state.progressBar.setAttribute("aria-valuenow", String(nextPercent));
+    state.stepText.textContent = step;
+
+    const elapsed = performance.now() - state.startedAt;
+    const eta = nextPercent > 5 && nextPercent < 100
+      ? (elapsed / nextPercent) * (100 - nextPercent)
+      : 0;
+    state.etaText.textContent = nextPercent >= 100 ? "Complete" : formatPdfExportEta(eta);
+  }
+
+  function setPdfExportTriggersBusy(state, busy) {
+    const triggers = [exportPdf, mobileExportPdf].filter(Boolean);
+    triggers.forEach((trigger, index) => {
+      if (busy) {
+        state.triggerHtml.set(trigger, trigger.innerHTML);
+        trigger.innerHTML = index === 0
+          ? '<i class="bi bi-hourglass-split"></i> Generating...'
+          : '<i class="bi bi-hourglass-split me-2"></i> Generating PDF...';
+        trigger.classList.add("pdf-export-loading");
+        trigger.setAttribute("aria-disabled", "true");
+        trigger.disabled = true;
+      } else {
+        if (state.triggerHtml.has(trigger)) {
+          trigger.innerHTML = state.triggerHtml.get(trigger);
+        }
+        trigger.classList.remove("pdf-export-loading");
+        trigger.removeAttribute("aria-disabled");
+        trigger.disabled = false;
+      }
+    });
+  }
+
+  function cleanupPdfExport(state) {
+    if (!state || state.cleanedUp) return;
+    state.cleanedUp = true;
+
+    if (state.tempElement && state.tempElement.parentNode) {
+      state.tempElement.parentNode.removeChild(state.tempElement);
+    }
+    if (state.overlay && state.overlay.parentNode) {
+      state.overlay.parentNode.removeChild(state.overlay);
+    }
+
+    setPdfExportTriggersBusy(state, false);
+    if (activePdfExport === state) {
+      activePdfExport = null;
+    }
+  }
+
+  function cancelPdfExport(state) {
+    if (!state || state.signal.aborted) return;
+    state.abortController.abort();
+    cleanupPdfExport(state);
+  }
+
+  async function waitForPdfFrame(state) {
+    throwIfPdfExportAborted(state.signal);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    throwIfPdfExportAborted(state.signal);
+  }
+
+  function markdownLikelyContainsMath(markdown) {
+    return /(^|[^\\])\$\$|\\\[|\\\(|(^|[^\\])\$[^$\n]+\$/.test(markdown);
+  }
+
+  function choosePdfCanvasScale(element) {
+    const pixelArea = element.offsetWidth * element.scrollHeight;
+    if (pixelArea > 14000000) return 1.25;
+    if (pixelArea > 8000000) return 1.5;
+    return PAGE_CONFIG.scale;
+  }
+
   /**
    * Task 1: Identifies all graphic elements that may need page-break handling
    * @param {HTMLElement} container - The container element to search within
@@ -6890,20 +7074,24 @@ document.addEventListener("DOMContentLoaded", function () {
    * @param {HTMLElement} tempElement - The rendered content container
    * @returns {Object} Analysis result with totalElements, splitElements, pageCount
    */
-  function analyzeGraphicsForPageBreaks(tempElement) {
+  function analyzeGraphicsForPageBreaks(tempElement, signal) {
     try {
+      throwIfPdfExportAborted(signal);
+
       // Step 1: Identify all graphic elements
       const graphics = identifyGraphicElements(tempElement);
-      console.log('Step 1 - Graphics found:', graphics.length, graphics.map(g => g.type));
+      logPdfExportDebug('Step 1 - Graphics found:', graphics.length, graphics.map(g => g.type));
 
       // Step 2: Calculate positions for each element
       const elementsWithPositions = calculateElementPositions(graphics, tempElement);
-      console.log('Step 2 - Element positions:', elementsWithPositions.map(e => ({
+      logPdfExportDebug('Step 2 - Element positions:', elementsWithPositions.map(e => ({
         type: e.type,
         top: Math.round(e.top),
         height: Math.round(e.height),
         bottom: Math.round(e.bottom)
       })));
+
+      throwIfPdfExportAborted(signal);
 
       // Step 3: Calculate page boundaries using the element's ACTUAL width
       const totalHeight = tempElement.scrollHeight;
@@ -6914,7 +7102,7 @@ document.addEventListener("DOMContentLoaded", function () {
         PAGE_CONFIG
       );
 
-      console.log('Step 3 - Page boundaries:', {
+      logPdfExportDebug('Step 3 - Page boundaries:', {
         elementWidth,
         totalHeight,
         pageHeightPx: Math.round(pageHeightPx),
@@ -6923,7 +7111,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Step 4: Detect split elements
       const splitElements = detectSplitElements(elementsWithPositions, pageBoundaries);
-      console.log('Step 4 - Split elements detected:', splitElements.length);
+      logPdfExportDebug('Step 4 - Split elements detected:', splitElements.length);
 
       // Calculate page count
       const pageCount = pageBoundaries.length + 1;
@@ -6936,6 +7124,7 @@ document.addEventListener("DOMContentLoaded", function () {
         pageHeightPx: pageHeightPx
       };
     } catch (error) {
+      if (error instanceof PdfExportCancelledError) throw error;
       console.error('Page-break analysis failed:', error);
       return {
         totalElements: 0,
@@ -6984,8 +7173,10 @@ document.addEventListener("DOMContentLoaded", function () {
    * @param {Array} fittingElements - Elements that fit on a single page
    * @param {number} pageHeightPx - Page height in pixels
    */
-  function insertPageBreaks(fittingElements, pageHeightPx) {
+  function insertPageBreaks(fittingElements, pageHeightPx, signal) {
     for (const item of fittingElements) {
+      throwIfPdfExportAborted(signal);
+
       // Calculate where the current page ends
       const currentPageBottom = (item.splitPageIndex + 1) * pageHeightPx;
 
@@ -6993,7 +7184,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const remainingSpace = currentPageBottom - item.top;
       const remainingRatio = remainingSpace / pageHeightPx;
 
-      console.log('Processing split element:', {
+      logPdfExportDebug('Processing split element:', {
         type: item.type,
         top: Math.round(item.top),
         height: Math.round(item.height),
@@ -7009,7 +7200,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (remainingRatio > PAGE_BREAK_THRESHOLD) {
         const scaledHeight = item.height * 0.9; // 90% scale
         if (scaledHeight <= remainingSpace) {
-          console.log('  -> Skipping (can fit with 90% scaling)');
+          logPdfExportDebug('  -> Skipping (can fit with 90% scaling)');
           continue;
         }
       }
@@ -7017,21 +7208,21 @@ document.addEventListener("DOMContentLoaded", function () {
       // Calculate margin needed to push element to next page
       const marginNeeded = currentPageBottom - item.top + 5; // 5px buffer
 
-      console.log('  -> Applying marginTop:', marginNeeded, 'px');
+      logPdfExportDebug('  -> Applying marginTop:', marginNeeded, 'px');
 
       // Determine which element to apply margin to
       // For SVG elements (Mermaid diagrams), apply to parent container for proper layout
       let targetElement = item.element;
       if (item.type === 'svg' && item.element.parentElement) {
         targetElement = item.element.parentElement;
-        console.log('  -> Using parent element:', targetElement.tagName, targetElement.className);
+        logPdfExportDebug('  -> Using parent element:', targetElement.tagName, targetElement.className);
       }
 
       // Apply margin to push element to next page
       const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
       targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
 
-      console.log('  -> Element after margin:', targetElement.tagName, 'marginTop =', targetElement.style.marginTop);
+      logPdfExportDebug('  -> Element after margin:', targetElement.tagName, 'marginTop =', targetElement.style.marginTop);
     }
   }
 
@@ -7042,14 +7233,16 @@ document.addEventListener("DOMContentLoaded", function () {
    * @param {number} maxIterations - Maximum iterations to prevent infinite loops
    * @returns {Object} Final analysis result
    */
-  function applyPageBreaksWithCascade(tempElement, pageConfig, maxIterations = 10) {
+  function applyPageBreaksWithCascade(tempElement, pageConfig, maxIterations = 10, signal) {
     let iteration = 0;
     let analysis;
     let previousSplitCount = -1;
 
     do {
+      throwIfPdfExportAborted(signal);
+
       // Re-analyze after each adjustment
-      analysis = analyzeGraphicsForPageBreaks(tempElement);
+      analysis = analyzeGraphicsForPageBreaks(tempElement, signal);
 
       // Use pageHeightPx from analysis (calculated from actual element width)
       const pageHeightPx = analysis.pageHeightPx;
@@ -7076,7 +7269,7 @@ document.addEventListener("DOMContentLoaded", function () {
       previousSplitCount = fittingElements.length;
 
       // Apply page breaks to fitting elements
-      insertPageBreaks(fittingElements, pageHeightPx);
+      insertPageBreaks(fittingElements, pageHeightPx, signal);
       iteration++;
 
     } while (iteration < maxIterations);
@@ -7085,7 +7278,7 @@ document.addEventListener("DOMContentLoaded", function () {
       console.warn('Page-break stabilization reached max iterations:', maxIterations);
     }
 
-    console.log('Page-break cascade complete:', {
+    logPdfExportDebug('Page-break cascade complete:', {
       iterations: iteration,
       finalSplitCount: analysis.splitElements.length,
       oversizedCount: analysis.oversizedElements ? analysis.oversizedElements.length : 0
@@ -7163,7 +7356,7 @@ document.addEventListener("DOMContentLoaded", function () {
    * @param {Array} oversizedElements - Array of oversized element data
    * @param {number} pageHeightPx - Page height in pixels
    */
-  function handleOversizedElements(oversizedElements, pageHeightPx) {
+  function handleOversizedElements(oversizedElements, pageHeightPx, signal) {
     if (!oversizedElements || oversizedElements.length === 0) {
       return;
     }
@@ -7172,6 +7365,8 @@ document.addEventListener("DOMContentLoaded", function () {
     let clampedCount = 0;
 
     for (const item of oversizedElements) {
+      throwIfPdfExportAborted(signal);
+
       // Calculate required scale factor
       const { scaleFactor, wasClampedToMin } = calculateScaleFactor(
         item.height,
@@ -7187,7 +7382,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    console.log('Oversized graphics scaling complete:', {
+    logPdfExportDebug('Oversized graphics scaling complete:', {
       totalScaled: scaledCount,
       clampedToMinimum: clampedCount
     });
@@ -7197,51 +7392,39 @@ document.addEventListener("DOMContentLoaded", function () {
   // End Oversized Graphics Scaling Functions
   // ============================================
 
-  exportPdf.addEventListener("click", async function () {
-    // PERF-002: Lazy-load PDF libraries on first export
-    if (typeof jspdf === 'undefined' || typeof html2canvas === 'undefined') {
-      exportPdf.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
-      exportPdf.disabled = true;
-      try {
-        await Promise.all([loadScript(CDN.jspdf), loadScript(CDN.html2canvas)]);
-      } catch (e) {
-        console.error('Failed to load PDF libraries:', e);
-        alert('Failed to load PDF export libraries. Please check your internet connection.');
-        exportPdf.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export';
-        exportPdf.disabled = false;
-        return;
-      }
-    }
+  exportPdf.addEventListener("click", async function (event) {
+    event.preventDefault();
+    if (activePdfExport) return;
+
+    const progressState = createPdfProgressState();
+    activePdfExport = progressState;
+    setPdfExportTriggersBusy(progressState, true);
+    document.body.appendChild(progressState.overlay);
+    updatePdfProgress(progressState, 3, "Starting");
+    progressState.overlay.querySelector(".pdf-progress-cancel")?.focus();
+
     try {
-      const originalText = exportPdf.innerHTML;
-      exportPdf.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
-      exportPdf.disabled = true;
+      // PERF-002: Lazy-load PDF libraries on first export
+      if (typeof jspdf === 'undefined' || typeof html2canvas === 'undefined') {
+        updatePdfProgress(progressState, 8, "Loading PDF libraries");
+        await runPdfAbortable(progressState, Promise.all([loadScript(CDN.jspdf), loadScript(CDN.html2canvas)]));
+        throwIfPdfExportAborted(progressState.signal);
+      }
 
-      const progressContainer = document.createElement('div');
-      progressContainer.style.position = 'fixed';
-      progressContainer.style.top = '50%';
-      progressContainer.style.left = '50%';
-      progressContainer.style.transform = 'translate(-50%, -50%)';
-      progressContainer.style.padding = '15px 20px';
-      progressContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-      progressContainer.style.color = 'white';
-      progressContainer.style.borderRadius = '5px';
-      progressContainer.style.zIndex = '9999';
-      progressContainer.style.textAlign = 'center';
-
-      const statusText = document.createElement('div');
-      statusText.textContent = 'Generating PDF...';
-      progressContainer.appendChild(statusText);
-      document.body.appendChild(progressContainer);
-
+      updatePdfProgress(progressState, 15, "Parsing markdown");
+      await waitForPdfFrame(progressState);
       const markdown = markdownEditor.value;
       const html = marked.parse(markdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath', 'input'],
         ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled', 'data-original-code']
       });
+      throwIfPdfExportAborted(progressState.signal);
 
+      updatePdfProgress(progressState, 24, "Preparing document");
+      await waitForPdfFrame(progressState);
       const tempElement = document.createElement("div");
+      progressState.tempElement = tempElement;
       tempElement.className = "markdown-body pdf-export";
       tempElement.innerHTML = sanitizedHtml;
       enhanceGitHubAlerts(tempElement);
@@ -7258,24 +7441,32 @@ document.addEventListener("DOMContentLoaded", function () {
       tempElement.style.color = currentTheme === "dark" ? "#c9d1d9" : "#24292e";
 
       document.body.appendChild(tempElement);
+      await waitForPdfFrame(progressState);
 
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      try {
-        await mermaid.run({
-          nodes: tempElement.querySelectorAll('.mermaid'),
-          suppressErrors: true
-        });
-      } catch (mermaidError) {
-        console.warn("Mermaid rendering issue:", mermaidError);
+      const mermaidNodes = tempElement.querySelectorAll('.mermaid');
+      if (window.mermaid && mermaidNodes.length > 0) {
+        updatePdfProgress(progressState, 34, "Rendering diagrams");
+        try {
+          await runPdfAbortable(progressState, mermaid.run({
+            nodes: mermaidNodes,
+            suppressErrors: true
+          }));
+        } catch (mermaidError) {
+          if (mermaidError instanceof PdfExportCancelledError) throw mermaidError;
+          console.warn("Mermaid rendering issue:", mermaidError);
+        }
+        throwIfPdfExportAborted(progressState.signal);
       }
 
-      if (window.MathJax) {
+      if (window.MathJax && markdownLikelyContainsMath(markdown)) {
+        updatePdfProgress(progressState, 44, "Rendering math");
         try {
-          await MathJax.typesetPromise([tempElement]);
+          await runPdfAbortable(progressState, MathJax.typesetPromise([tempElement]));
         } catch (mathJaxError) {
+          if (mathJaxError instanceof PdfExportCancelledError) throw mathJaxError;
           console.warn("MathJax rendering issue:", mathJaxError);
         }
+        throwIfPdfExportAborted(progressState.signal);
 
         // Hide MathJax assistive elements that cause duplicate text in PDF
         // These are screen reader elements that html2canvas captures as visible
@@ -7296,15 +7487,18 @@ document.addEventListener("DOMContentLoaded", function () {
         mathScripts.forEach(el => el.remove());
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitForPdfFrame(progressState);
 
       // Analyze and apply page-breaks for graphics (Story 1.1 + 1.2)
-      const pageBreakAnalysis = applyPageBreaksWithCascade(tempElement, PAGE_CONFIG);
+      updatePdfProgress(progressState, 55, "Optimizing page breaks");
+      const pageBreakAnalysis = applyPageBreaksWithCascade(tempElement, PAGE_CONFIG, 10, progressState.signal);
+      throwIfPdfExportAborted(progressState.signal);
 
       // Scale oversized graphics that can't fit on a single page (Story 1.3)
       if (pageBreakAnalysis.oversizedElements && pageBreakAnalysis.pageHeightPx) {
-        handleOversizedElements(pageBreakAnalysis.oversizedElements, pageBreakAnalysis.pageHeightPx);
+        handleOversizedElements(pageBreakAnalysis.oversizedElements, pageBreakAnalysis.pageHeightPx, progressState.signal);
       }
+      await waitForPdfFrame(progressState);
 
       const pdfOptions = {
         orientation: 'portrait',
@@ -7319,21 +7513,30 @@ document.addEventListener("DOMContentLoaded", function () {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 15;
       const contentWidth = pageWidth - (margin * 2);
+      const captureScale = choosePdfCanvasScale(tempElement);
 
-      const canvas = await html2canvas(tempElement, {
-        scale: 2,
+      updatePdfProgress(progressState, 65, "Capturing document");
+      const canvas = await runPdfAbortable(progressState, html2canvas(tempElement, {
+        scale: captureScale,
         useCORS: true,
         allowTaint: false,
         logging: false,
         windowWidth: 1000,
         windowHeight: tempElement.scrollHeight
-      });
+      }));
+      await waitForPdfFrame(progressState);
+      throwIfPdfExportAborted(progressState.signal);
 
       const scaleFactor = canvas.width / contentWidth;
       const imgHeight = canvas.height / scaleFactor;
       const pagesCount = Math.ceil(imgHeight / (pageHeight - margin * 2));
 
+      updatePdfProgress(progressState, 76, "Rendering pages");
       for (let page = 0; page < pagesCount; page++) {
+        throwIfPdfExportAborted(progressState.signal);
+        const pageProgress = 76 + ((page + 1) / pagesCount) * 18;
+        updatePdfProgress(progressState, pageProgress, `Rendering page ${page + 1} of ${pagesCount}`);
+
         if (page > 0) pdf.addPage();
 
         const sourceY = page * (pageHeight - margin * 2) * scaleFactor;
@@ -7349,29 +7552,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const imgData = pageCanvas.toDataURL('image/png');
         pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, destHeight);
+        await waitForPdfFrame(progressState);
       }
 
+      throwIfPdfExportAborted(progressState.signal);
+      updatePdfProgress(progressState, 98, "Preparing download");
       pdf.save("document.pdf");
-
-      statusText.textContent = 'Download successful!';
-      setTimeout(() => {
-        document.body.removeChild(progressContainer);
-      }, 1500);
-
-      document.body.removeChild(tempElement);
-      exportPdf.innerHTML = originalText;
-      exportPdf.disabled = false;
+      updatePdfProgress(progressState, 100, "Complete");
 
     } catch (error) {
-      console.error("PDF export failed:", error);
-      alert("PDF export failed: " + error.message);
-      exportPdf.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export';
-      exportPdf.disabled = false;
-
-      const progressContainer = document.querySelector('div[style*="Preparing PDF"]');
-      if (progressContainer) {
-        document.body.removeChild(progressContainer);
+      if (error instanceof PdfExportCancelledError || progressState.signal.aborted) {
+        console.info("PDF export cancelled");
+      } else {
+        console.error("PDF export failed:", error);
+        alert("PDF export failed: " + error.message);
       }
+    } finally {
+      cleanupPdfExport(progressState);
     }
   });
 
