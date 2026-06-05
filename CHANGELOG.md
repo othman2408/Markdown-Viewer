@@ -3,6 +3,18 @@
 All notable code changes to **Markdown Viewer** are documented here.
 Non-code commits (documentation, planning, README-only updates) are excluded.
 
+## v3.7.3
+
+- **Description:** Delivered critical rendering, export, and editor reliability fixes across the application.
+  - **Large Document Performance:** Re-engineered the preview rendering pipeline for large documents, improving editor responsiveness and fixing preview rendering failures on large files.
+  - **PDF Export Improvements:** Improved PDF generation UX with better progress feedback, fixed exported document centering, and resolved Mermaid diagram rendering failures in PDF export.
+  - **Find & Replace Scrolling:** Fixed find match scrolling so navigating between search results correctly scrolls the matched text into view.
+  - **Toolbar Markdown Preservation:** Fixed toolbar formatting actions to preserve existing markdown content instead of overwriting it.
+- **Date:** 2026-06-05
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/a6d062d9696d958904f493d82d8bc2299522f5e2
+
+---
+
 ## v3.7.2
 
 - **Description:** Implemented custom editor history, a new clear document action, tab layout enhancements, and visual optimizations for theme switching.
