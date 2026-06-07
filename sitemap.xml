@@ -9,6 +9,15 @@
     <xhtml:link rel="alternate" hreflang="ja" href="https://markdownviewer.pages.dev/?lang=ja" />
     <xhtml:link rel="alternate" hreflang="ko" href="https://markdownviewer.pages.dev/?lang=ko" />
     <xhtml:link rel="alternate" hreflang="pt-BR" href="https://markdownviewer.pages.dev/?lang=pt" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://markdownviewer.pages.dev/?lang=es" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://markdownviewer.pages.dev/?lang=fr" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://markdownviewer.pages.dev/?lang=de" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://markdownviewer.pages.dev/?lang=ru" />
+    <xhtml:link rel="alternate" hreflang="it" href="https://markdownviewer.pages.dev/?lang=it" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://markdownviewer.pages.dev/?lang=tr" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://markdownviewer.pages.dev/?lang=pl" />
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://markdownviewer.pages.dev/?lang=tw" />
+    <xhtml:link rel="alternate" hreflang="uk" href="https://markdownviewer.pages.dev/?lang=uk" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
