@@ -8,6 +8,7 @@
     <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://markdownviewer.pages.dev/?lang=zh" />
     <xhtml:link rel="alternate" hreflang="ja" href="https://markdownviewer.pages.dev/?lang=ja" />
     <xhtml:link rel="alternate" hreflang="ko" href="https://markdownviewer.pages.dev/?lang=ko" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://markdownviewer.pages.dev/?lang=pt" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
