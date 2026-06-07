@@ -200,9 +200,10 @@ Located at `desktop-app/package.json`.
 |--------|---------|-------------|
 | `setup` | `node setup-binaries.js` | Download Neutralinojs binaries |
 | `dev` | `npx @neutralinojs/neu@11.7.0 run` | Start with hot-reload |
-| `build` | `npx @neutralinojs/neu@11.7.0 build --embed-resources` | Build embedded single-file binaries |
-| `build:portable` | `npx @neutralinojs/neu@11.7.0 build --release` | Build portable (resource-separated) binaries |
-| `build:all` | `npm run build && npm run build:portable` | Build both embedded and portable |
+| `build` | `node build-windows.js` | Build a Windows embedded single-file binary |
+| `build:windows` | `node build-windows.js` | Build a Windows embedded single-file binary |
+| `build:portable` | `npx @neutralinojs/neu@11.7.0 build --release --clean` | Build portable (resource-separated) binaries |
+| `build:all` | `npx @neutralinojs/neu@11.7.0 build --release --clean && node build-windows.js --dist dist/windows-embedded` | Build portable bundle plus Windows embedded binary |
 
 ---
 

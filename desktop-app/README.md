@@ -45,25 +45,33 @@ For more information, see the [Neutralinojs documentation](https://neutralino.js
 
 ### Building the app
 
-**Default** — Single-file executables with embedded resources:
+**Default / Windows** - Single-file Windows executable with embedded resources:
 
 ```bash
 npm run build
 ```
 
-**Portable** — ZIP bundle with separate `resources.neu` file:
+**Portable** - ZIP bundle with separate `resources.neu` file:
 
 ```bash
 npm run build:portable
 ```
 
-**Both** — Build embedded + portable in one step:
+**Both** - Build the portable bundle and a Windows embedded EXE in one step:
 
 ```bash
 npm run build:all
 ```
 
 Build output is placed in `dist/`.
+
+Note: `npm run build` now uses the Windows-only embedded helper and writes
+`dist/markdown-viewer/markdown-viewer-win_x64.exe`. The helper temporarily hides
+non-Windows Neutralino binaries so the CLI does not run out of memory while
+embedding every platform before it reaches the Windows target. Use
+`npm run build:portable` for the all-platform portable ZIP with `resources.neu`;
+`npm run build:all` writes that ZIP plus a Windows embedded EXE at
+`dist/windows-embedded/markdown-viewer/markdown-viewer-win_x64.exe`.
 
 For more information, see the [Neutralinojs documentation](https://neutralino.js.org/docs/cli/neu-cli#neu-build).
 
@@ -86,9 +94,6 @@ Each release includes:
 | Asset | Description |
 | ----- | ----------- |
 | `markdown-viewer-win_x64.exe` | Windows x64 executable |
-| `markdown-viewer-linux_x64.tar.gz` | Linux x64 executable (tarball) |
-| `markdown-viewer-linux_arm64.tar.gz` | Linux ARM64 executable (tarball) |
-| `markdown-viewer-mac_*.tar.gz` | macOS executables (tarball) |
 | `markdown-viewer-release.zip` | Portable bundle with `resources.neu` (all platforms) |
 | `source.tar.gz` | Desktop app source archive |
 | `SHA256SUMS.txt` | Checksums for all release assets |
