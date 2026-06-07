@@ -34,7 +34,7 @@ jobs:
         working-directory: desktop-app
         run: npm run setup
 
-      - name: Build all binaries (embedded + portable)
+      - name: Build desktop bundles
         working-directory: desktop-app
         run: npm run build:all
 
@@ -45,27 +45,19 @@ jobs:
           STAGING="release-assets"
           mkdir -p "$STAGING"
 
-          # --- Embedded single-file executables ---
-          for bin in dist/markdown-viewer/markdown-viewer-*; do
-            [ -f "$bin" ] || continue
-            filename=$(basename "$bin")
+          # Windows embedded single-file executable
+          WIN_EMBEDDED="dist/windows-embedded/markdown-viewer/markdown-viewer-win_x64.exe"
+          if [ -f "$WIN_EMBEDDED" ]; then
+            cp "$WIN_EMBEDDED" "$STAGING/markdown-viewer-win_x64.exe"
+          fi
 
-            if [[ "$filename" == *.exe ]]; then
-              # Windows .exe — ship as-is
-              cp "$bin" "$STAGING/$filename"
-            else
-              # Linux/macOS — tar.gz for Unix convention
-              tar -czf "$STAGING/${filename}.tar.gz" -C "$(dirname "$bin")" "$filename"
-            fi
-          done
-
-          # --- Portable ZIP bundle (from neu build --release) ---
+          # Portable ZIP bundle from neu build --release
           for zip in dist/*.zip; do
             [ -f "$zip" ] || continue
             cp "$zip" "$STAGING/"
           done
 
-          # --- Source archives ---
+          # Source archive
           cd ..
           tar -czf "desktop-app/$STAGING/source.tar.gz" \
             --exclude='desktop-app/dist' \
@@ -77,7 +69,7 @@ jobs:
             desktop-app/
           cd desktop-app
 
-          # --- SHA256 checksums ---
+          # SHA256 checksums
           cd "$STAGING"
           sha256sum * > SHA256SUMS.txt
 

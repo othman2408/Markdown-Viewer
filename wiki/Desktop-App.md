@@ -104,9 +104,9 @@ This starts the app with **hot-reload**: editing source files in the `resources/
 
 Three build modes are available:
 
-### Embedded (single-file executable)
+### Embedded (single-file Windows executable)
 
-All resources are embedded inside the binary. No additional files are needed at runtime.
+All resources are embedded inside the Windows binary. No additional files are needed at runtime.
 
 ```bash
 npm run build
@@ -126,22 +126,25 @@ npm run build:portable
 npm run build:all
 ```
 
+This creates the portable ZIP and a Windows embedded EXE.
+
 ---
 
 ## Build Output
 
 After building, output files are placed in `desktop-app/dist/`:
 
+Current builds write the portable bundle to `dist/markdown-viewer-release.zip`.
+When using `npm run build:all`, the Windows embedded executable is written to
+`dist/windows-embedded/markdown-viewer/markdown-viewer-win_x64.exe`.
+
 ```
 dist/
-├── markdown-viewer-win_x64.exe       # Windows embedded binary
-├── markdown-viewer-linux_x64         # Linux x64 embedded binary
-├── markdown-viewer-linux_arm64       # Linux ARM64 embedded binary
-├── markdown-viewer-mac_universal     # macOS universal binary
-└── portable/                         # Portable builds (if built)
-    ├── markdown-viewer-win_x64/
-    ├── markdown-viewer-linux_x64/
-    └── …
+|-- markdown-viewer/                         # Portable app folder
+|-- markdown-viewer-release.zip              # Portable ZIP with resources.neu
+`-- windows-embedded/
+    `-- markdown-viewer/
+        `-- markdown-viewer-win_x64.exe      # Windows embedded binary
 ```
 
 ---
@@ -173,7 +176,7 @@ This triggers a GitHub Actions workflow that:
 1. Sets up Node.js
 2. Runs `npm install` and `node setup-binaries.js`
 3. Runs `node prepare.js`
-4. Builds embedded binaries for all platforms
+4. Builds the portable bundle and Windows embedded binary
 5. Computes SHA-256 checksums
 6. Creates a GitHub Release with the binaries and checksums as assets
 
@@ -182,9 +185,7 @@ This triggers a GitHub Actions workflow that:
 | File | Platform |
 |------|----------|
 | `markdown-viewer-win_x64.exe` | Windows x64 |
-| `markdown-viewer-linux_x64` | Linux x64 |
-| `markdown-viewer-linux_arm64` | Linux ARM64 |
-| `markdown-viewer-mac_universal` | macOS (Apple Silicon + Intel) |
+| `markdown-viewer-release.zip` | Portable bundle with resources.neu |
 | `checksums.sha256` | SHA-256 verification file |
 
 ---

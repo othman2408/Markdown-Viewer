@@ -68,8 +68,20 @@ async function onWindowClose() {
   }
 }
 
+function isNeutralinoRuntime() {
+  if (typeof Neutralino === 'undefined' || typeof NL_PORT === 'undefined') {
+    return false;
+  }
+
+  try {
+    return typeof NL_TOKEN !== 'undefined' || Boolean(sessionStorage.getItem('NL_TOKEN'));
+  } catch (e) {
+    return typeof NL_TOKEN !== 'undefined';
+  }
+}
+
 // Initialize Neutralino if in native environment
-if (typeof Neutralino !== 'undefined') {
+if (isNeutralinoRuntime()) {
   Neutralino.init();
 
   // Register event listeners
@@ -85,7 +97,7 @@ if (typeof Neutralino !== 'undefined') {
 
 // Open file passed as command-line argument (e.g. when double-clicking a .md file)
 (async function loadInitialFile() {
-  if (typeof Neutralino === 'undefined' || typeof NL_ARGS === 'undefined') return;
+  if (!isNeutralinoRuntime() || typeof NL_ARGS === 'undefined') return;
   const args = Array.isArray(NL_ARGS) ? NL_ARGS : (() => { try { return JSON.parse(NL_ARGS); } catch(e) { return []; } })();
   const filePath = args.find(a => typeof a === 'string' && /\.(md|markdown)$/i.test(a));
   if (!filePath) return;
