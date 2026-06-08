@@ -6582,12 +6582,33 @@ document.addEventListener("DOMContentLoaded", function () {
       .markdown-body {
           box-sizing: border-box;
           min-width: 200px;
-          max-width: 980px;
+          max-width: 100%;
+          width: fit-content;
           margin: 0 auto;
           padding: 45px;
           background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
           color: ${isDarkTheme ? "#c9d1d9" : "#24292e"};
       }
+      .markdown-body > p,
+      .markdown-body > ul,
+      .markdown-body > ol,
+      .markdown-body > blockquote,
+      .markdown-body > h1,
+      .markdown-body > h2,
+      .markdown-body > h3,
+      .markdown-body > h4,
+      .markdown-body > h5,
+      .markdown-body > h6,
+      .markdown-body > pre,
+      .markdown-body > table,
+      .markdown-body > details,
+      .markdown-body > dl,
+      .markdown-body > hr {
+          max-width: 980px;
+          margin-left: auto !important;
+          margin-right: auto !important;
+      }
+
 
       /* Syntax Highlighting */
       .hljs-doctag, .hljs-keyword, .hljs-template-tag, .hljs-template-variable, .hljs-type, .hljs-variable.language_ { color: ${isDarkTheme ? "#ff7b72" : "#d73a49"}; }
