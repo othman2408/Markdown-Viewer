@@ -453,7 +453,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function isSegmentedPreviewSafe(markdown) {
     if (!markdown || markdown.length < PREVIEW_WORKER_THRESHOLD) return false;
-    if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(markdown)) return false;
+    if (/^\s*---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(markdown)) return false;
     if (/^\[[^\]\n]+\]:\s+\S+/m.test(markdown)) return false;
     if (/\[\^[^\]\n]+\]/.test(markdown)) return false;
     if (/\n:[ \t]+/.test(markdown)) return false;
@@ -1043,7 +1043,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function parseFrontmatter(markdown) {
-    const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+    const match = markdown.match(/^\s*---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
     if (!match) return { frontmatter: null, body: markdown };
     try {
       const data = jsyaml.load(match[1]) || {};
@@ -6724,10 +6724,15 @@ document.addEventListener("DOMContentLoaded", function () {
           if (overflow <= 1) return;
 
           var styles = window.getComputedStyle(article);
+          var paddingLeft = parseFloat(styles.paddingLeft) || 0;
           var paddingRight = parseFloat(styles.paddingRight) || 0;
           var borderRight = parseFloat(styles.borderRightWidth) || 0;
           var borderLeft = parseFloat(styles.borderLeftWidth) || 0;
-          var requiredWidth = Math.ceil(article.scrollWidth + paddingRight + borderLeft + borderRight);
+          var boxSizing = styles.boxSizing;
+
+          var requiredWidth = boxSizing === 'border-box'
+              ? Math.ceil(article.scrollWidth + borderLeft + borderRight)
+              : Math.ceil(article.scrollWidth - paddingLeft - paddingRight);
 
           article.style.width = requiredWidth + 'px';
           article.style.maxWidth = 'none';
@@ -6996,8 +7001,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const boxSizing = window.getComputedStyle(element).boxSizing;
 
     const requiredWidth = boxSizing === 'border-box'
-      ? Math.ceil(element.scrollWidth + paddingRight + borderLeft + borderRight)
-      : Math.ceil(element.scrollWidth - paddingLeft + paddingRight);
+      ? Math.ceil(element.scrollWidth + borderLeft + borderRight)
+      : Math.ceil(element.scrollWidth - paddingLeft - paddingRight);
 
     element.style.width = `${requiredWidth}px`;
     return true;
@@ -7012,12 +7017,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const graphics = [];
 
     // Query all targeting elements in precise DOM layout flow order
-    container.querySelectorAll('img, svg, pre, table').forEach(el => {
-      let type = 'img';
+    container.querySelectorAll('img, svg, pre, table, p, li, h1, h2, h3, h4, h5, h6, blockquote, hr, .math-block, mjx-container[display="true"]').forEach(el => {
       const tag = el.tagName.toLowerCase();
+      let type = 'img';
       if (tag === 'svg') type = 'svg';
       else if (tag === 'pre') type = 'pre';
       else if (tag === 'table') type = 'table';
+      else if (['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'hr'].includes(tag)) type = 'text';
+      else if (el.classList.contains('math-block') || tag === 'mjx-container') type = 'math';
       
       graphics.push({ element: el, type: type });
     });
@@ -7240,21 +7247,25 @@ document.addEventListener("DOMContentLoaded", function () {
    * @param {number} pageHeightPx - Page height in pixels
    */
   function insertPageBreaks(fittingElements, pageHeightPx, signal) {
+    let accumulatedShift = 0;
     for (const item of fittingElements) {
       throwIfPdfExportAborted(signal);
 
+      const currentTop = item.top + accumulatedShift;
+
       // Calculate where the current page ends
-      const currentPageBottom = (item.splitPageIndex + 1) * pageHeightPx;
+      const splitPageIndex = Math.floor(currentTop / pageHeightPx);
+      const currentPageBottom = (splitPageIndex + 1) * pageHeightPx;
 
       // Calculate remaining space on current page
-      const remainingSpace = currentPageBottom - item.top;
+      const remainingSpace = currentPageBottom - currentTop;
       const remainingRatio = remainingSpace / pageHeightPx;
 
       logPdfExportDebug('Processing split element:', {
         type: item.type,
-        top: Math.round(item.top),
+        top: Math.round(currentTop),
         height: Math.round(item.height),
-        splitPageIndex: item.splitPageIndex,
+        splitPageIndex: splitPageIndex,
         currentPageBottom: Math.round(currentPageBottom),
         remainingSpace: Math.round(remainingSpace),
         remainingRatio: remainingRatio.toFixed(2)
@@ -7272,7 +7283,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       // Calculate margin needed to push element to next page
-      const marginNeeded = currentPageBottom - item.top + 5; // 5px buffer
+      const marginNeeded = currentPageBottom - currentTop + 5; // 5px buffer
 
       logPdfExportDebug('  -> Applying marginTop:', marginNeeded, 'px');
 
@@ -7289,6 +7300,155 @@ document.addEventListener("DOMContentLoaded", function () {
       targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
 
       logPdfExportDebug('  -> Element after margin:', targetElement.tagName, 'marginTop =', targetElement.style.marginTop);
+
+      // Accumulate the shift so subsequent element calculations use updated positions
+      accumulatedShift += marginNeeded;
+    }
+  }
+
+  /**
+   * Merges previously split table parts back into their original tables.
+   * This is called at the start of each iteration in the cascade to ensure
+   * we measure tables in their clean, original state before re-splitting.
+   * @param {HTMLElement} container - The container element to process
+   */
+  function mergeSplitTables(container) {
+    const groupIds = new Set();
+    container.querySelectorAll('table[data-split-group-id]').forEach(t => {
+      if (t.dataset.splitGroupId) {
+        groupIds.add(t.dataset.splitGroupId);
+      }
+    });
+
+    for (const groupId of groupIds) {
+      const originalTable = container.querySelector(`table[data-split-group-id="${groupId}"]:not([data-split-part="true"])`);
+      if (!originalTable) continue;
+
+      const parts = Array.from(container.querySelectorAll(`table[data-split-group-id="${groupId}"][data-split-part="true"]`));
+      const tbody = originalTable.tBodies[0] || originalTable.querySelector('tbody') || originalTable;
+
+      for (const part of parts) {
+        const partTbody = part.tBodies[0] || part.querySelector('tbody') || part;
+        const rows = Array.from(partTbody.children).filter(child => child.tagName.toLowerCase() === 'tr');
+        for (const row of rows) {
+          tbody.appendChild(row);
+        }
+        part.remove();
+      }
+
+      const spacers = Array.from(container.querySelectorAll(`div[data-split-group-id="${groupId}"][data-split-spacer="true"]`));
+      for (const spacer of spacers) {
+        spacer.remove();
+      }
+
+      originalTable.removeAttribute('data-split-group-id');
+    }
+  }
+
+  /**
+   * Splits table elements that exceed a single page's height across page breaks.
+   * Inserts page-break spacers to push subsequent rows to the next page and
+   * replicates table headers (thead) across pages.
+   * @param {HTMLElement} container - The container element to process
+   * @param {number} pageHeightPx - The height of a single page in pixels
+   */
+  function splitTables(container, pageHeightPx) {
+    // First, merge any previously split tables to start with a clean state
+    mergeSplitTables(container);
+
+    const tables = Array.from(container.querySelectorAll('table'));
+    let groupCounter = 0;
+
+    for (const table of tables) {
+      // Skip if it is a split part (safety check)
+      if (table.dataset.splitPart === "true") continue;
+
+      // Only split tables that are taller than a single page
+      const tableRect = table.getBoundingClientRect();
+      if (tableRect.height <= pageHeightPx) continue;
+
+      const tbody = table.tBodies[0] || table.querySelector('tbody');
+      if (!tbody) continue;
+
+      const rows = Array.from(tbody.children).filter(child => child.tagName.toLowerCase() === 'tr');
+      if (rows.length === 0) continue;
+
+      const groupId = `table-group-${groupCounter++}`;
+      table.dataset.splitGroupId = groupId;
+
+      const containerRect = container.getBoundingClientRect();
+
+      // Measure original positions of rows
+      const rowPositions = rows.map(row => {
+        const rect = row.getBoundingClientRect();
+        return {
+          row: row,
+          top: rect.top - containerRect.top,
+          bottom: rect.bottom - containerRect.top,
+          height: rect.height
+        };
+      });
+
+      let currentTable = table;
+      let currentTbody = tbody;
+      let accumulatedShift = 0;
+
+      for (let i = 0; i < rowPositions.length; i++) {
+        const pos = rowPositions[i];
+        const shiftedTop = pos.top + accumulatedShift;
+        const shiftedBottom = pos.bottom + accumulatedShift;
+
+        const currentPageIndex = Math.floor(shiftedTop / pageHeightPx);
+        const nextPageBoundary = (currentPageIndex + 1) * pageHeightPx;
+
+        // Check if the row crosses or starts after the next page boundary
+        if (shiftedBottom > nextPageBoundary) {
+          // Calculate the spacer height needed to push the row to the next page
+          const spacerHeight = nextPageBoundary - shiftedTop;
+
+          // Clone the thead if it exists to replicate table headers
+          const originalThead = table.querySelector('thead');
+          const theadHeight = originalThead ? originalThead.getBoundingClientRect().height : 0;
+
+          // Update accumulated shift with spacer height and the replicated thead height
+          accumulatedShift += spacerHeight + theadHeight;
+
+          // Clone original table attributes but not children
+          const nextTable = table.cloneNode(false);
+          nextTable.removeAttribute('id');
+          nextTable.dataset.splitGroupId = groupId;
+          nextTable.dataset.splitPart = "true";
+
+          if (originalThead) {
+            nextTable.appendChild(originalThead.cloneNode(true));
+          }
+
+          const nextTbody = document.createElement('tbody');
+          nextTable.appendChild(nextTbody);
+
+          // Create a spacer div
+          const spacer = document.createElement('div');
+          spacer.className = 'table-page-break-spacer';
+          spacer.dataset.splitGroupId = groupId;
+          spacer.dataset.splitSpacer = "true";
+          spacer.style.height = `${spacerHeight}px`;
+          spacer.style.margin = '0';
+          spacer.style.padding = '0';
+          spacer.style.border = 'none';
+
+          // Insert spacer and next table part in the DOM
+          currentTable.parentNode.insertBefore(spacer, currentTable.nextSibling);
+          spacer.parentNode.insertBefore(nextTable, spacer.nextSibling);
+
+          currentTable = nextTable;
+          currentTbody = nextTbody;
+        }
+
+        // If table has been split, move the row to the active table part's tbody
+        if (currentTable !== table) {
+          currentTbody.appendChild(pos.row);
+        }
+      }
     }
   }
 
@@ -7304,8 +7464,15 @@ document.addEventListener("DOMContentLoaded", function () {
     let analysis;
     let previousSplitCount = -1;
 
+    const elementWidth = tempElement.offsetWidth;
+    const aspectRatio = pageConfig.contentHeight / pageConfig.contentWidth;
+    const pageHeightPx = elementWidth * aspectRatio;
+
     do {
       throwIfPdfExportAborted(signal);
+
+      // Split tables at page breaks
+      splitTables(tempElement, pageHeightPx);
 
       // Re-analyze after each adjustment
       analysis = analyzeGraphicsForPageBreaks(tempElement, signal);
@@ -7322,20 +7489,28 @@ document.addEventListener("DOMContentLoaded", function () {
       // Store oversized elements for Story 1.3
       analysis.oversizedElements = oversizedElements;
 
-      // If no fitting elements need adjustment, we're done
-      if (fittingElements.length === 0) {
+      // Apply page breaks to fitting elements
+      if (fittingElements.length > 0) {
+        insertPageBreaks(fittingElements, pageHeightPx, signal);
+      }
+
+      // Scale and push oversized elements inside the cascade loop so sibling shifts are re-evaluated
+      if (oversizedElements.length > 0) {
+        handleOversizedElements(oversizedElements, pageHeightPx, signal);
+      }
+
+      // If no elements need adjustment, we're done
+      if (fittingElements.length === 0 && oversizedElements.length === 0) {
         break;
       }
 
       // Check if we're making progress (prevent infinite loops)
-      if (fittingElements.length === previousSplitCount) {
+      const totalSplitCount = fittingElements.length + oversizedElements.length;
+      if (totalSplitCount === previousSplitCount) {
         console.warn('Page-break adjustment not making progress, stopping');
         break;
       }
-      previousSplitCount = fittingElements.length;
-
-      // Apply page breaks to fitting elements
-      insertPageBreaks(fittingElements, pageHeightPx, signal);
+      previousSplitCount = totalSplitCount;
       iteration++;
 
     } while (iteration < maxIterations);
@@ -7433,6 +7608,18 @@ document.addEventListener("DOMContentLoaded", function () {
     for (const item of oversizedElements) {
       throwIfPdfExportAborted(signal);
 
+      // PUSH to the top of the next page first to prevent split
+      const currentPageBottom = (item.splitPageIndex + 1) * pageHeightPx;
+      const marginNeeded = currentPageBottom - item.top + 5; // 5px safety buffer
+      
+      let targetElement = item.element;
+      if (item.type === 'svg' && item.element.parentElement) {
+        targetElement = item.element.parentElement;
+      }
+      
+      const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
+      targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
+
       // Calculate required scale factor
       const { scaleFactor, wasClampedToMin } = calculateScaleFactor(
         item.height,
@@ -7494,7 +7681,7 @@ document.addEventListener("DOMContentLoaded", function () {
       tempElement.className = "markdown-body pdf-export";
       tempElement.innerHTML = sanitizedHtml;
       enhanceGitHubAlerts(tempElement);
-      tempElement.style.padding = "20px";
+      tempElement.style.padding = "0px";
       tempElement.style.width = "210mm";
       tempElement.style.margin = "0 auto";
       tempElement.style.fontSize = "14px";
@@ -7571,10 +7758,6 @@ document.addEventListener("DOMContentLoaded", function () {
       const pageBreakAnalysis = applyPageBreaksWithCascade(tempElement, PAGE_CONFIG, 10, progressState.signal);
       throwIfPdfExportAborted(progressState.signal);
 
-      // Scale oversized graphics that can't fit on a single page (Story 1.3)
-      if (pageBreakAnalysis.oversizedElements && pageBreakAnalysis.pageHeightPx) {
-        handleOversizedElements(pageBreakAnalysis.oversizedElements, pageBreakAnalysis.pageHeightPx, progressState.signal);
-      }
       await waitForPdfFrame(progressState);
 
       const pdfOptions = {
@@ -7599,7 +7782,7 @@ document.addEventListener("DOMContentLoaded", function () {
         allowTaint: false,
         logging: false,
         windowWidth: Math.max(PAGE_CONFIG.windowWidth, Math.ceil(tempElement.getBoundingClientRect().width)),
-        windowHeight: tempElement.scrollHeight
+        windowHeight: Math.ceil(tempElement.getBoundingClientRect().height)
       }));
       await waitForPdfFrame(progressState);
       throwIfPdfExportAborted(progressState.signal);

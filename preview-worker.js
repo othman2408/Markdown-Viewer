@@ -350,7 +350,7 @@ function ensureLibraries(urls) {
 }
 
 function isSegmentedPreviewSafe(markdown) {
-  if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(markdown)) return false;
+  if (/^\s*---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(markdown)) return false;
   if (/^\[[^\]\n]+\]:\s+\S+/m.test(markdown)) return false;
   if (/\[\^[^\]\n]+\]/.test(markdown)) return false;
   if (/\n:[ \t]+/.test(markdown)) return false;
