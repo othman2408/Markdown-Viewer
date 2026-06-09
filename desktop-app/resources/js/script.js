@@ -6538,7 +6538,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const html = tableHtml + marked.parse(referenceData.cleanedMarkdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'input'], 
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
       });
       const tempContainer = document.createElement("div");
       tempContainer.innerHTML = sanitizedHtml;
@@ -6799,7 +6800,7 @@ document.addEventListener("DOMContentLoaded", function () {
     scale: 2                // html2canvas scale factor
   };
 
-  const PDF_EXPORT_DEBUG = false;
+  const PDF_EXPORT_DEBUG = true;
   let activePdfExport = null;
 
   class PdfExportCancelledError extends Error {
@@ -7019,17 +7020,93 @@ document.addEventListener("DOMContentLoaded", function () {
     // Query all targeting elements in precise DOM layout flow order
     container.querySelectorAll('img, svg, pre, table, p, li, h1, h2, h3, h4, h5, h6, blockquote, hr, .math-block, mjx-container[display="true"]').forEach(el => {
       const tag = el.tagName.toLowerCase();
-      let type = 'img';
-      if (tag === 'svg') type = 'svg';
+      let type = '';
+      
+      if (tag === 'img') type = 'img';
+      else if (tag === 'svg') type = 'svg';
       else if (tag === 'pre') type = 'pre';
       else if (tag === 'table') type = 'table';
-      else if (['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'hr'].includes(tag)) type = 'text';
-      else if (el.classList.contains('math-block') || tag === 'mjx-container') type = 'math';
+      else if (tag === 'hr') type = 'hr';
+      else if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+        type = 'text';
+      } else if (tag === 'li' || tag === 'blockquote') {
+        // Only target li/blockquote if they don't contain other block elements to avoid double targeting
+        const hasBlockChildren = el.querySelector('p, blockquote, pre, table, ul, ol') !== null;
+        if (!hasBlockChildren) {
+          type = 'text';
+        }
+      } else if (el.classList.contains('math-block') || tag === 'mjx-container') {
+        type = 'math';
+      }
       
-      graphics.push({ element: el, type: type });
+      if (type) {
+        graphics.push({ element: el, type: type });
+      }
     });
 
     return graphics;
+  }
+
+  /**
+   * Calculates the computed line-height of a text element, defaulting based on tag if "normal"
+   * @param {HTMLElement} element 
+   * @returns {number} The line-height in pixels
+   */
+  function getElementLineHeight(element) {
+    const style = window.getComputedStyle(element);
+    const fontSize = parseFloat(style.fontSize) || 14;
+    let lineHeight = parseFloat(style.lineHeight);
+    
+    if (isNaN(lineHeight)) {
+      const tag = element.tagName.toLowerCase();
+      if (tag.startsWith('h')) {
+        lineHeight = fontSize * 1.25;
+      } else {
+        lineHeight = fontSize * 1.5;
+      }
+    } else if (lineHeight < 10) {
+      // Handle unitless line-height (e.g. "1.5")
+      lineHeight = lineHeight * fontSize;
+    }
+    return lineHeight;
+  }
+
+  /**
+   * Calculates the shift needed to align a split text element's lines with the page boundary
+   * @param {Object} item - The split element item
+   * @param {Array} pageBoundaries - Page break positions
+   * @returns {number} The shift in pixels
+   */
+  function calculateTextElementShift(item, pageBoundaries) {
+    const boundaryY = pageBoundaries[item.splitPageIndex];
+    if (boundaryY === undefined) return 0;
+
+    const element = item.element;
+    const style = window.getComputedStyle(element);
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const borderTop = parseFloat(style.borderTopWidth) || 0;
+    const paddingBottom = parseFloat(style.paddingBottom) || 0;
+    const borderBottom = parseFloat(style.borderBottomWidth) || 0;
+
+    const lh = getElementLineHeight(element);
+    const contentTop = item.top + paddingTop + borderTop;
+    const contentHeight = item.height - paddingTop - paddingBottom - borderTop - borderBottom;
+    if (contentHeight <= 0) return 0;
+
+    const numLines = Math.max(1, Math.round(contentHeight / lh));
+
+    for (let i = 0; i < numLines; i++) {
+      const lineTop = contentTop + i * lh;
+      const lineBottom = contentTop + (i + 1) * lh;
+
+      // Check if this line is split by boundaryY (using a small tolerance to prevent float vibrations)
+      if (lineTop < boundaryY - 0.5 && lineBottom > boundaryY + 0.5) {
+        // Calculate shift to align the line's top with boundaryY
+        return boundaryY - lineTop;
+      }
+    }
+
+    return 0;
   }
 
   /**
@@ -7065,9 +7142,6 @@ document.addEventListener("DOMContentLoaded", function () {
    * @returns {Array} Array of y-coordinates where pages end
    */
   function calculatePageBoundaries(totalHeight, elementWidth, pageConfig) {
-    // Calculate pixel height per page based on the element's actual width
-    // This must match how PDF pagination will split the canvas
-    // The aspect ratio of content area determines page height relative to width
     const aspectRatio = pageConfig.contentHeight / pageConfig.contentWidth;
     const pageHeightPx = elementWidth * aspectRatio;
 
@@ -7089,20 +7163,12 @@ document.addEventListener("DOMContentLoaded", function () {
    * @returns {Array} Array of split elements with additional split info
    */
   function detectSplitElements(elements, pageBoundaries) {
-    // Handle edge case: empty elements array
-    if (!elements || elements.length === 0) {
-      return [];
-    }
-
-    // Handle edge case: no page boundaries (single page)
-    if (!pageBoundaries || pageBoundaries.length === 0) {
-      return [];
-    }
+    if (!elements || elements.length === 0) return [];
+    if (!pageBoundaries || pageBoundaries.length === 0) return [];
 
     const splitElements = [];
 
     for (const item of elements) {
-      // Find which page the element starts on
       let startPage = 0;
       for (let i = 0; i < pageBoundaries.length; i++) {
         if (item.top >= pageBoundaries[i]) {
@@ -7112,7 +7178,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      // Find which page the element ends on
       let endPage = 0;
       for (let i = 0; i < pageBoundaries.length; i++) {
         if (item.bottom > pageBoundaries[i]) {
@@ -7122,9 +7187,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      // Element is split if it spans multiple pages
       if (endPage > startPage) {
-        // Calculate overflow amount (how much crosses into next page)
         const boundaryY = pageBoundaries[startPage] || pageBoundaries[0];
         const overflowAmount = item.bottom - boundaryY;
 
@@ -7151,22 +7214,11 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       throwIfPdfExportAborted(signal);
 
-      // Step 1: Identify all graphic elements
       const graphics = identifyGraphicElements(tempElement);
-      logPdfExportDebug('Step 1 - Graphics found:', graphics.length, graphics.map(g => g.type));
-
-      // Step 2: Calculate positions for each element
       const elementsWithPositions = calculateElementPositions(graphics, tempElement);
-      logPdfExportDebug('Step 2 - Element positions:', elementsWithPositions.map(e => ({
-        type: e.type,
-        top: Math.round(e.top),
-        height: Math.round(e.height),
-        bottom: Math.round(e.bottom)
-      })));
 
       throwIfPdfExportAborted(signal);
 
-      // Step 3: Calculate page boundaries using the element's ACTUAL width
       const totalHeight = tempElement.scrollHeight;
       const elementWidth = tempElement.offsetWidth;
       const { boundaries: pageBoundaries, pageHeightPx } = calculatePageBoundaries(
@@ -7175,18 +7227,7 @@ document.addEventListener("DOMContentLoaded", function () {
         PAGE_CONFIG
       );
 
-      logPdfExportDebug('Step 3 - Page boundaries:', {
-        elementWidth,
-        totalHeight,
-        pageHeightPx: Math.round(pageHeightPx),
-        boundaries: pageBoundaries.map(b => Math.round(b))
-      });
-
-      // Step 4: Detect split elements
       const splitElements = detectSplitElements(elementsWithPositions, pageBoundaries);
-      logPdfExportDebug('Step 4 - Split elements detected:', splitElements.length);
-
-      // Calculate page count
       const pageCount = pageBoundaries.length + 1;
 
       return {
@@ -7217,15 +7258,8 @@ document.addEventListener("DOMContentLoaded", function () {
   // Page-Break Insertion Functions (Story 1.2)
   // ============================================
 
-  // Threshold for whitespace optimization (30% of page height)
   const PAGE_BREAK_THRESHOLD = 0.3;
 
-  /**
-   * Task 3: Categorizes split elements by whether they fit on a single page
-   * @param {Array} splitElements - Array of split elements from detection
-   * @param {number} pageHeightPx - Page height in pixels
-   * @returns {Object} { fittingElements, oversizedElements }
-   */
   function categorizeBySize(splitElements, pageHeightPx) {
     const fittingElements = [];
     const oversizedElements = [];
@@ -7245,73 +7279,42 @@ document.addEventListener("DOMContentLoaded", function () {
    * Task 1: Inserts page breaks by adjusting margins for fitting elements
    * @param {Array} fittingElements - Elements that fit on a single page
    * @param {number} pageHeightPx - Page height in pixels
+   * @returns {boolean} True if any adjustments were made
    */
   function insertPageBreaks(fittingElements, pageHeightPx, signal) {
     let accumulatedShift = 0;
+    let adjusted = false;
     for (const item of fittingElements) {
       throwIfPdfExportAborted(signal);
 
       const currentTop = item.top + accumulatedShift;
-
-      // Calculate where the current page ends
       const splitPageIndex = Math.floor(currentTop / pageHeightPx);
       const currentPageBottom = (splitPageIndex + 1) * pageHeightPx;
-
-      // Calculate remaining space on current page
       const remainingSpace = currentPageBottom - currentTop;
       const remainingRatio = remainingSpace / pageHeightPx;
 
-      logPdfExportDebug('Processing split element:', {
-        type: item.type,
-        top: Math.round(currentTop),
-        height: Math.round(item.height),
-        splitPageIndex: splitPageIndex,
-        currentPageBottom: Math.round(currentPageBottom),
-        remainingSpace: Math.round(remainingSpace),
-        remainingRatio: remainingRatio.toFixed(2)
-      });
-
-      // Task 4: Whitespace optimization
-      // If remaining space is more than threshold and element almost fits, skip
-      // (Will be handled by Story 1.3 scaling instead)
       if (remainingRatio > PAGE_BREAK_THRESHOLD) {
-        const scaledHeight = item.height * 0.9; // 90% scale
+        const scaledHeight = item.height * 0.9;
         if (scaledHeight <= remainingSpace) {
-          logPdfExportDebug('  -> Skipping (can fit with 90% scaling)');
           continue;
         }
       }
 
-      // Calculate margin needed to push element to next page
-      const marginNeeded = currentPageBottom - currentTop + 5; // 5px buffer
-
-      logPdfExportDebug('  -> Applying marginTop:', marginNeeded, 'px');
-
-      // Determine which element to apply margin to
-      // For SVG elements (Mermaid diagrams), apply to parent container for proper layout
+      const marginNeeded = currentPageBottom - currentTop + 5;
       let targetElement = item.element;
       if (item.type === 'svg' && item.element.parentElement) {
         targetElement = item.element.parentElement;
-        logPdfExportDebug('  -> Using parent element:', targetElement.tagName, targetElement.className);
       }
 
-      // Apply margin to push element to next page
       const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
       targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
+      adjusted = true;
 
-      logPdfExportDebug('  -> Element after margin:', targetElement.tagName, 'marginTop =', targetElement.style.marginTop);
-
-      // Accumulate the shift so subsequent element calculations use updated positions
       accumulatedShift += marginNeeded;
     }
+    return adjusted;
   }
 
-  /**
-   * Merges previously split table parts back into their original tables.
-   * This is called at the start of each iteration in the cascade to ensure
-   * we measure tables in their clean, original state before re-splitting.
-   * @param {HTMLElement} container - The container element to process
-   */
   function mergeSplitTables(container) {
     const groupIds = new Set();
     container.querySelectorAll('table[data-split-group-id]').forEach(t => {
@@ -7345,25 +7348,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  /**
-   * Splits table elements that exceed a single page's height across page breaks.
-   * Inserts page-break spacers to push subsequent rows to the next page and
-   * replicates table headers (thead) across pages.
-   * @param {HTMLElement} container - The container element to process
-   * @param {number} pageHeightPx - The height of a single page in pixels
-   */
   function splitTables(container, pageHeightPx) {
-    // First, merge any previously split tables to start with a clean state
     mergeSplitTables(container);
 
     const tables = Array.from(container.querySelectorAll('table'));
     let groupCounter = 0;
 
     for (const table of tables) {
-      // Skip if it is a split part (safety check)
       if (table.dataset.splitPart === "true") continue;
-
-      // Only split tables that are taller than a single page
       const tableRect = table.getBoundingClientRect();
       if (tableRect.height <= pageHeightPx) continue;
 
@@ -7375,10 +7367,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const groupId = `table-group-${groupCounter++}`;
       table.dataset.splitGroupId = groupId;
-
       const containerRect = container.getBoundingClientRect();
 
-      // Measure original positions of rows
       const rowPositions = rows.map(row => {
         const rect = row.getBoundingClientRect();
         return {
@@ -7397,36 +7387,24 @@ document.addEventListener("DOMContentLoaded", function () {
         const pos = rowPositions[i];
         const shiftedTop = pos.top + accumulatedShift;
         const shiftedBottom = pos.bottom + accumulatedShift;
-
         const currentPageIndex = Math.floor(shiftedTop / pageHeightPx);
         const nextPageBoundary = (currentPageIndex + 1) * pageHeightPx;
 
-        // Check if the row crosses or starts after the next page boundary
         if (shiftedBottom > nextPageBoundary) {
-          // Calculate the spacer height needed to push the row to the next page
           const spacerHeight = nextPageBoundary - shiftedTop;
-
-          // Clone the thead if it exists to replicate table headers
           const originalThead = table.querySelector('thead');
           const theadHeight = originalThead ? originalThead.getBoundingClientRect().height : 0;
-
-          // Update accumulated shift with spacer height and the replicated thead height
           accumulatedShift += spacerHeight + theadHeight;
 
-          // Clone original table attributes but not children
           const nextTable = table.cloneNode(false);
           nextTable.removeAttribute('id');
           nextTable.dataset.splitGroupId = groupId;
           nextTable.dataset.splitPart = "true";
 
-          if (originalThead) {
-            nextTable.appendChild(originalThead.cloneNode(true));
-          }
-
+          if (originalThead) nextTable.appendChild(originalThead.cloneNode(true));
           const nextTbody = document.createElement('tbody');
           nextTable.appendChild(nextTbody);
 
-          // Create a spacer div
           const spacer = document.createElement('div');
           spacer.className = 'table-page-break-spacer';
           spacer.dataset.splitGroupId = groupId;
@@ -7436,29 +7414,17 @@ document.addEventListener("DOMContentLoaded", function () {
           spacer.style.padding = '0';
           spacer.style.border = 'none';
 
-          // Insert spacer and next table part in the DOM
           currentTable.parentNode.insertBefore(spacer, currentTable.nextSibling);
           spacer.parentNode.insertBefore(nextTable, spacer.nextSibling);
-
           currentTable = nextTable;
           currentTbody = nextTbody;
         }
 
-        // If table has been split, move the row to the active table part's tbody
-        if (currentTable !== table) {
-          currentTbody.appendChild(pos.row);
-        }
+        if (currentTable !== table) currentTbody.appendChild(pos.row);
       }
     }
   }
 
-  /**
-   * Task 2: Applies page breaks with cascading adjustment handling
-   * @param {HTMLElement} tempElement - The rendered content container
-   * @param {Object} pageConfig - Page configuration object (unused, kept for API compatibility)
-   * @param {number} maxIterations - Maximum iterations to prevent infinite loops
-   * @returns {Object} Final analysis result
-   */
   function applyPageBreaksWithCascade(tempElement, pageConfig, maxIterations = 10, signal) {
     let iteration = 0;
     let analysis;
@@ -7471,42 +7437,74 @@ document.addEventListener("DOMContentLoaded", function () {
     do {
       throwIfPdfExportAborted(signal);
 
-      // Split tables at page breaks
+      // Split tables at page breaks dynamically using calculated pageHeightPx
       splitTables(tempElement, pageHeightPx);
 
       // Re-analyze after each adjustment
       analysis = analyzeGraphicsForPageBreaks(tempElement, signal);
 
       // Use pageHeightPx from analysis (calculated from actual element width)
-      const pageHeightPx = analysis.pageHeightPx;
+      const pageHeightPxFromAnalysis = analysis.pageHeightPx;
+      const pageBoundaries = analysis.pageBoundaries;
 
-      // Categorize elements by size
+      // Separate text elements and graphic elements
+      const textElements = [];
+      const graphicElements = [];
+
+      for (const item of analysis.splitElements) {
+        if (item.type === 'text') {
+          textElements.push(item);
+        } else {
+          graphicElements.push(item);
+        }
+      }
+
+      // Categorize graphics by size
       const { fittingElements, oversizedElements } = categorizeBySize(
-        analysis.splitElements,
-        pageHeightPx
+        graphicElements,
+        pageHeightPxFromAnalysis
       );
 
       // Store oversized elements for Story 1.3
       analysis.oversizedElements = oversizedElements;
 
+      let adjustmentsMade = false;
+
+      // Adjust split text elements using line-level splitting prevention
+      for (const item of textElements) {
+        throwIfPdfExportAborted(signal);
+        const shift = calculateTextElementShift(item, pageBoundaries);
+        if (shift > 0.5) {
+          const element = item.element;
+          const currentMargin = parseFloat(element.style.marginTop) || 0;
+          element.style.marginTop = `${currentMargin + shift}px`;
+          adjustmentsMade = true;
+          logPdfExportDebug('Adjusting text element:', element.tagName, 'shifted by', shift, 'px');
+        }
+      }
+
       // Apply page breaks to fitting elements
       if (fittingElements.length > 0) {
-        insertPageBreaks(fittingElements, pageHeightPx, signal);
+        const adjustedFitting = insertPageBreaks(fittingElements, pageHeightPxFromAnalysis, signal);
+        if (adjustedFitting) {
+          adjustmentsMade = true;
+        }
       }
 
       // Scale and push oversized elements inside the cascade loop so sibling shifts are re-evaluated
       if (oversizedElements.length > 0) {
-        handleOversizedElements(oversizedElements, pageHeightPx, signal);
+        handleOversizedElements(oversizedElements, pageHeightPxFromAnalysis, signal);
+        adjustmentsMade = true;
       }
 
       // If no elements need adjustment, we're done
-      if (fittingElements.length === 0 && oversizedElements.length === 0) {
+      if (!adjustmentsMade) {
         break;
       }
 
       // Check if we're making progress (prevent infinite loops)
-      const totalSplitCount = fittingElements.length + oversizedElements.length;
-      if (totalSplitCount === previousSplitCount) {
+      const totalSplitCount = fittingElements.length + oversizedElements.length + textElements.length;
+      if (totalSplitCount === previousSplitCount && !adjustmentsMade) {
         console.warn('Page-break adjustment not making progress, stopping');
         break;
       }
@@ -7536,22 +7534,13 @@ document.addEventListener("DOMContentLoaded", function () {
   // Oversized Graphics Scaling Functions (Story 1.3)
   // ============================================
 
-  // Minimum scale factor to maintain readability (50%)
   const MIN_SCALE_FACTOR = 0.5;
 
-  /**
-   * Task 1 & 2: Calculates scale factor with minimum enforcement
-   * @param {number} elementHeight - Original height of element in pixels
-   * @param {number} availableHeight - Available page height in pixels
-   * @param {number} buffer - Small buffer to prevent edge overflow
-   * @returns {Object} { scaleFactor, wasClampedToMin }
-   */
   function calculateScaleFactor(elementHeight, availableHeight, buffer = 5) {
     const targetHeight = availableHeight - buffer;
     let scaleFactor = targetHeight / elementHeight;
     let wasClampedToMin = false;
 
-    // Enforce minimum scale for readability
     if (scaleFactor < MIN_SCALE_FACTOR) {
       console.warn(
         `Warning: Large graphic requires ${(scaleFactor * 100).toFixed(0)}% scaling. ` +
@@ -7564,39 +7553,21 @@ document.addEventListener("DOMContentLoaded", function () {
     return { scaleFactor, wasClampedToMin };
   }
 
-  /**
-   * Task 3: Applies CSS transform scaling to an element
-   * @param {HTMLElement} element - The element to scale
-   * @param {number} scaleFactor - Scale factor (0.5 = 50%)
-   * @param {string} elementType - Type of element (svg, pre, img, table)
-   */
   function applyGraphicScaling(element, scaleFactor, elementType) {
-    // Get original dimensions before transform
     const originalHeight = element.offsetHeight;
-
-    // Task 4: Handle SVG elements (Mermaid diagrams)
     if (elementType === 'svg') {
-      // Remove max-width constraint that may interfere
       element.style.maxWidth = 'none';
     }
 
-    // Apply CSS transform
     element.style.transform = `scale(${scaleFactor})`;
     element.style.transformOrigin = 'top left';
 
-    // Calculate margin adjustment to collapse visual space
     const scaledHeight = originalHeight * scaleFactor;
     const marginAdjustment = originalHeight - scaledHeight;
 
-    // Apply negative margin to pull subsequent content up
     element.style.marginBottom = `-${marginAdjustment}px`;
   }
 
-  /**
-   * Task 6: Handles all oversized elements by applying appropriate scaling
-   * @param {Array} oversizedElements - Array of oversized element data
-   * @param {number} pageHeightPx - Page height in pixels
-   */
   function handleOversizedElements(oversizedElements, pageHeightPx, signal) {
     if (!oversizedElements || oversizedElements.length === 0) {
       return;
@@ -7608,9 +7579,8 @@ document.addEventListener("DOMContentLoaded", function () {
     for (const item of oversizedElements) {
       throwIfPdfExportAborted(signal);
 
-      // PUSH to the top of the next page first to prevent split
       const currentPageBottom = (item.splitPageIndex + 1) * pageHeightPx;
-      const marginNeeded = currentPageBottom - item.top + 5; // 5px safety buffer
+      const marginNeeded = currentPageBottom - item.top + 5;
       
       let targetElement = item.element;
       if (item.type === 'svg' && item.element.parentElement) {
@@ -7620,13 +7590,11 @@ document.addEventListener("DOMContentLoaded", function () {
       const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
       targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
 
-      // Calculate required scale factor
       const { scaleFactor, wasClampedToMin } = calculateScaleFactor(
         item.height,
         pageHeightPx
       );
 
-      // Apply scaling to the element
       applyGraphicScaling(item.element, scaleFactor, item.type);
 
       scaledCount++;
@@ -7647,7 +7615,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   exportPdf.addEventListener("click", async function (event) {
     event.preventDefault();
-    if (activePdfExport) return;
+    logPdfExportDebug("PDF export button clicked!");
+    if (activePdfExport) {
+      logPdfExportDebug("PDF export already active, ignoring click");
+      return;
+    }
 
     const progressState = createPdfProgressState();
     activePdfExport = progressState;
@@ -7657,20 +7629,27 @@ document.addEventListener("DOMContentLoaded", function () {
     progressState.overlay.querySelector(".pdf-progress-cancel")?.focus();
 
     try {
+      logPdfExportDebug("PDF export try block entered. typeof jspdf:", typeof jspdf, "typeof html2canvas:", typeof html2canvas);
       // PERF-002: Lazy-load PDF libraries on first export
       if (typeof jspdf === 'undefined' || typeof html2canvas === 'undefined') {
+        logPdfExportDebug("Lazy loading PDF libraries started...");
         updatePdfProgress(progressState, 8, "Loading PDF libraries");
-        await runPdfAbortable(progressState, Promise.all([loadScript(CDN.jspdf), loadScript(CDN.html2canvas)]));
+        await runPdfAbortable(progressState, Promise.all([
+          loadScript(CDN.jspdf).then(() => logPdfExportDebug("jspdf load callback fired")),
+          loadScript(CDN.html2canvas).then(() => logPdfExportDebug("html2canvas load callback fired"))
+        ]));
+        logPdfExportDebug("Lazy loading PDF libraries resolved.");
         throwIfPdfExportAborted(progressState.signal);
       }
-
+      logPdfExportDebug("Parsing markdown...");
       updatePdfProgress(progressState, 15, "Parsing markdown");
       await waitForPdfFrame(progressState);
       const markdown = markdownEditor.value;
       const html = marked.parse(markdown);
       const sanitizedHtml = DOMPurify.sanitize(html, {
         ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath', 'input'],
-        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled', 'data-original-code']
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled', 'data-original-code'],
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
       });
       throwIfPdfExportAborted(progressState.signal);
 
@@ -9437,6 +9416,42 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Run detection
   detectAndInitLanguage();
+
+  // Intercept all link clicks in the preview pane to open them securely and prevent page navigation
+  if (markdownPreview) {
+    markdownPreview.addEventListener('click', function(e) {
+      const link = e.target.closest('a');
+      if (link) {
+        const href = link.getAttribute('href');
+        if (href) {
+          if (href.startsWith('#')) {
+            return; // Allow internal anchor navigation
+          }
+          
+          e.preventDefault();
+          // Defense-in-depth: check that the URL protocol is safe
+          let isSafe = false;
+          try {
+            const parsed = new URL(href, window.location.href);
+            isSafe = ['http:', 'https:', 'mailto:', 'tel:', 'blob:'].includes(parsed.protocol);
+          } catch (err) {
+            // If URL constructor fails, it might be a relative path without a base, which is safe to resolve
+            isSafe = !href.trim().toLowerCase().startsWith('javascript:');
+          }
+          
+          if (isSafe) {
+            if (typeof Neutralino !== 'undefined') {
+              Neutralino.os.open(href);
+            } else {
+              window.open(href, '_blank', 'noopener,noreferrer');
+            }
+          } else {
+            console.warn('Blocked opening potentially unsafe URL:', href);
+          }
+        }
+      }
+    });
+  }
 
   // Register Service Worker for offline capabilities
   if ('serviceWorker' in navigator) {
