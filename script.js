@@ -7306,6 +7306,10 @@ document.addEventListener("DOMContentLoaded", function () {
         targetElement = item.element.parentElement;
       }
 
+      if (!targetElement.dataset.hasOwnProperty('pdfOriginalMarginTop')) {
+        targetElement.dataset.pdfOriginalMarginTop = targetElement.style.marginTop || '';
+      }
+
       const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
       targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
       adjusted = true;
@@ -7313,6 +7317,39 @@ document.addEventListener("DOMContentLoaded", function () {
       accumulatedShift += marginNeeded;
     }
     return adjusted;
+  }
+
+  /**
+   * Resets temporary styles applied to graphics elements back to their original state.
+   * This is called at the start of each layout iteration in the cascade loop.
+   * @param {HTMLElement} container - The container element to process
+   */
+  function resetGraphicsStyles(container) {
+    container.querySelectorAll('[data-pdf-original-margin-top]').forEach(el => {
+      el.style.marginTop = el.dataset.pdfOriginalMarginTop;
+      el.removeAttribute('data-pdf-original-margin-top');
+    });
+    container.querySelectorAll('[data-pdf-original-margin-bottom]').forEach(el => {
+      el.style.marginBottom = el.dataset.pdfOriginalMarginBottom;
+      el.removeAttribute('data-pdf-original-margin-bottom');
+    });
+    container.querySelectorAll('[data-pdf-original-transform]').forEach(el => {
+      el.style.transform = el.dataset.pdfOriginalTransform;
+      el.style.transformOrigin = '';
+      el.removeAttribute('data-pdf-original-transform');
+    });
+    container.querySelectorAll('[data-pdf-original-width]').forEach(el => {
+      el.style.width = el.dataset.pdfOriginalWidth;
+      el.removeAttribute('data-pdf-original-width');
+    });
+    container.querySelectorAll('[data-pdf-original-height]').forEach(el => {
+      el.style.height = el.dataset.pdfOriginalHeight;
+      el.removeAttribute('data-pdf-original-height');
+    });
+    container.querySelectorAll('[data-pdf-original-max-width]').forEach(el => {
+      el.style.maxWidth = el.dataset.pdfOriginalMaxWidth;
+      el.removeAttribute('data-pdf-original-max-width');
+    });
   }
 
   function mergeSplitTables(container) {
@@ -7437,6 +7474,9 @@ document.addEventListener("DOMContentLoaded", function () {
     do {
       throwIfPdfExportAborted(signal);
 
+      // Reset graphics element styles applied in previous iterations
+      resetGraphicsStyles(tempElement);
+
       // Split tables at page breaks dynamically using calculated pageHeightPx
       splitTables(tempElement, pageHeightPx);
 
@@ -7554,18 +7594,49 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function applyGraphicScaling(element, scaleFactor, elementType) {
-    const originalHeight = element.offsetHeight;
-    if (elementType === 'svg') {
-      element.style.maxWidth = 'none';
+    if (!element.dataset.hasOwnProperty('pdfOriginalTransform')) {
+      element.dataset.pdfOriginalTransform = element.style.transform || '';
+    }
+    if (!element.dataset.hasOwnProperty('pdfOriginalMarginBottom')) {
+      element.dataset.pdfOriginalMarginBottom = element.style.marginBottom || '';
     }
 
-    element.style.transform = `scale(${scaleFactor})`;
-    element.style.transformOrigin = 'top left';
+    if (elementType === 'svg' || elementType === 'img') {
+      if (!element.dataset.hasOwnProperty('pdfOriginalWidth')) {
+        element.dataset.pdfOriginalWidth = element.style.width || '';
+      }
+      if (!element.dataset.hasOwnProperty('pdfOriginalHeight')) {
+        element.dataset.pdfOriginalHeight = element.style.height || '';
+      }
+      if (!element.dataset.hasOwnProperty('pdfOriginalMaxWidth')) {
+        element.dataset.pdfOriginalMaxWidth = element.style.maxWidth || '';
+      }
 
-    const scaledHeight = originalHeight * scaleFactor;
-    const marginAdjustment = originalHeight - scaledHeight;
+      let origWidth = parseFloat(element.dataset.pdfOriginalClientWidth);
+      let origHeight = parseFloat(element.dataset.pdfOriginalClientHeight);
 
-    element.style.marginBottom = `-${marginAdjustment}px`;
+      if (isNaN(origWidth) || isNaN(origHeight)) {
+        origWidth = element.clientWidth || element.getBoundingClientRect().width;
+        origHeight = element.clientHeight || element.getBoundingClientRect().height;
+        element.dataset.pdfOriginalClientWidth = String(origWidth);
+        element.dataset.pdfOriginalClientHeight = String(origHeight);
+      }
+
+      // Apply physical scale
+      element.style.width = `${origWidth * scaleFactor}px`;
+      element.style.height = `${origHeight * scaleFactor}px`;
+      if (elementType === 'svg') {
+        element.style.maxWidth = 'none';
+      }
+    } else {
+      element.style.transform = `scale(${scaleFactor})`;
+      element.style.transformOrigin = 'top left';
+
+      const originalHeight = element.offsetHeight;
+      const scaledHeight = originalHeight * scaleFactor;
+      const marginAdjustment = originalHeight - scaledHeight;
+      element.style.marginBottom = `-${marginAdjustment}px`;
+    }
   }
 
   function handleOversizedElements(oversizedElements, pageHeightPx, signal) {
@@ -7579,16 +7650,9 @@ document.addEventListener("DOMContentLoaded", function () {
     for (const item of oversizedElements) {
       throwIfPdfExportAborted(signal);
 
-      const currentPageBottom = (item.splitPageIndex + 1) * pageHeightPx;
-      const marginNeeded = currentPageBottom - item.top + 5;
-      
-      let targetElement = item.element;
-      if (item.type === 'svg' && item.element.parentElement) {
-        targetElement = item.element.parentElement;
-      }
-      
-      const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
-      targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
+      const startPage = Math.floor(item.top / pageHeightPx);
+      const pageStart = startPage * pageHeightPx;
+      const offsetInPage = item.top - pageStart;
 
       const { scaleFactor, wasClampedToMin } = calculateScaleFactor(
         item.height,
@@ -7596,6 +7660,24 @@ document.addEventListener("DOMContentLoaded", function () {
       );
 
       applyGraphicScaling(item.element, scaleFactor, item.type);
+
+      // Only push to the next page if it's not already at the top of a page
+      if (offsetInPage > 15) {
+        const currentPageBottom = (startPage + 1) * pageHeightPx;
+        const marginNeeded = currentPageBottom - item.top + 5;
+        
+        let targetElement = item.element;
+        if (item.type === 'svg' && item.element.parentElement) {
+          targetElement = item.element.parentElement;
+        }
+        
+        if (!targetElement.dataset.hasOwnProperty('pdfOriginalMarginTop')) {
+          targetElement.dataset.pdfOriginalMarginTop = targetElement.style.marginTop || '';
+        }
+        
+        const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
+        targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
+      }
 
       scaledCount++;
       if (wasClampedToMin) {
