@@ -7530,6 +7530,13 @@ document.addEventListener("DOMContentLoaded", function () {
           let targetElement = item.element;
           if (item.type === 'svg' && item.element.parentElement) {
             targetElement = item.element.parentElement;
+          } else if (item.type === 'img' && item.element.classList.contains('mermaid-img') && item.element.parentElement) {
+            const parent = item.element.parentElement;
+            if (parent.parentElement && parent.parentElement.classList.contains('mermaid-container')) {
+              targetElement = parent.parentElement;
+            } else {
+              targetElement = parent;
+            }
           }
           if (!targetElement.dataset.hasOwnProperty('pdfOriginalMarginTop')) {
             targetElement.dataset.pdfOriginalMarginTop = targetElement.style.marginTop || '';
@@ -7728,6 +7735,46 @@ document.addEventListener("DOMContentLoaded", function () {
           await runPdfAbortable(progressState, mermaid.init(undefined, mermaidNodes));
           tempElement.querySelectorAll('.mermaid-container.is-loading').forEach(container => {
             container.classList.remove('is-loading');
+          });
+
+          // Convert all rendered Mermaid SVGs inside tempElement to <img> tags with data URI sources
+          const compiledMermaids = tempElement.querySelectorAll('.mermaid');
+          compiledMermaids.forEach(mermaidNode => {
+            const svgElement = mermaidNode.querySelector('svg');
+            if (svgElement) {
+              const rect = svgElement.getBoundingClientRect();
+              const width = rect.width || svgElement.clientWidth || parseFloat(svgElement.getAttribute('width')) || 600;
+              const height = rect.height || svgElement.clientHeight || parseFloat(svgElement.getAttribute('height')) || 400;
+
+              const clonedSvg = svgElement.cloneNode(true);
+              clonedSvg.setAttribute('width', width);
+              clonedSvg.setAttribute('height', height);
+              if (!clonedSvg.getAttribute('viewBox')) {
+                clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+              }
+              clonedSvg.style.width = `${width}px`;
+              clonedSvg.style.height = `${height}px`;
+
+              const svgString = new XMLSerializer().serializeToString(clonedSvg);
+              const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+              
+              const img = document.createElement('img');
+              img.className = 'mermaid-img';
+              if (svgElement.id) img.id = svgElement.id + '-img';
+              img.src = 'data:image/svg+xml;base64,' + svgBase64;
+              
+              img.style.width = `${width}px`;
+              img.style.height = `${height}px`;
+              img.style.maxWidth = '100%';
+              img.style.display = 'block';
+              img.style.margin = '0 auto';
+              
+              img.dataset.originalWidth = String(width);
+              img.dataset.originalHeight = String(height);
+
+              mermaidNode.innerHTML = '';
+              mermaidNode.appendChild(img);
+            }
           });
         } catch (mermaidError) {
           if (mermaidError instanceof PdfExportCancelledError) throw mermaidError;
