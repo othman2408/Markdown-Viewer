@@ -7310,6 +7310,10 @@ document.addEventListener("DOMContentLoaded", function () {
       el.style.maxWidth = el.dataset.pdfOriginalMaxWidth;
       el.removeAttribute('data-pdf-original-max-width');
     });
+    container.querySelectorAll('[data-pdf-original-font-size]').forEach(el => {
+      el.style.fontSize = el.dataset.pdfOriginalFontSize;
+      el.removeAttribute('data-pdf-original-font-size');
+    });
   }
 
   function mergeSplitTables(container) {
@@ -7490,8 +7494,11 @@ document.addEventListener("DOMContentLoaded", function () {
             // Graphic element (svg, img, pre, math) splitting
             const buffer = 5;
             const scaleNeeded = (remainingSpace - buffer) / item.height;
+            const remainingSpacePercent = remainingSpace / pageHeightPxFromAnalysis;
 
-            if (scaleNeeded >= 0.6) {
+            // Rule 3: Enforce safety zone. If remaining page space is less than 20% of page height,
+            // or if the required scale factor to fit is less than 0.6, push the element entirely to the next page.
+            if (remainingSpacePercent >= 0.20 && scaleNeeded >= 0.6) {
               // Fit on current page by scaling
               targetScale = Math.min(1.0, scaleNeeded);
             } else {
@@ -7499,7 +7506,7 @@ document.addEventListener("DOMContentLoaded", function () {
               const marginNeeded = boundaryY - currentTop + buffer;
               targetMargin = marginNeeded;
 
-              // Check if it fits the next page height after being pushed
+              // Check if it fits the next page height after being pushed (Rule 3 Case C)
               const newTop = currentTop + marginNeeded;
               const newBottom = newTop + item.height;
               const nextBoundaryY = pageBoundaries[splitPageIndex + 1] || (boundaryY + pageHeightPxFromAnalysis);
@@ -7644,6 +7651,17 @@ document.addEventListener("DOMContentLoaded", function () {
       if (elementType === 'svg') {
         element.style.maxWidth = 'none';
       }
+    } else if (elementType === 'math' || elementType === 'pre') {
+      if (!element.dataset.hasOwnProperty('pdfOriginalFontSize')) {
+        element.dataset.pdfOriginalFontSize = element.style.fontSize || '';
+      }
+      let origFontSize = parseFloat(element.dataset.pdfOriginalClientFontSize);
+      if (isNaN(origFontSize)) {
+        const style = window.getComputedStyle(element);
+        origFontSize = parseFloat(style.fontSize) || 14;
+        element.dataset.pdfOriginalClientFontSize = String(origFontSize);
+      }
+      element.style.fontSize = `${origFontSize * scaleFactor}px`;
     } else {
       element.style.transform = `scale(${scaleFactor})`;
       element.style.transformOrigin = 'top left';
@@ -7656,6 +7674,18 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
 
+
+  function waitForAllImages(container) {
+    const imgs = Array.from(container.querySelectorAll('img'));
+    const promises = imgs.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      });
+    });
+    return Promise.all(promises);
+  }
 
   // ============================================
   // End Oversized Graphics Scaling Functions
@@ -7818,6 +7848,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
       await waitForPdfFrame(progressState);
       fitExportElementToContent(tempElement);
+      await waitForPdfFrame(progressState);
+
+      // Await loading of all images (including converted Mermaid base64 images) before cascade sizing runs
+      updatePdfProgress(progressState, 50, "Loading document images");
+      await runPdfAbortable(progressState, waitForAllImages(tempElement));
+      throwIfPdfExportAborted(progressState.signal);
       await waitForPdfFrame(progressState);
 
       // Analyze and apply page-breaks for graphics (Story 1.1 + 1.2)
