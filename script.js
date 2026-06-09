@@ -7488,11 +7488,30 @@ document.addEventListener("DOMContentLoaded", function () {
           const remainingSpace = boundaryY - currentTop;
 
           if (item.type === 'text') {
-            // Text element splitting
-            const shiftedItem = { ...item, top: currentTop, splitPageIndex: splitPageIndex };
-            const shift = calculateTextElementShift(shiftedItem, pageBoundaries);
-            if (shift > 0.5) {
-              targetMargin = shift;
+            // Text element splitting or heading safety keep-with-next check
+            const tag = item.element.tagName.toLowerCase();
+            const isHeading = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
+            
+            if (isHeading) {
+              let nextBoundaryY = pageBoundaries[0];
+              for (const boundary of pageBoundaries) {
+                if (currentTop < boundary) {
+                  nextBoundaryY = boundary;
+                  break;
+                }
+              }
+              const distanceToBoundary = nextBoundaryY - currentTop;
+              if (distanceToBoundary < 70) {
+                targetMargin = distanceToBoundary + 4; // Push heading entirely to next page
+              }
+            }
+
+            if (targetMargin === 0 && splitPageIndex !== -1) {
+              const shiftedItem = { ...item, top: currentTop, splitPageIndex: splitPageIndex };
+              const shift = calculateTextElementShift(shiftedItem, pageBoundaries);
+              if (shift > 0.5) {
+                targetMargin = shift;
+              }
             }
           } else {
             // Graphic element (svg, img, pre, math) splitting
@@ -7772,9 +7791,9 @@ document.addEventListener("DOMContentLoaded", function () {
           });
 
           // Convert all rendered Mermaid SVGs inside tempElement to <img> tags with data URI sources
-          const compiledMermaids = tempElement.querySelectorAll('.mermaid');
-          compiledMermaids.forEach(mermaidNode => {
-            const svgElement = mermaidNode.querySelector('svg');
+          const compiledMermaids = tempElement.querySelectorAll('.mermaid-container');
+          compiledMermaids.forEach(container => {
+            const svgElement = container.querySelector('svg');
             if (svgElement) {
               const rect = svgElement.getBoundingClientRect();
               const width = rect.width || svgElement.clientWidth || parseFloat(svgElement.getAttribute('width')) || 600;
@@ -7806,8 +7825,8 @@ document.addEventListener("DOMContentLoaded", function () {
               img.dataset.originalWidth = String(width);
               img.dataset.originalHeight = String(height);
 
-              mermaidNode.innerHTML = '';
-              mermaidNode.appendChild(img);
+              container.innerHTML = '';
+              container.appendChild(img);
             }
           });
         } catch (mermaidError) {
