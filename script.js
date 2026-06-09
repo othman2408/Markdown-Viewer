@@ -7023,7 +7023,11 @@ document.addEventListener("DOMContentLoaded", function () {
       let type = '';
       
       if (tag === 'img') type = 'img';
-      else if (tag === 'svg') type = 'svg';
+      else if (tag === 'svg') {
+        if (!el.closest('mjx-container, .math-block')) {
+          type = 'svg';
+        }
+      }
       else if (tag === 'pre') type = 'pre';
       else if (tag === 'table') type = 'table';
       else if (tag === 'hr') type = 'hr';
@@ -7850,9 +7854,12 @@ document.addEventListener("DOMContentLoaded", function () {
       fitExportElementToContent(tempElement);
       await waitForPdfFrame(progressState);
 
-      // Await loading of all images (including converted Mermaid base64 images) before cascade sizing runs
-      updatePdfProgress(progressState, 50, "Loading document images");
-      await runPdfAbortable(progressState, waitForAllImages(tempElement));
+      // Await loading of all images and fonts (including converted Mermaid base64 images) before cascade sizing runs
+      updatePdfProgress(progressState, 50, "Loading document assets");
+      await runPdfAbortable(progressState, Promise.all([
+        waitForAllImages(tempElement),
+        document.fonts ? document.fonts.ready : Promise.resolve()
+      ]));
       throwIfPdfExportAborted(progressState.signal);
       await waitForPdfFrame(progressState);
 
