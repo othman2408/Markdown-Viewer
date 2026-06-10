@@ -1,100 +1,75 @@
-# Markdown Viewer Wiki
+# Welcome to the Markdown Viewer Wiki
 
-Welcome to the **Markdown Viewer** wiki — your comprehensive reference for installation, configuration, and usage of the Markdown Viewer application.
-
-## What is Markdown Viewer?
-
-Markdown Viewer is a **professional, feature-rich, GitHub-style Markdown editor and live-preview application** that runs entirely in the browser. It provides real-time rendering, syntax highlighting, LaTeX math support, Mermaid diagrams, and much more — all without requiring any server-side processing, sign-up, or data uploads.
-
-> **Privacy First**: All content is processed locally in your browser. Nothing you type is ever sent to a server.
+Welcome to the official technical documentation and user wiki for the **Markdown Viewer** application (v3.7.4). This repository contains detailed configuration guides, architecture documents, installation instructions, and user manuals to help you customize, deploy, and contribute to this client-side Markdown editing suite.
 
 ---
 
-## Quick Start
+## 🚀 Quick Start Portal
 
-| Platform | Quick Command |
-|----------|--------------|
-| **Docker** | `docker run -p 8080:80 ghcr.io/thisis-developer/markdown-viewer:latest` |
-| **Docker Compose** | `docker compose up -d` |
-| **Desktop App** | Download the binary from [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) |
-| **Web (self-hosted)** | Serve the root directory with any static web server |
+To deploy or run a local instance of the application immediately, execute the corresponding command for your environment:
 
-Then open **http://localhost:8080** in your browser.
-
----
-
-## Wiki Pages
-
-| Page | Description |
-|------|-------------|
-| [Installation](Installation) | Set up the application on Web, Docker, or Desktop |
-| [Usage Guide](Usage-Guide) | Learn how to write, preview, import, and export |
-| [Features](Features) | Explore all supported features in detail |
-| [Markdown Reference](Markdown-Reference) | Complete syntax reference for all supported elements |
-| [Development Journey](Development-Journey) | Evolution of the project from the original prototype to today |
-| [Desktop App](Desktop-App) | Build and run the native desktop application |
-| [Docker Deployment](Docker-Deployment) | Deploy with Docker and Docker Compose |
-| [Configuration](Configuration) | Configure the application and its build tools |
-| [Contributing](Contributing) | How to contribute to the project |
-| [FAQ](FAQ) | Frequently asked questions |
+| Deployment Method | Command | Default Access URL |
+| :--- | :--- | :--- |
+| **Docker (Pre-built)** | `docker pull ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0 && docker run -d -p 8080:80 ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0` | `http://localhost:8080` / `http://127.0.0.1:8080` |
+| **Docker Compose** | `git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git && cd Markdown-Viewer && docker compose up -d` | `http://localhost:8080` / `http://127.0.0.1:8080` |
+| **Python Static Server** | `python3 -m http.server 8080` (Run inside repository root to serve `index.html` on localhost/`127.0.0.1`) | `http://localhost:8080` / `http://127.0.0.1:8080` |
+| **Node.js Static Server** | `npx serve . -p 8080` (Run inside repository root to serve `index.html` on localhost/`127.0.0.1`) | `http://localhost:8080` / `http://127.0.0.1:8080` |
+| **Desktop Application** | Download execution package from [GitHub Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) | Launch native binary |
 
 ---
 
-## Feature Highlights
+## 🗺️ Wiki Table of Contents
 
-- 🖊️ **Live Split-Screen Editor** — Write on the left, see rendered output on the right in real-time
-- 🌙 **Dark / Light Mode** — Toggle themes instantly with CSS variables
-- 💡 **Syntax Highlighting** — 190+ programming languages via highlight.js
-- 📐 **LaTeX Math** — Inline and block mathematical expressions via MathJax
-- 📊 **Mermaid Diagrams** — Flowcharts, sequence diagrams, Gantt charts, and more
-- 📤 **Export Options** — Save as Markdown, HTML, or PDF
-- 📥 **File Import** — Drag & drop or file-picker import of `.md` files
-- 🔗 **Share via URL** — Share content by compressing it into the URL
-- 📋 **Copy to Clipboard** — One-click copy of the rendered HTML
-- 📊 **Content Statistics** — Word count, character count, and estimated reading time
-- 😀 **Emoji Support** — Full emoji set via JoyPixels
-- 📱 **Responsive Design** — Works on desktop, tablet, and mobile
-- 🔒 **Privacy Focused** — 100% client-side, no server required
+Use the navigation map below to explore the technical documentation sections of this wiki:
 
----
-
-## 📈 Development Journey
-
-Markdown Viewer has grown from a lightweight Markdown parser into a production-ready writing tool. Visit the [Development Journey](Development-Journey) page for a concise comparison between the original prototype and the current release.
+| Document / Section | Scope & Contents |
+| :--- | :--- |
+| **[Features](Features)** | Under-the-hood engineering deep-dive on compilation workers, DOM patching, and proportional scroll synchronization. |
+| **[Installation](Installation)** | Detailed multi-platform setup instructions for Docker, Docker Compose, static web servers, and Neutralinojs compile pipelines. |
+| **[Usage Guide](Usage-Guide)** | Standard operations manual detailing tab workspaces, file importing rules, and complete keyboard shortcuts mapping. |
+| **[Configuration](Configuration)** | Analysis of localStorage schemas, CDN assets links, Docker Nginx blocks, and Neutralino desktop runtime settings. |
+| **[Docker Deployment](Docker-Deployment)** | Production Docker customization guide containing security headers, custom context paths, and reverse proxy files. |
+| **[Desktop App](Desktop-App)** | Build workflow documentation for packaging native desktop executable wrappers on Windows, Linux, and macOS. |
+| **[Development Journey](Development-Journey)** | Evolution milestones of the project, comparison matrices between early prototype and v3.7.4, and design history. |
+| **[Markdown Reference](Markdown-Reference)** | Exhaustive writing template guide for GFM extensions, MathJax LaTeX equations, and Mermaid charts. |
+| **[FAQ](FAQ)** | Frequently Asked Questions on local privacy, memory utilization, export troubleshooting, and desktop security warnings. |
+| **[Contributing](Contributing)** | Development environment configuration guides, 2-space styling parameters, conventional commits, and PR reviews. |
 
 ---
 
-## Transparency & Data Handling
+## 🛡️ Core Architectural Principles
 
-Markdown Viewer is designed to be transparent about how your data is handled:
+Markdown Viewer is designed with four fundamental principles in mind:
 
-- **Local-only processing**: Markdown rendering happens entirely in your browser.
-- **Local storage**: Content and preferences are saved in your browser's `localStorage` for autosave and session restore.
-- **Share links**: The Share feature encodes content into the URL hash; nothing is uploaded to a server.
-- **GitHub import**: Importing from GitHub uses public GitHub APIs (`api.github.com`) and raw content (`raw.githubusercontent.com`).
-- **CDN dependencies**: Third-party libraries load from public CDNs (cdnjs, jsDelivr). Self-hosting those assets eliminates external requests.
-- **No analytics**: The app does not include tracking scripts, analytics beacons, or advertising pixels.
+1.  **Zero-Server Privacy:** 100% client-side execution. The application has no tracking telemetry, cookie banners, analytical beacons, or external database integrations. Your content never leaves the browser.
+2.  **Off-Thread Processing:** Offloads intensive compiling and syntax coloring jobs from the main execution thread to dedicated Web Workers to ensure a 60fps typing experience even on files exceeding 100 KB.
+3.  **Visual Synchronization:** Renders layout and styles identical to GitHub's native Markdown representations, optimized dynamically for desktop, tablet, and mobile views.
+4.  **Local-First Persistence:** Integrates HTML5 Service Workers to intercept asset queries, serving core library script archives from the local browser storage to enable offline functionality.
 
 ---
 
-## Technology Stack
+## 🛠️ Global Technology Stack
 
-| Category | Technology |
-|----------|-----------|
-| Markup / Rendering | [marked.js](https://marked.js.org/) 9.1.6 |
-| Syntax Highlighting | [highlight.js](https://highlightjs.org/) 11.9.0 |
-| Math Rendering | [MathJax](https://www.mathjax.org/) 3.2.2 |
-| Diagram Rendering | [Mermaid](https://mermaid.js.org/) 11.6.0 |
-| HTML Sanitization | [DOMPurify](https://github.com/cure53/DOMPurify) 3.0.9 |
-| UI Framework | [Bootstrap](https://getbootstrap.com/) 5.3.2 |
-| Desktop Runtime | [Neutralinojs](https://neutralino.js.org/) 6.5.0 |
-| Containerization | [Docker](https://www.docker.com/) / [Nginx Alpine](https://hub.docker.com/_/nginx) |
+| Dependency Library | Version | Caching Tier | Role & Features |
+| :--- | :--- | :--- | :--- |
+| **Marked.js** | `9.1.6` | Precached (Main/Worker) | Markdown syntax parser and GFM compiler. |
+| **Highlight.js** | `11.9.0` | Precached (Worker Thread) | Syntactical color parsing for 190+ programming languages. |
+| **DOMPurify** | `3.0.9` | Precached (Main Thread) | DOM tree cleaning for XSS injection vulnerability blocks. |
+| **MathJax** | `3.2.2` | Lazy Cached (Dynamic) | LaTeX typesetting rendering engine. |
+| **Mermaid.js** | `11.15.0` | Lazy Cached (Dynamic) | Flowcharts, sequences, and architectural diagram blocks builder. |
+| **jsPDF** | `2.5.1` | Lazy Cached (Dynamic) | Client-side paginated PDF document builder. |
+| **html2canvas** | `1.4.1` | Lazy Cached (Dynamic) | Compiles CSS element layouts to canvas raster grids. |
+| **Pako.js** | `2.1.0` | Lazy Cached (Dynamic) | zlib DEFLATE compressor for sharing link generation. |
+| **js-yaml** | `4.1.0` | Precached (Main Thread) | Frontmatter config metadata header parser. |
+| **FileSaver.js** | `2.0.5` | Precached (Main Thread) | Controls download streams from the browser sandbox. |
+| **Bootstrap** | `5.3.2` | Precached (CDN CSS/JS) | Controls general layouts, modal forms, and UI toggles. |
+| **Neutralinojs** | `6.5.0` | Native Bridge | Desktop operating system framework wrapper shell. |
 
 ---
 
-## Links
+## 🔗 Project Resources
 
-- 🏠 [GitHub Repository](https://github.com/ThisIs-Developer/Markdown-Viewer)
-- 🐳 [Docker Image (GHCR)](https://github.com/ThisIs-Developer/Markdown-Viewer/pkgs/container/markdown-viewer)
-- 📦 [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
-- 📄 [License (Apache 2.0)](https://github.com/ThisIs-Developer/Markdown-Viewer/blob/main/LICENSE)
+*   💻 **[GitHub Source Repository](https://github.com/ThisIs-Developer/Markdown-Viewer)**
+*   📦 **[GitHub Releases & Executables](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)**
+*   🐳 **[GitHub Package Container Registry](https://github.com/ThisIs-Developer/Markdown-Viewer/pkgs/container/markdown-viewer)**
+*   📜 **[Apache 2.0 Project License](https://github.com/ThisIs-Developer/Markdown-Viewer/blob/main/LICENSE)**

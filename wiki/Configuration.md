@@ -1,121 +1,101 @@
-# Configuration
+# System & Build Configuration
 
-This page documents all configuration files and customizable settings in **Markdown Viewer**.
+This page details the configuration variables, local storage structures, container files, and desktop configuration parameters for **Markdown Viewer** (v3.7.4).
 
 ---
 
 ## Table of Contents
 
-- [Web Application](#web-application)
-- [Docker / Nginx](#docker--nginx)
-- [Docker Compose](#docker-compose)
-- [Desktop App — neutralino.config.json](#desktop-app--neutralinoconfigjson)
-- [Desktop App — package.json Scripts](#desktop-app--packagejson-scripts)
+- [Client-Side LocalStorage Keys](#client-side-localstorage-keys)
+- [CDN Library Integrations](#cdn-library-integrations)
+- [Nginx Container Configuration](#nginx-container-configuration)
+- [Docker Compose Service Schema](#docker-compose-service-schema)
+- [NeutralinoJS Desktop Configuration](#neutralinojs-desktop-configuration)
+- [Desktop App Package Scripts](#desktop-app-package-scripts)
 - [GitHub Actions Workflows](#github-actions-workflows)
-- [Transparency & Data Flow](#transparency--data-flow)
 
 ---
 
-## Web Application
+## Client-Side LocalStorage Keys
 
-The web application has no server-side or build-time configuration. User preferences are stored in the browser's **`localStorage`** and persist across sessions.
+The web application stores user preferences and document states directly in the browser's `localStorage`.
 
-### localStorage Keys
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `theme` | `"light"` \| `"dark"` | Active color theme |
-| `syncScroll` | `"true"` \| `"false"` | Synchronized scroll state |
-| `viewMode` | `"split"` \| `"editor"` \| `"preview"` | Active layout mode |
-| `editorContent` | `string` | Last editor content (autosaved) |
-
-### CDN Library Versions
-
-Library versions are defined inline in `index.html`. To pin or upgrade a library, edit the corresponding `<script>` or `<link>` tag:
-
-```html
-<!-- Example: upgrading marked.js -->
-<script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
-```
-
-Current library versions are documented in the [Home](Home) page technology table.
+| LocalStorage Key | Type | Default Value | Description |
+| :--- | :--- | :--- | :--- |
+| `theme` | `"light"` \| `"dark"` | System preference | Renders light or dark colors. |
+| `syncScroll` | `"true"` \| `"false"` | `"true"` | Controls editor-preview scroll sync. |
+| `viewMode` | `"split"` \| `"editor"` \| `"preview"` | `"split"` | Sets the default editing layout. |
+| `markdown_tabs` | `JSON string` | Sample tab schema | Array of document objects (ID, title, content, scroll position, view mode). |
 
 ---
 
-## Transparency & Data Flow
+## CDN Library Integrations
 
-Markdown Viewer is a static client-side app. Key data flows to be aware of:
+Markdown Viewer loads large dependencies from CDNs. To update a library or pin it to a specific version, modify the script or link tag in the head of `index.html`:
 
-- **Local storage**: Editor content and preferences are stored in `localStorage`.
-- **CDN assets**: Libraries are loaded from public CDNs (cdnjs, jsDelivr).
-- **GitHub import**: Public file imports use `api.github.com` and `raw.githubusercontent.com`.
-- **Share links**: Shared documents are encoded into the URL hash and never uploaded.
-
-To eliminate external network requests, replace CDN links in `index.html` with locally hosted files and rebuild the desktop resources with `node prepare.js`.
+| Library Name | Version | CDN Service Provider | Core URL |
+| :--- | :--- | :--- | :--- |
+| **Marked.js** | `9.1.6` | jsDelivr | `https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js` |
+| **Highlight.js** | `11.9.0` | cdnjs | `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js` |
+| **DOMPurify** | `3.0.9` | jsDelivr | `https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js` |
+| **MathJax** | `3.2.2` | jsDelivr | `https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js` |
+| **Mermaid** | `11.15.0` | jsDelivr | `https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.min.js` |
+| **jsPDF** | `2.5.1` | cdnjs | `https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js` |
+| **html2canvas** | `1.4.1` | cdnjs | `https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js` |
+| **Pako** | `2.1.0` | cdnjs | `https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js` |
+| **js-yaml** | `4.1.0` | cdnjs | `https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js` |
+| **FileSaver.js** | `2.0.5` | cdnjs | `https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js` |
+| **Bootstrap** | `5.3.2` | jsDelivr | `https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.js` |
 
 ---
 
-## Docker / Nginx
+## Nginx Container Configuration
 
-The `Dockerfile` builds a production image using `nginx:alpine`. The embedded Nginx configuration can be customized by modifying the `Dockerfile` before building.
+The container image is built using `nginx:alpine`. Static web files are served from `/usr/share/nginx/html/`.
 
-### Default Nginx Settings
-
-| Setting | Value | Description |
-|---------|-------|-------------|
-| Listen port | `80` | HTTP port inside the container |
-| Document root | `/usr/share/nginx/html` | Static file serving directory |
-| SPA routing | `try_files $uri $uri/ /index.html` | Fallback for client-side routing |
-| Static asset cache | `1 year` | `Cache-Control: public, immutable` |
-| X-Frame-Options | `SAMEORIGIN` | Prevents embedding in iframes |
-| X-Content-Type-Options | `nosniff` | Prevents MIME-type sniffing |
-
-### Changing the Exposed Port
-
-The container always listens on port `80` internally. Map it to a different host port via `-p`:
-
-```bash
-docker run -p 3000:80 ghcr.io/thisis-developer/markdown-viewer:latest
-```
-
-### Serving at a Sub-Path
-
-To serve the app at `/app/` instead of `/`, update the Nginx `location` block in the `Dockerfile`:
-
+### Embedded Nginx Configuration (`/etc/nginx/conf.d/default.conf`)
 ```nginx
-location /app/ {
-    alias /usr/share/nginx/html/;
-    try_files $uri $uri/ /app/index.html;
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # SPA Routing Fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Static Assets Caching (1 year)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 }
 ```
 
 ---
 
-## Docker Compose
+## Docker Compose Service Schema
 
-The `docker-compose.yml` in the repository root:
+The `docker-compose.yml` file defines how the container runs locally:
 
 ```yaml
 services:
   markdown-viewer:
-    image: ghcr.io/thisis-developer/markdown-viewer:latest
+    image: ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
     container_name: markdown-viewer
     ports:
       - "8080:80"
     restart: unless-stopped
 ```
 
-### Configurable Fields
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `image` | `ghcr.io/…:latest` | Docker image to use |
-| `container_name` | `markdown-viewer` | Container name |
-| `ports` | `8080:80` | Host-to-container port mapping |
-| `restart` | `unless-stopped` | Container restart policy |
-
-To build and use a local image instead of the published one, replace the `image` field with a `build` section:
-
+To build and run a local image instead of pulling the pre-built container from the registry, replace the `image` key with `build: .`:
 ```yaml
 services:
   markdown-viewer:
@@ -128,14 +108,14 @@ services:
 
 ---
 
-## Desktop App — neutralino.config.json
+## NeutralinoJS Desktop Configuration
 
-Located at `desktop-app/neutralino.config.json`.
+The desktop application uses the NeutralinoJS framework, which is configured in `desktop-app/neutralino.config.json`.
 
-```jsonc
+```json
 {
-  "applicationId": "js.neutralino.sample",
-  "version": "1.0.0",
+  "applicationId": "js.neutralino.markdownviewer",
+  "version": "1.2.0",
   "defaultMode": "window",
   "enableServer": true,
   "enableNativeAPI": true,
@@ -152,10 +132,10 @@ Located at `desktop-app/neutralino.config.json`.
   ],
   "window": {
     "title": "Markdown Viewer",
-    "width": 800,
-    "minWidth": 600,
-    "height": 500,
-    "minHeight": 400,
+    "width": 1000,
+    "minWidth": 800,
+    "height": 700,
+    "minHeight": 500,
     "resizable": true,
     "maximize": false,
     "center": true
@@ -177,58 +157,38 @@ Located at `desktop-app/neutralino.config.json`.
 }
 ```
 
-### Key Configuration Options
-
-| Field | Description |
-|-------|-------------|
-| `applicationId` | Unique application identifier (reverse-domain format) |
-| `version` | Application version string |
-| `defaultMode` | Launch mode: `window`, `browser`, `cloud`, or `chrome` |
-| `window.width` / `window.height` | Initial window dimensions in pixels |
-| `window.minWidth` / `window.minHeight` | Minimum resizable dimensions |
-| `window.center` | Whether to center the window on launch |
-| `cli.binaryName` | Output binary name prefix |
-| `cli.binaryVersion` | Neutralinojs runtime version to use |
+### Key Window Settings
+*   `width` / `height`: The default launch window size in pixels ($1000 \times 700$).
+*   `minWidth` / `minHeight`: Restricts window scaling below $800 \times 500$ to prevent UI layout issues.
+*   `nativeAllowList`: Grants the application permission to access OS and filesystem APIs (e.g. `filesystem.*` is required for loading and saving local files).
 
 ---
 
-## Desktop App — package.json Scripts
+## Desktop App Package Scripts
 
-Located at `desktop-app/package.json`.
+The `desktop-app/package.json` file contains scripts for development, packaging, and dependency updates:
 
-| Script | Command | Description |
-|--------|---------|-------------|
-| `setup` | `node setup-binaries.js` | Download Neutralinojs binaries |
-| `dev` | `npx @neutralinojs/neu@11.7.0 run` | Start with hot-reload |
-| `build` | `node build-windows.js` | Build a Windows embedded single-file binary |
-| `build:windows` | `node build-windows.js` | Build a Windows embedded single-file binary |
-| `build:portable` | `npx @neutralinojs/neu@11.7.0 build --release --clean` | Build portable (resource-separated) binaries |
-| `build:all` | `npx @neutralinojs/neu@11.7.0 build --release --clean && node build-windows.js --dist dist/windows-embedded` | Build portable bundle plus Windows embedded binary |
+| Script Name | Command | Description |
+| :--- | :--- | :--- |
+| `setup` | `node setup-binaries.js` | Downloads Neutralino platform-specific runtimes. |
+| `dev` | `npx @neutralinojs/neu run` | Starts the desktop app in hot-reload development mode. |
+| `prepare` | `node prepare.js` | Copies core files from the project root into the desktop build directory. |
+| `build` | `node build-windows.js` | Compiles a single-file executable for Windows. |
+| `build:portable` | `npx @neutralinojs/neu build --release` | Packages the application into zip files for Windows, Linux, and macOS. |
 
 ---
 
 ## GitHub Actions Workflows
 
-### docker-publish.yml
+The repository uses two GitHub Actions workflows:
 
-Located at `.github/workflows/docker-publish.yml`.
+### 1. Docker Build & Publish (`docker-publish.yml`)
+*   **Triggers:** Pushes to the `main` branch, or pull requests.
+*   **Registry:** GitHub Container Registry (`ghcr.io`).
+*   **Target Architectures:** `linux/amd64` and `linux/arm64` (multi-arch build).
+*   **Tags:** `latest` for main branch releases, and commit-sha tags for development runs.
 
-| Setting | Value |
-|---------|-------|
-| Trigger | Push to `main`, Pull requests |
-| Registry | `ghcr.io` |
-| Image name | `thisis-developer/markdown-viewer` |
-| Tags generated | `latest` (on main), branch name, PR number, commit SHA |
-| Platforms | `linux/amd64`, `linux/arm64` |
-
-### desktop-build.yml
-
-Located at `.github/workflows/desktop-build.yml`.
-
-| Setting | Value |
-|---------|-------|
-| Trigger | Git tags matching `desktop-v*` |
-| Node.js version | LTS |
-| Build platforms | Windows x64, Linux x64, Linux ARM64, macOS Universal |
-| Artifacts | Embedded binaries + `checksums.sha256` |
-| GitHub Release | Created automatically with binaries as assets |
+### 2. Desktop Compiler (`desktop-build.yml`)
+*   **Triggers:** Pushing Git tags that match the pattern `desktop-v*` (e.g. `desktop-v1.2.0`).
+*   **Action:** Runs on Node LTS, runs the `setup`, `prepare`, and `build:portable` scripts, and generates checksums.
+*   **Release:** Automatically creates a draft release on GitHub and uploads the compiled binaries as assets.

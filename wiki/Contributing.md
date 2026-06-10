@@ -1,217 +1,179 @@
-# Contributing
+# Contributing Guidelines
 
-Thank you for your interest in contributing to **Markdown Viewer**! All contributions — bug reports, feature requests, documentation improvements, and code changes — are welcome.
+Thank you for your interest in contributing to **Markdown Viewer**! We welcome contributions, including bug reports, feature requests, documentation improvements, and code updates.
 
 ---
 
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
-- [Reporting Bugs](#reporting-bugs)
-- [Security Reporting](#security-reporting)
-- [Suggesting Features](#suggesting-features)
+- [Reporting Bugs & Issues](#reporting-bugs--issues)
+- [Security Disclosures](#security-disclosures)
 - [Development Setup](#development-setup)
-- [Making Changes](#making-changes)
+  - [Web Application](#web-application)
+  - [Desktop Application](#desktop-application)
 - [Code Style Guidelines](#code-style-guidelines)
-- [Commit Message Guidelines](#commit-message-guidelines)
-- [Pull Request Process](#pull-request-process)
-- [Project Structure](#project-structure)
+  - [HTML Style](#html-style)
+  - [CSS Style](#css-style)
+  - [JavaScript Style](#javascript-style)
+- [Commit Message Conventions](#commit-message-conventions)
+- [Pull Request & Code Review Process](#pull-request--code-review-process)
+- [Repository Structure](#repository-structure)
 
 ---
 
 ## Code of Conduct
 
-By participating in this project, you agree to maintain a respectful and inclusive environment. Please be kind and constructive in all interactions.
+By participating in this project, you agree to maintain a respectful, professional, and inclusive environment. Please be kind and constructive in all communication and code reviews.
 
 ---
 
-## Reporting Bugs
+## Reporting Bugs & Issues
 
-1. **Check existing issues** first: [GitHub Issues](https://github.com/ThisIs-Developer/Markdown-Viewer/issues)
-2. If the bug hasn't been reported, open a new issue with:
-   - A clear, descriptive title
-   - Steps to reproduce the bug
-   - Expected behavior
-   - Actual behavior
-   - Browser/OS version (for web bugs) or platform (for desktop bugs)
-   - Screenshots or screen recordings if applicable
-
----
-
-## Security Reporting
-
-If you discover a security issue, please report it responsibly:
-
-1. Avoid posting sensitive details in public issues.
-2. If GitHub Security Advisories are enabled for the repo, open a private advisory.
-3. Otherwise, contact the maintainer via GitHub and provide a clear, minimal reproduction.
+1.  Search the [GitHub Issue Tracker](https://github.com/ThisIs-Developer/Markdown-Viewer/issues) to verify the bug has not already been reported.
+2.  If it is a new bug, open an issue including:
+    *   A clear, descriptive title.
+    *   Detailed steps to reproduce the bug.
+    *   Expected vs. actual behavior.
+    *   Your operating system and browser versions.
+    *   Any relevant screenshots or console error messages.
 
 ---
 
-## Suggesting Features
+## Security Disclosures
 
-1. **Check existing issues and discussions** to avoid duplicates.
-2. Open a new issue with the label `enhancement`, describing:
-   - The problem your feature solves
-   - Your proposed solution
-   - Any alternatives you considered
-   - Mockups or examples if applicable
+If you discover a security vulnerability, please report it responsibly:
+*   Do not open a public issue.
+*   Submit a private advisory via GitHub Security Advisories if enabled for the repository.
+*   Alternatively, contact the project maintainers directly with details of the vulnerability and a minimal reproduction.
 
 ---
 
 ## Development Setup
 
-### Web App
+### Web Application
+The core web app requires no build step. To serve `index.html` on localhost (`127.0.0.1`) and run it locally:
 
-No build tools are required. Serve the root directory with any static server:
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
+    cd Markdown-Viewer
+    ```
+2.  Serve the root directory using a local web server:
+    ```bash
+    # Serve with Python (built-in, no dependencies)
+    python3 -m http.server 8080
+    # or
+    # Serve with Node.js serve
+    npx serve . -p 8080
+    ```
+3.  Open **http://localhost:8080** or **http://127.0.0.1:8080** in your browser and edit files like `index.html`, `script.js`, or `styles.css`.
 
-```bash
-git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
-cd Markdown-Viewer
-python3 -m http.server 8080
-# or: npx serve . -p 8080
-```
+### Desktop Application
+To set up the NeutralinoJS desktop environment:
 
-Open **http://localhost:8080** and start editing `index.html`, `script.js`, or `styles.css`.
-
-### Desktop App
-
-```bash
-cd Markdown-Viewer/desktop-app
-npm install
-node setup-binaries.js
-node prepare.js
-npm run dev
-```
-
-See the [Desktop App](Desktop-App) wiki page for full instructions.
-
----
-
-## Making Changes
-
-1. **Fork** the repository on GitHub.
-2. **Create a feature branch** from `main`:
-
-   ```bash
-   git checkout -b feature/my-feature-name
-   # or for bug fixes:
-   git checkout -b fix/issue-123-description
-   ```
-
-3. **Make your changes**, following the [Code Style Guidelines](#code-style-guidelines).
-4. **Test your changes** in multiple browsers (Chrome, Firefox, Safari, Edge).
-5. **Commit** your changes with a descriptive commit message.
-6. **Push** your branch and open a Pull Request.
+1.  Navigate to the desktop directory:
+    ```bash
+    cd Markdown-Viewer/desktop-app
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Download the Neutralino runtime binaries:
+    ```bash
+    node setup-binaries.js
+    ```
+4.  Copy the latest frontend assets into the desktop directory:
+    ```bash
+    node prepare.js
+    ```
+5.  Start the app in development mode with hot-reload:
+    ```bash
+    npm run dev
+    ```
 
 ---
 
 ## Code Style Guidelines
 
-### HTML (`index.html`)
+### HTML Style
+*   Use **2-space indentation**.
+*   Write semantic HTML5 tags (`<header>`, `<main>`, `<section>`, etc.) and ensure they are nested correctly.
+*   Include `aria-*` attributes and roles to maintain accessibility.
+*   Do not write inline CSS styles; place all styles in `styles.css`.
 
-- Use **2-space indentation**.
-- Use **semantic HTML5 elements** where appropriate (`<header>`, `<main>`, `<section>`, etc.).
-- Keep inline styles minimal; use CSS classes instead.
-- Add `aria-*` attributes for accessibility on interactive elements.
+### CSS Style
+*   Use **2-space indentation**.
+*   Use CSS variables (custom properties) on `:root` and `[data-theme="dark"]` to manage colors, borders, and margins.
+*   Scope transitions to specific properties (e.g. `transition: background-color 0.2s`) to avoid repainting the entire viewport during theme switches.
+*   Group style sheets logically using clear comments (e.g. `/* --- Editor Layout --- */`).
 
-### CSS (`styles.css`)
-
-- Use **CSS custom properties** (variables) for colors, fonts, and spacing to support theming.
-- Group related rules together with a comment header.
-- Use **2-space indentation**.
-- Prefer **class selectors** over ID selectors for general styles.
-- Use `rem` for font sizes and `px` / `%` for layout spacing.
-
-### JavaScript (`script.js`)
-
-- Use **vanilla JavaScript** — no new external frameworks.
-- Use `const` / `let`; avoid `var`.
-- Write clear, self-documenting function and variable names.
-- Add brief comments for complex logic.
-- Avoid direct DOM manipulation from within utility functions; keep rendering logic centralized.
-- Debounce any event handlers that trigger expensive operations (e.g., Markdown rendering).
+### JavaScript Style
+*   Use **2-space indentation** and insert semicolons.
+*   Use Vanilla ES6 JavaScript without external frameworks.
+*   Use `const` for constant references and `let` for variables. Do not use `var`.
+*   Offload CPU-intensive parsing or formatting logic to the Web Worker (`preview-worker.js`) to keep the main UI thread responsive.
+*   Debounce event handlers that trigger rendering or layout calculations.
 
 ---
 
-## Commit Message Guidelines
+## Commit Message Conventions
 
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
-
-```
-<type>(<scope>): <short description>
-
-[optional body]
-[optional footer]
-```
-
-### Types
-
-| Type | When to use |
-|------|-------------|
-| `feat` | A new feature |
-| `fix` | A bug fix |
-| `docs` | Documentation changes only |
-| `style` | Formatting changes that don't affect logic |
-| `refactor` | Code refactoring without feature/fix |
-| `perf` | Performance improvements |
-| `test` | Adding or updating tests |
-| `chore` | Build process, dependency updates, etc. |
-| `ci` | CI/CD configuration changes |
-
-### Examples
+We use the **Conventional Commits** standard to organize project changes. Commit messages must use the following format:
 
 ```
-feat(editor): add keyboard shortcut for toggling dark mode
-fix(export): correct PDF page break for long code blocks
-docs(wiki): add Mermaid diagram examples to Markdown Reference
-chore(deps): update DOMPurify to 3.1.0
+<type>(<scope>): <description>
+
+[body]
+[footer]
 ```
+
+### Commit Types:
+*   `feat`: A new user-facing feature.
+*   `fix`: A bug fix.
+*   `docs`: Changes to documentation files (such as the wiki or README).
+*   `style`: Formatting updates (whitespace, semicolons) that do not affect code logic.
+*   `refactor`: Code restructuring that neither fixes a bug nor adds a feature.
+*   `perf`: Performance-related optimizations.
+*   `chore`: Tasks like updating dependencies, build configurations, or CI files.
+
+### Commit Examples:
+*   `feat(editor): add keyboard shortcut for fullscreen mode`
+*   `fix(pdf): correct page breaks in long tables`
+*   `docs(wiki): add Mermaid diagrams formatting guide`
+*   `chore(deps): update marked.js version to 9.1.6`
 
 ---
 
-## Pull Request Process
+## Pull Request & Code Review Process
 
-1. **Target the `main` branch** with your PR.
-2. Fill in the PR template:
-   - Description of the change
-   - Related issue number (if applicable)
-   - Screenshots for UI changes
-3. Ensure your branch is **up to date** with `main` before requesting review:
-
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
-
-4. PRs are reviewed and merged by the project maintainer(s). Feedback may be provided as review comments — please address all comments before the PR can be merged.
-5. Once approved, the PR will be squash-merged into `main`.
+1.  Fork the repository and create a new feature branch from `main`:
+    ```bash
+    git checkout -b feature/my-feature-name
+    ```
+2.  Make your changes, verify your code style, and test them across modern browsers (Chrome, Firefox, Safari, Edge).
+3.  Commit your updates following the [Commit Message Conventions](#commit-message-conventions).
+4.  Rebase your branch to ensure it is up to date with the upstream `main` branch before submitting:
+    ```bash
+    git fetch upstream
+    git rebase upstream/main
+    ```
+5.  Open a Pull Request pointing to the upstream repository's `main` branch. Complete the pull request template with details of the changes and any related issues.
+6.  A project maintainer will review your pull request. Please address any review comments before the code is merged. Once approved, the pull request will be squash-merged.
 
 ---
 
-## Project Structure
+## Repository Structure
 
-```
-Markdown-Viewer/
-├── index.html              # Main web app HTML
-├── script.js               # Core JavaScript logic
-├── styles.css              # All styles (light + dark themes)
-├── Dockerfile              # Nginx-based web app container
-├── docker-compose.yml      # Docker Compose configuration
-├── README.md               # Project overview
-├── LICENSE                 # Apache 2.0 License
-├── assets/                 # Screenshots and icons for documentation
-├── wiki/                   # GitHub Wiki source pages
-└── desktop-app/            # Neutralinojs desktop app
-    ├── package.json
-    ├── neutralino.config.json
-    ├── setup-binaries.js
-    ├── prepare.js
-    └── resources/
-        ├── index.html
-        ├── styles.css
-        └── js/
-            ├── main.js
-            ├── script.js
-            └── neutralino.js
-```
+Below is an overview of the key folders and files in the repository:
+
+*   `index.html`: The entry-point HTML page.
+*   `script.js`: The main controller and UI interaction script.
+*   `preview-worker.js`: The background Web Worker script that compiles Markdown.
+*   `styles.css`: CSS styles and themes.
+*   `sw.js`: The Service Worker cache proxy script.
+*   `Dockerfile` / `docker-compose.yml`: Docker configuration files.
+*   `assets/`: Image assets and diagrams.
+*   `wiki/`: Document source files for this wiki.
+*   `desktop-app/`: NeutralinoJS application source files.

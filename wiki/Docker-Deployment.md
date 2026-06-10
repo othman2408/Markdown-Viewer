@@ -1,225 +1,172 @@
-# Docker Deployment
+# Docker Deployment Guide
 
-This page covers all Docker-based deployment options for **Markdown Viewer**.
+This page provides comprehensive documentation for containerizing, running, and proxying **Markdown Viewer** (v3.7.4) using Docker and Docker Compose.
 
 ---
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
-- [Docker Run](#docker-run)
-- [Docker Compose](#docker-compose)
+- [Quick Start Command](#quick-start-command)
+- [Docker Run Command Reference](#docker-run-command-reference)
+- [Docker Compose Integration](#docker-compose-integration)
 - [Building the Image Locally](#building-the-image-locally)
-- [Nginx Configuration](#nginx-configuration)
-- [Transparency & Security](#transparency--security)
-- [Environment & Customization](#environment--customization)
-- [Automated Image Publishing](#automated-image-publishing)
-- [Reverse Proxy Setup](#reverse-proxy-setup)
+- [Production Nginx Settings & Security Headers](#production-nginx-settings--security-headers)
+- [Configuring the App at a Custom Sub-Path](#configuring-the-app-at-a-custom-sub-path)
+- [Reverse Proxy Server Integrations](#reverse-proxy-server-integrations)
+  - [Nginx Configuration](#nginx-configuration)
+  - [Caddy Configuration](#caddy-configuration)
+  - [Traefik Compose Labels](#traefik-compose-labels)
+- [CI/CD Deployment Automation](#cicd-deployment-automation)
 
 ---
 
-## Quick Start
+## Quick Start Command
+
+To spin up a local instance immediately:
 
 ```bash
+docker pull ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
 docker run -d \
   --name markdown-viewer \
   -p 8080:80 \
   --restart unless-stopped \
-  ghcr.io/thisis-developer/markdown-viewer:latest
+  ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
 ```
 
-Open **http://localhost:8080**.
+Open **http://localhost:8080** in your browser.
 
 ---
 
-## Docker Run
+## Docker Run Command Reference
 
-### Basic Usage
-
+### Custom Port Mapping
+To map the container to a different host port (such as `8081`):
 ```bash
-docker run -p 8080:80 ghcr.io/thisis-developer/markdown-viewer:latest
+docker pull ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
+docker run -d --name markdown-viewer -p 8081:80 ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
 ```
 
-### With a Custom Port
-
+### Specifying Version Tags
+You can pin the container to a specific commit or release by replacing `latest` with the appropriate tag:
 ```bash
-docker run -p 3000:80 ghcr.io/thisis-developer/markdown-viewer:latest
+docker run -d --name markdown-viewer -p 8080:80 ghcr.io/thisis-developer/markdown-viewer:main
 ```
 
-### Named Container with Restart Policy
-
-```bash
-docker run -d \
-  --name markdown-viewer \
-  -p 8080:80 \
-  --restart unless-stopped \
-  ghcr.io/thisis-developer/markdown-viewer:latest
-```
-
-### Pull a Specific Version
-
-```bash
-docker pull ghcr.io/thisis-developer/markdown-viewer:<tag>
-docker run -p 8080:80 ghcr.io/thisis-developer/markdown-viewer:<tag>
-```
-
-Available tags: `latest`, `main`, and commit SHA tags (e.g., `abc1234`).
+Available image tags:
+*   `latest`: The latest stable build from the main branch.
+*   `main`: The most recent commit pushed to the main branch.
+*   `<commit-sha>` (e.g. `e3d7a1b`): A build pinned to a specific commit.
 
 ---
 
-## Docker Compose
+## Docker Compose Integration
 
-The repository includes a ready-to-use `docker-compose.yml`.
+The repository includes a default `docker-compose.yml` file for Compose-based deployments:
 
-### Start
-
+### Starting the Services
 ```bash
 docker compose up -d
 ```
 
-### Stop
-
+### Stopping the Services
 ```bash
 docker compose down
 ```
 
-### Rebuild
-
+### Rebuilding Containers
+To rebuild the image using local source code changes:
 ```bash
 docker compose up -d --build
 ```
 
-### docker-compose.yml
-
+### Default `docker-compose.yml` Configuration
 ```yaml
 services:
   markdown-viewer:
-    image: ghcr.io/thisis-developer/markdown-viewer:latest
+    image: ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
     container_name: markdown-viewer
     ports:
       - "8080:80"
     restart: unless-stopped
 ```
 
-To change the host port, update the left value in `"8080:80"` to your desired port.
-
 ---
 
 ## Building the Image Locally
 
-```bash
-# From the repository root
-git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
-cd Markdown-Viewer
+To build a custom Docker image from the source code:
 
-docker build -t markdown-viewer:local .
-docker run -p 8080:80 markdown-viewer:local
-```
-
-### Dockerfile Summary
-
-The `Dockerfile` is based on `nginx:alpine` and:
-
-1. **Copies** all web app files (`index.html`, `script.js`, `styles.css`, `assets/`) into `/usr/share/nginx/html`.
-2. **Configures Nginx** for SPA routing (all paths serve `index.html`).
-3. **Sets cache headers** for static assets (1-year max-age).
-4. **Adds security headers**:
-   - `X-Frame-Options: SAMEORIGIN`
-   - `X-Content-Type-Options: nosniff`
-   - `Referrer-Policy: strict-origin-when-cross-origin`
+1.  Clone the repository and navigate to the project directory:
+    ```bash
+    git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
+    cd Markdown-Viewer
+    ```
+2.  Build the Docker image:
+    ```bash
+    docker build -t markdown-viewer:local .
+    ```
+3.  Run the local container:
+    ```bash
+    docker run -d --name markdown-viewer-local -p 8080:80 markdown-viewer:local
+    ```
 
 ---
 
-## Nginx Configuration
+## Production Nginx Settings & Security Headers
 
-The embedded Nginx config (`/etc/nginx/conf.d/default.conf`) includes:
+The Docker image uses `nginx:alpine` and includes custom configurations to optimize caching and security:
 
+### Core Configurations
+*   **Single-Page App (SPA) Routing:** Requests are redirected to `/index.html` to support client-side routing.
+*   **Static Asset Caching:** Cache-control headers are set to one year (`max-age=31536000`) for static files (JS, CSS, images, fonts).
+*   **Security Headers:** To protect the app from typical web vulnerabilities, Nginx is configured to inject the following headers:
+
+```nginx
+# Prevents the app from being embedded in iframes on other domains (XSS and Clickjacking protection)
+add_header X-Frame-Options "SAMEORIGIN" always;
+
+# Blocks browsers from MIME-type sniffing
+add_header X-Content-Type-Options "nosniff" always;
+
+# Restricts referrer information sent with outbound links
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+```
+
+---
+
+## Configuring the App at a Custom Sub-Path
+
+To serve Markdown Viewer from a sub-path (e.g. `example.com/editor/`) instead of the root directory, update the Nginx configuration inside the `Dockerfile`:
+
+Modify the root location block in the Nginx config to use an alias for the sub-path:
 ```nginx
 server {
     listen 80;
     root /usr/share/nginx/html;
-    index index.html;
 
-    # SPA fallback routing
-    location / {
-        try_files $uri $uri/ /index.html;
+    location /editor/ {
+        alias /usr/share/nginx/html/;
+        try_files $uri $uri/ /editor/index.html;
     }
-
-    # Static asset caching (1 year)
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-    add_header Referrer-Policy "strict-origin-when-cross-origin";
 }
 ```
 
----
-
-## Transparency & Security
-
-The Docker image is intentionally minimal:
-
-- **Static assets only**: HTML, CSS, JavaScript, and images served by Nginx.
-- **No background services**: No analytics, telemetry, or server-side processing.
-- **External dependencies**: The app references CDN-hosted libraries unless you bundle them locally.
-- **Security headers**: Nginx applies `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`.
+Rebuild the Docker image after applying these changes.
 
 ---
 
-## Environment & Customization
+## Reverse Proxy Server Integrations
 
-Because the app is purely static, there are no runtime environment variables to configure. All customization is done at build time by modifying the source files.
-
-To serve the app at a **sub-path** (e.g., `/markdown-viewer/`), adjust the Nginx `location` directive in the `Dockerfile` and rebuild the image.
-
----
-
-## Automated Image Publishing
-
-The GitHub Actions workflow `.github/workflows/docker-publish.yml` automatically builds and publishes Docker images to GHCR on every push:
-
-### Trigger Events
-
-| Event | Action |
-|-------|--------|
-| Push to `main` | Build and push `latest` tag |
-| Pull request | Build only (no push) |
-| Any push | Build and push with commit SHA tag |
-
-### Published Registry
-
-Images are published to:
-
-```
-ghcr.io/thisis-developer/markdown-viewer
-```
-
-You can pull the image without authentication (public repository):
-
-```bash
-docker pull ghcr.io/thisis-developer/markdown-viewer:latest
-```
-
----
-
-## Reverse Proxy Setup
-
-To run Markdown Viewer behind a reverse proxy (Nginx, Caddy, Traefik, Apache), proxy requests to the container's port 80.
-
-### Nginx Reverse Proxy
+### Nginx Configuration
+To set up a reverse proxy with Nginx, use this server block to forward incoming requests to the Markdown Viewer container (running on port `8080`):
 
 ```nginx
 server {
     listen 443 ssl;
     server_name markdown.example.com;
 
-    ssl_certificate     /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
+    ssl_certificate     /etc/ssl/certs/markdown.pem;
+    ssl_certificate_key /etc/ssl/private/markdown.key;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -231,7 +178,8 @@ server {
 }
 ```
 
-### Caddy Reverse Proxy
+### Caddy Configuration
+Caddy automatically handles HTTPS and reverse proxy configurations. Update your `Caddyfile` with the following rule:
 
 ```caddyfile
 markdown.example.com {
@@ -239,15 +187,28 @@ markdown.example.com {
 }
 ```
 
-### Traefik Labels (docker-compose.yml)
+### Traefik Compose Labels
+To use Traefik to route traffic to the Markdown Viewer container, add these labels to the service definition in your `docker-compose.yml` file:
 
 ```yaml
 services:
   markdown-viewer:
-    image: ghcr.io/thisis-developer/markdown-viewer:latest
+    image: ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
+    container_name: markdown-viewer
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.markdown.rule=Host(`markdown.example.com`)"
-      - "traefik.http.routers.markdown.entrypoints=websecure"
-      - "traefik.http.routers.markdown.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mdviewer.rule=Host(`markdown.example.com`)"
+      - "traefik.http.routers.mdviewer.entrypoints=websecure"
+      - "traefik.http.routers.mdviewer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mdviewer.loadbalancer.server.port=80"
+    restart: unless-stopped
 ```
+
+---
+
+## CI/CD Deployment Automation
+
+The repository includes a GitHub Actions workflow (`.github/workflows/docker-publish.yml`) that automates container building and publishing:
+
+*   **Pushes to `main`:** Builds and pushes multi-architecture images (`linux/amd64` and `linux/arm64`) to the GitHub Container Registry (`ghcr.io`).
+*   **Pull Requests:** Automatically builds the image to verify compile status and check for errors, without publishing it to the registry.

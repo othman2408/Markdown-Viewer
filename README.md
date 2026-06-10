@@ -1,15 +1,17 @@
-# Markdown Viewer
+<div align="center">
+<h1>Markdown Viewer</h1>
+  
+  <img src="assets/icon.jpg" alt="Markdown Viewer Logo" width="140" />
+</div>
 
 <div align="center">
-  <img src="assets/icon.jpg" alt="Markdown Viewer Logo" width="140" />
-
-  <p><strong>Professional GitHub-style Markdown editor and previewer</strong></p>
-  <p>Live preview, diagrams, math, export tools, and multi-document workflows — all in your browser.</p>
+  <p><strong>A Markdown Editor That Lives in Your Browser, Desktop, and a Single URL.</strong></p>
+  <p>Fast GitHub-style Markdown editing with live preview, diagrams, LaTeX, syntax highlighting, PDF export, and multi-tab support across web, desktop, and Docker.</p>
 
   <p>
-    <a href="https://markdownviewer.pages.dev/" target="_blank" rel="noopener noreferrer">Live Demo</a> ·
-    <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki" target="_blank" rel="noopener noreferrer">Documentation</a> ·
-    <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/issues" target="_blank" rel="noopener noreferrer">Issues</a> ·
+    <a href="https://markdownviewer.pages.dev/" target="_blank" rel="noopener noreferrer"><strong>Live Production Demo</strong></a> ·
+    <a href="wiki/Home" rel="noopener noreferrer">Documentation Wiki</a> ·
+    <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/issues" target="_blank" rel="noopener noreferrer">Issue Tracker</a> ·
     <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/releases" target="_blank" rel="noopener noreferrer">Releases</a>
   </p>
 
@@ -21,193 +23,407 @@
   </p>
 
   <p>
-  <a href="https://codewiki.google/github.com/thisis-developer/markdown-viewer" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/badge/CodeWiki-Explore-4285F4?logo=wikipedia&logoColor=white&style=flat" alt="CodeWiki" />
-  </a>
-  <a href="https://deepwiki.com/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
-    <img src="https://deepwiki.com/badge.svg" />
-  </a>
-</p>
-<p>
-  <a href="https://oosmetrics.com/repo/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
-    <img src="https://api.oosmetrics.com/api/v1/badge/achievement/b13c27be-447e-489d-a04d-55f7ccaf9175.svg" />
-  </a>
-</p>
+    <a href="https://codewiki.google/github.com/thisis-developer/markdown-viewer" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/badge/CodeWiki-Explore-4285F4?logo=wikipedia&logoColor=white&style=flat" alt="CodeWiki" />
+    </a>
+    <a href="https://deepwiki.com/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
+      <img src="https://deepwiki.com/badge.svg" alt="DeepWiki" />
+    </a>
+    <a href="https://oosmetrics.com/repo/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
+      <img src="https://api.oosmetrics.com/api/v1/badge/achievement/b13c27be-447e-489d-a04d-55f7ccaf9175.svg" alt="OOSMetrics" />
+    </a>
+  </p>
 </div>
 
----
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/7f4af5d3-ecae-47ac-9f27-2f91e4a6d866" alt="Markdown Viewer - Live split-screen Markdown editor and previewer with GFM rendering, tabbed multi-document workspace, and dark theme support" width="100%" />
+</p>
+
 
 ## Table of Contents
 
 - [About the Project](#about-the-project)
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Getting Started](#getting-started)
-- [Usage](#usage)
-- [Documentation](#documentation)
-- [Built With](#built-with)
-- [Showcase](#showcase)
-- [Contributing](#contributing)
-- [Contributors](#contributors)
-- [Development Journey](#development-journey)
+- [Key Features](#key-features)
+- [System Architecture](#system-architecture)
+  - [High-Level Architecture Diagram](#high-level-architecture-diagram)
+  - [Core File Walkthrough](#core-file-walkthrough)
+- [Under-the-Hood Subsystems Deep-Dive](#under-the-hood-subsystems-deep-dive)
+  - [1. Global State & Session Persistence](#1-global-state--session-persistence)
+  - [2. Document Tab & Session Lifecycle](#2-document-tab--session-lifecycle)
+  - [3. Tab Overflow & Navigation](#3-tab-overflow--navigation)
+  - [4. Responsive Pane Resizer & View Mode Layout Controller](#4-responsive-pane-resizer--view-mode-layout-controller)
+  - [5. Rich Text Editor History & Undo/Redo Engine](#5-rich-text-editor-history--undoredo-engine)
+  - [6. Dynamic Line-Number Gutter & Selection Highlighter](#6-dynamic-line-number-gutter--selection-highlighter)
+  - [7. Web Worker Segmented Markdown Compilation & Sanitization](#7-web-worker-segmented-markdown-compilation--sanitization)
+  - [8. Throttled Bidirectional Scroll Synchronization](#8-throttled-bidirectional-scroll-synchronization)
+  - [9. Interactive Mermaid Diagram & MathJax LaTeX Renderer](#9-interactive-mermaid-diagram--mathjax-latex-renderer)
+  - [10. Draggable Find/Replace Search & Diff Preview Engine](#10-draggable-findreplace-search--diff-preview-engine)
+  - [11. Layout-Aware PDF Export & URL Sharing Subsystem](#11-layout-aware-pdf-export--url-sharing-subsystem)
+- [Getting Started & Installation](#getting-started--installation)
+  - [Option 1: Docker (Pre-built Image)](#option-1-docker-pre-built-image)
+  - [Option 2: Docker Compose (Local Build)](#option-2-docker-compose-local-build)
+  - [Option 3: Local Static Web Server](#option-3-local-static-web-server)
+  - [Option 4: Desktop Application](#option-4-desktop-application)
+- [Usage Guide & Keyboard Shortcuts](#usage-guide--keyboard-shortcuts)
+- [Project Directory Structure](#project-directory-structure)
+- [Built With (Technology Stack)](#built-with-technology-stack)
+- [Contributing & Code Quality](#contributing--code-quality)
+- [Showcase & Community Projects](#showcase--community-projects)
 - [License](#license)
-- [Contact](#contact)
+- [Contact & Support](#contact--support)
 
 ---
 
 ## About the Project
 
-Markdown Viewer is a full-featured Markdown editor and preview application that renders GitHub-flavored Markdown in real time. It is entirely client-side, lightweight, and optimized for a professional writing workflow — from quick notes to technical documentation with diagrams and LaTeX.
+**Markdown Viewer** is an advanced, fully client-side editing suite and previewer optimized for a professional documentation workflow. Running completely inside the browser, it renders GitHub-Flavored Markdown (GFM), math formulas, and architectural diagrams in real time. 
+
+Designed with privacy and performance at its core, the application performs all parsing in a background worker thread, employs incremental DOM patching to minimize browser repaints, and supports native offline capabilities via a Service Worker proxy. It is also packaged as a lightweight native desktop shell using the Neutralinojs framework.
 
 ---
 
-## Features
+## Key Features
 
-**Editor & Preview**
-- Live split-screen rendering with instant updates
-- GitHub-flavored Markdown (GFM) support
-- Syntax highlighting for 190+ languages
-- GitHub-style alerts/admonitions (`[!NOTE]`, `[!TIP]`, `[!WARNING]`, etc.)
-- Emoji shortcode rendering (JoyPixels) and native Unicode emoji support
-- YAML frontmatter parsing with a rendered metadata table
+*   **🖊️ Decoupled Split-Screen Editing:** Type Markdown in a customized text editor with a dynamic line-number gutter and see updates render instantly.
+*   **📐 LaTeX Math Notation:** Full integration with MathJax for typesetting inline and block mathematical formulas.
+    <p align="center">
 
-**Diagrams & Math**
-- LaTeX math rendering via MathJax (inline + block)
-- Mermaid diagrams with an interactive toolbar (zoom, pan, copy, PNG/SVG export)
-
-**File & Sharing Tools**
-- Import from local files, drag & drop, or public GitHub URLs (multi-file selection)
-- Export as Markdown, HTML (standalone), or PDF
-- Share documents via URL with compressed content
-- Copy rendered HTML directly to clipboard
-
-**Productivity & Workflow**
-- Multiple document tabs (new, rename, duplicate, delete)
-- Reset all tabs in one action
-- Drag-and-drop tab reordering
-- Tab/session state saved in localStorage
-- View modes: editor-only, preview-only, or split
-- Resizable editor/preview panes
-- Synchronized scrolling (toggleable)
-- Live content statistics (words, characters, reading time)
-- Keyboard shortcuts (export, copy, new/close tab, sync toggle, indentation)
-
-**UI & Accessibility**
-- Responsive layout with a dedicated mobile menu
-- Light/dark themes with system preference support
-
-**Privacy & Security**
-- 100% client-side processing
-- Sanitized HTML rendering with DOMPurify
-- No tracking, no cookies, no server storage
+      <img src="https://github.com/user-attachments/assets/51831f45-33e8-4788-b9ad-b239a929a2e4" alt="Markdown Viewer - LaTeX math editor rendering display and inline mathematical equations using MathJax in dark mode" width="90%" />
+    </p>
+*   **📊 Interactive Mermaid Diagrams:** Render flowcharts, Gantt charts, sequence diagrams, and more. Diagrams feature a toolbar for zooming, panning, copying, and exporting.
+    <p align="center">
+      <img src="https://github.com/user-attachments/assets/da00943c-d00a-4b76-96e9-d7bc1bb7f86c" alt="Markdown Viewer - Rendered interactive Mermaid.js diagram flowchart in preview with zoom, pan, and SVG image export toolbar" width="90%" />
+      <img src="https://github.com/user-attachments/assets/3995e614-ffff-4cc0-843d-af73d840ca86" alt="Markdown Viewer - Rendered interactive Mermaid.js diagram flowchart in preview with zoom, pan, and SVG image export toolbar" width="90%" />
+    </p>
+*   **⚡ Off-Thread Parsing & Incremental Patching:** Document parsing is offloaded to a background Web Worker. Rendered updates patch only changed DOM nodes to keep browser resources free.
+*   **📤 Professional Export Suite:** Export documents as raw Markdown (`.md`), standalone formatted HTML (`.html`) with inline styles, or high-resolution paginated PDF (`.pdf`).
+*   **📥 Multi-Source File Import:** Drag & drop local files or browse and download multiple Markdown files from a public GitHub repository URL.
+    <p align="center">
+      <img src="https://github.com/user-attachments/assets/6edbfde9-82a8-472a-a2b5-d06ffb63bcea" alt="Markdown Viewer - Import Markdown files from public GitHub repository tree with recursive directory browser and tab integration" width="90%" />
+      <img src="https://github.com/user-attachments/assets/cba06ce4-a13b-4c4b-bc70-6d53a24a8f0f" alt="Markdown Viewer - Import Markdown files from public GitHub repository tree with recursive directory browser and tab integration" width="90%" />
+    </p>
+*   **🔗 URL-Encoded Compressed Sharing:** Compress your document's text utilizing DEFLATE compression and encode it directly into a shareable URL hash. No server-side database required.
+    <p align="center">
+      <img src="https://github.com/user-attachments/assets/10957066-4bc5-4b7d-9dc0-c28b7fc61a7e" alt="Markdown Viewer - Serverless document sharing using URL-encoded DEFLATE compressed markdown hash in edit or view-only mode" width="90%" />
+    </p>
+*   **💾 Multi-Document Tab bar:** Organize multiple files inside tab components featuring drag-and-drop reordering, title renaming, and local session persistence.
+*   **🔒 Privacy & Security Focus:** No analytics, tracking beacons, or backend servers. HTML output is sanitized via DOMPurify to eliminate Cross-Site Scripting (XSS) threats.
 
 ---
 
-## Screenshots
+## System Architecture
 
-### Code Syntax Highlighting
-![Code Syntax Highlighting](assets/code.png)
+Markdown Viewer is structured as a client-side single-page application (SPA). The diagram below outlines how the UI thread, background worker, service worker, browser cache, native desktop bridges, and third-party libraries interact.
 
-### Mathematical Expressions Support
-![Mathematical Expressions](assets/mathexp.png)
+### High-Level Architecture Diagram
 
-### Mermaid Diagrams
-![Mermaid Diagrams](assets/mermaid.png)
+```mermaid
+graph TD
+    %% Client Interface Group
+    subgraph UI ["Client Interface (Main Thread)"]
+        HTML["index.html<br>(DOM Tree)"]
+        CSS["styles.css<br>(Custom Themes & Reset)"]
+        Script["script.js<br>(UI Orchestration)"]
+        Editor["Markdown Editor<br>(Textarea + Gutter)"]
+        Preview["Preview Pane<br>(Isolated Render Area)"]
+        Modal["Mermaid Modal<br>(Zoom & Drag-to-Pan)"]
+    end
 
-### Tables Support
-![Tables Support](assets/table.png)
+    %% Background Web Worker Group
+    subgraph Worker ["Web Worker (Background Thread)"]
+        PWorker["preview-worker.js<br>(Off-Thread Compiler)"]
+        MarkedLib["Marked.js<br>(GFM Parser)"]
+        HljsLib["Highlight.js<br>(Syntax Color)"]
+    end
+
+    %% Storage Group
+    subgraph Storage ["Local Storage & Network Proxy"]
+        LS["localStorage<br>(Tabs, Settings, Session)"]
+        Cache["Browser Cache<br>(Service Worker sw.js)"]
+    end
+
+    %% Third-Party Utilities
+    subgraph CDNs ["Third-Party CDN Libraries (Lazy Loaded)"]
+        MathJax["MathJax.js<br>(LaTeX Math)"]
+        Mermaid["Mermaid.js<br>(Diagrams)"]
+        PDF["jsPDF & html2canvas<br>(PDF Export Pipeline)"]
+        Pako["Pako.js<br>(zlib share encoder)"]
+    end
+
+    %% Native Desktop Layer
+    subgraph Desktop ["NeutralinoJS Desktop Shell"]
+        Neu["Neutralino.js Bridge<br>(Native File System APIs)"]
+    end
+
+    %% Interactions
+    Editor -- "1. Input Keystrokes" --> Script
+    Script -- "2. Size-Aware Debounced Text" --> PWorker
+    PWorker -- "3. Load Scripts" --> MarkedLib
+    PWorker -- "3. Load Scripts" --> HljsLib
+    PWorker -- "4. Returns Compiled HTML Blocks & Hashes" --> Script
+    Script -- "5. Incremental Patching (replaceWith)" --> Preview
+    Script -- "6. Debounced State Auto-Save" --> LS
+    
+    %% Dynamic Loading triggers
+    Script -- "Lazy Load (Math strings detected)" --> MathJax
+    Script -- "Lazy Load (Mermaid block detected)" --> Mermaid
+    Script -- "Lazy Load (On PDF Export click)" --> PDF
+    Script -- "Lazy Load (On Share click)" --> Pako
+    
+    %% Downstream Rendering outputs
+    MathJax -- "Inject Math formulas" --> Preview
+    Mermaid -- "Draw SVGs + Toolbars" --> Preview
+    Preview -- "Double click diagram" --> Modal
+    PDF -- "Capture sandboxed canvas" --> Script
+    
+    %% Network Proxy Caching
+    Cache -. "Network-First (App Assets)" .-> HTML
+    Cache -. "Network-First (App Assets)" .-> Script
+    Cache -. "Network-First (App Assets)" .-> CSS
+    Cache -. "Cache-First (5.4MB bundles)" .-> CDNs
+    
+    %% Desktop Logic
+    Script -- "Access OS API if wrapped" --> Neu
+```
+
+### Core File Walkthrough
+
+1.  **`index.html`**: Establishes layout structures, floating panel anchors, and imports CSS files alongside core scripts using defer hooks. It keeps the default fallback markdown inside a `<script type="text/markdown" id="default-markdown">` element.
+2.  **`script.js`**: Operates as the central controller on the main UI thread. It tracks active tab states, drives the split resizing loops, handles drag-and-drop file imports, coordinates communication with the preview Web Worker, manages the multi-pass PDF layout engine, and applies language mappings.
+3.  **`styles.css`**: Configures variables for Light/Dark themes, handles layout spacing, aligns the line number gutter visually with the text editor area, and provides theme stylings for code fences.
+4.  **`preview-worker.js`**: Operates on a background thread. It parses large text structures, calculates hashes for each section, compiles Markdown to HTML using `marked.js`, applies syntax highlighting via `highlight.js`, and posts parsed output back to the main UI thread.
+5.  **`sw.js`**: A Service Worker serving as a local network proxy. It intercepts requests to cache static files on the client's device, enabling the application to run offline.
 
 ---
 
-## Getting Started
+## Under-the-Hood Subsystems Deep-Dive
 
-### Option 1 — Docker (Recommended)
+Markdown Viewer employs custom-engineered client-side engines to deliver production-grade performance. Below is a detailed breakdown of the 11 core subsystems. For full source code listings and in-depth details of each implementation, please check the [Features Wiki](wiki/Features).
+
+### 1. Global State & Session Persistence
+The global state manages application-wide preferences (such as theme, text direction, active tab, and split-pane ratio). It uses an **in-memory shadowing cache** to skip repeated parsing/serialization cycles over the synchronous `localStorage` block (preventing blocking disk I/O). 
+
+Theme switches write the theme attribute directly to the HTML document root to avoid visual flash or full-page layout reflows during loading. CSS transitions are strictly scoped to color properties to prevent costly layout recalculations:
+
+$$\text{document.documentElement.setAttribute("data-theme", theme)}$$
+
+### 2. Document Tab & Session Lifecycle
+Document files reside in an isolated document tab array structure. Tab dragging reorders tabs using the HTML5 Drag and Drop API, updating the underlying index array. Dropdown menus are positioned relative to the tab's bounding rectangle via `getBoundingClientRect()`. Keyboard accessibility mappings (`ArrowRight`, `ArrowLeft`, `Home`, `End`, `Enter`, `Space`) coordinate focus states inside the tab-list.
+
+### 3. Tab Overflow & Navigation
+When open tabs exceed the horizontal viewport, the tab bar switches to an overflow state. Vertical mouse scroll wheel inputs are intercepted and translated to horizontal scroll coordinates to enable side-scrolling:
+
+$$\Delta X_{\text{scroll}} = \Delta Y_{\text{wheel}}$$
+
+Overflow check checks the inequality `scrollWidth > clientWidth` to toggle the visibility of click-to-scroll navigation arrows.
+
+### 4. Responsive Pane Resizer & View Mode Layout Controller
+The horizontal resizer calculates the percentage width of the editor relative to its parent container during window resizing:
+
+$$\text{Percent}_{\text{editor}} = \text{clamp}\left(\frac{X_{\text{mouse}} - X_{\text{container-left}}}{W_{\text{container}}} \times 100, 20\\%, 80\\%\right)$$
+
+The event loop tracks global resizing states on window mouse and touch move events, updating layout grid constraints via CSS properties.
+
+### 5. Rich Text Editor History & Undo/Redo Engine
+To maintain separate command histories when navigating multiple documents, the history manager maintains tab-specific undo/redo stacks. Edits are batched to avoid bloated memory allocations; updates are pushed to the history stack only when transition boundaries occur, word borders (spaces) are typed, or keyboard idle time exceeds 300ms.
+
+### 6. Dynamic Line-Number Gutter & Selection Highlighter
+To keep line numbers in the gutter aligned with wrapped text in the transparent editor area, the gutter employs font-size wrap calculations:
+
+$$\text{LineHeight} = \text{fontSize} \times 1.5$$
+
+$$\text{wrapCount} = \text{Math.ceil}\left(\frac{\text{TextLength} \times \text{CharWidth}}{\text{EditorWidth}}\right)$$
+
+DOM gutter paints are scheduled via `requestAnimationFrame` to prevent layout thrashing. A background overlay matches the text scroll coordinates to highlight find-and-replace queries.
+
+### 7. Web Worker Segmented Markdown Compilation & Sanitization
+Document parsing is offloaded to `preview-worker.js` on a background thread. Before offloading, the system runs safety checks to ensure the document contains no global definitions or complex footnotes. If safe, the worker tokenizes the text into blocks on double-newlines, calculates 32-bit FNV-1a hashes for each segment:
+
+$$H_i = (H_{i-1} \oplus d_i) \times p$$
+
+where $p = 16777619$ (FNV prime) and $H_0 = 2166136261$ (offset basis). Only modified blocks are re-parsed, saving substantial CPU cycles.
+
+### 8. Throttled Bidirectional Scroll Synchronization
+Proportional scrolling coordinates positions between the text editor and preview pane:
+
+$$Y_{\text{target}} = \frac{Y_{\text{source}}}{H_{\text{source-scroll}} - H_{\text{source-client}}} \times (H_{\text{target-scroll}} - H_{\text{target-client}})$$
+
+Scrolling feedback loops are prevented using state locks and decoupled animation schedules using `requestAnimationFrame` with a 50ms release timeout.
+
+### 9. Interactive Mermaid Diagram & MathJax LaTeX Renderer
+MathJax typesets equations asynchronously. A cleanup script strips MathJax's default assistive markup elements to prevent duplicate accessibility readings. Rendered SVG diagrams are manipulated in zoom modals using transform translation matrices:
+
+$$\mathbf{T}_{\text{svg}} = \text{translate}(X_{\text{pan}}, Y_{\text{pan}}) \times \text{scale}(S_{\text{zoom}})$$
+
+### 10. Draggable Find/Replace Search & Diff Preview Engine
+Regular expression searches are parsed inside try-catch validation locks to avoid breaking runtime operations. The floating panel coordinates are clamped inside the window bounds:
+
+$$X_{\text{clamp}} = \max(0, \min(X_{\text{mouse}}, W_{\text{window}} - W_{\text{panel}}))$$
+
+$$Y_{\text{clamp}} = \max(0, \min(Y_{\text{mouse}}, H_{\text{window}} - H_{\text{panel}}))$$
+
+A diff comparison engine computes modified line buffers to display a red/green visual preview before applying replacements.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/b4314cf0-8059-40f1-a445-9d24f00a23b0" alt="Markdown Viewer - Draggable find and replace panel with scoped search filters for Mermaid diagrams, LaTeX equations, and raw text diff preview" width="90%" />
+</p>
+
+### 11. Layout-Aware PDF Export & URL Sharing Subsystem
+PDF generation uses a multi-pass stabilization cascade loop (up to 10 iterations) to align layout components:
+- Inline SVGs are converted to Base64 PNGs.
+- Header elements near borders are shifted down via `.pdf-page-break-spacer` to prevent orphan tags.
+- Tables are dynamically split and `<thead>` elements are re-injected onto split tables.
+- Text element slicing is prevented by shifting lines downward past page cuts:
+
+$$\text{Shift} = (Y_{\text{boundary}} - Y_{\text{line-top}}) + 4\text{px}$$
+
+Documents are shared database-free via zlib DEFLATE compressed Base64 hashes.
+
+---
+
+## Getting Started & Installation
+
+### Option 1: Docker (Pre-built Image)
+Deploy the pre-compiled image hosted on the GitHub Container Registry (GHCR):
+
 ```bash
+docker pull ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
 docker run -d \
   --name markdown-viewer \
   -p 8080:80 \
   --restart unless-stopped \
   ghcr.io/thisis-developer/markdown-viewer:latest
 ```
-Open **http://localhost:8080**.
 
-### Option 2 — Docker Compose
+Open **http://localhost:8080** in your browser.
+
+### Option 2: Docker Compose (Local Build)
+Clone the repository and spin up the container using Compose:
+
 ```bash
 git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
 cd Markdown-Viewer
 docker compose up -d
 ```
+The application will start on **http://localhost:8080**.
 
-### Option 3 — Static Web Server
+### Option 3: Local Static Web Server
+Because the code runs completely client-side, you can host the root directory using any static web server:
+
 ```bash
+# Clone the repository
 git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
 cd Markdown-Viewer
+
+# Open VSCode IDE
+open index.html
+and run on localhost http://127.0.0.1:5500 in your browser.
+
+# OR Serve with Python (built-in, no dependencies)
 python3 -m http.server 8080
+
+# Serve with Node.js serve
+npx serve . -p 8080
+```
+Open **http://localhost:8080**.
+
+### Option 4: Desktop Application
+Pre-built desktop binaries are available on the [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) page for Windows, Linux, and macOS.
+
+To build the desktop application locally from source:
+1. Navigate to the `desktop-app/` directory.
+2. Run `npm install` followed by `node setup-binaries.js` to download Neutralino binaries.
+3. Synchronize files with `node prepare.js`.
+4. Compile using `npm run build` (for Windows embedded) or `npm run build:portable`.
+
+For detailed desktop app settings, see the [Desktop App Wiki](wiki/Desktop-App).
+
+---
+
+## Usage Guide & Keyboard Shortcuts
+
+1.  **Write Markdown** in the left editor pane.
+2.  **Toggle Split/Editor/Preview** modes using the view controls in the top toolbar.
+3.  **Insert elements** (tables, images, checklists, alerts) using the Markdown formatting toolbar.
+4.  **Save or export** your files using the Export dropdown.
+
+### Keyboard Shortcuts Reference
+
+| Action | Windows / Linux | macOS |
+| :--- | :--- | :--- |
+| **Export raw Markdown** | `Ctrl + S` | `⌘ + S` |
+| **Copy Rich HTML** | `Ctrl + C` (with no text selected) | `⌘ + C` (with no text selected) |
+| **Toggle Scroll Sync** | `Ctrl + Shift + S` | `⌘ + Shift + S` |
+| **Open a New Tab** | `Ctrl + T` | `⌘ + T` |
+| **Close the Active Tab** | `Ctrl + W` | `⌘ + W` |
+| **Open Find & Replace** | `Ctrl + F` | `⌘ + F` |
+| **Undo Last Edit** | `Ctrl + Z` | `⌘ + Z` |
+| **Redo Last Edit** | `Ctrl + Shift + Z` / `Ctrl + Y` | `⌘ + Shift + Z` / `⌘ + Y` |
+| **Insert Code Block** | `Ctrl + Shift + C` | `⌘ + Shift + C` |
+| **Toggle Fullscreen Editor** | `F11` | `F11` |
+| **Insert 2-space Indent** | `Tab` | `Tab` |
+| **Outdent Line** | `Shift + Tab` | `Shift + Tab` |
+
+---
+
+## Project Directory Structure
+
+```
+Markdown-Viewer/
+├── index.html              # Core application DOM structure & CDN scripts
+├── script.js               # Main thread controller, state orchestrator, scroll sync
+├── preview-worker.js       # Background web worker for Markdown compilation
+├── styles.css              # Theme stylesheets, layout grids, print layouts
+├── sw.js                   # Progressive Web App (PWA) offline Service Worker
+├── Dockerfile              # Production Nginx Docker configuration
+├── docker-compose.yml      # Port mappings and local Compose orchestrator
+├── README.md               # Main repository readme
+├── LICENSE                 # Apache 2.0 license file
+├── assets/                 # Image assets, gifs, and screenshots
+├── wiki/                   # Markdown documentation pages for GitHub Wiki
+└── desktop-app/            # Native Neutralinojs desktop configuration & binaries
+    ├── package.json        # Node packaging and scripts
+    ├── neutralino.config.json # Neutralino runtime configuration
+    ├── prepare.js          # Synchronizes root web files with desktop workspace
+    └── resources/          # Copied workspace assets compiled into desktop app
 ```
 
-### Option 4 — Desktop App
-Download pre-built binaries from the <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/releases" target="_blank" rel="noopener noreferrer">Releases</a> page or build from source (see the <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Desktop-App" target="_blank" rel="noopener noreferrer">Desktop App</a> guide).
+---
+
+## Built With (Technology Stack)
+
+| Library Name | Version | Role in App | Loading Method |
+| :--- | :--- | :--- | :--- |
+| **Marked.js** | 9.1.6 | Parses markdown content to HTML elements. | Defer (Upfront) |
+| **Highlight.js** | 11.9.0 | Adds syntax highlighting to code sections. | Defer (Upfront) |
+| **DOMPurify** | 3.0.9 | Sanitizes HTML outputs. | Defer (Upfront) |
+| **FileSaver.js** | 2.0.5 | Manages file saving on the client side. | Defer (Upfront) |
+| **js-yaml** | 4.1.0 | Parses YAML frontmatter headers. | Defer (Upfront) |
+| **Bootstrap** | 5.3.2 | Provides component structures and modal panels. | Upfront Script |
+| **Mermaid.js** | 11.15.0 | Renders diagrams and charts. | Lazy-loaded on diagram find |
+| **MathJax** | 3.2.2 | Renders math formulas. | Lazy-loaded on math find |
+| **jsPDF** | 2.5.1 | Generates PDF documents. | Lazy-loaded on PDF request |
+| **html2canvas** | 1.4.1 | Captures HTML layouts as canvas objects. | Lazy-loaded on PDF request |
+| **pako.js** | 2.1.0 | Compresses shared links. | Lazy-loaded on share request |
+| **JoyPixels** | 9.0.1 | Renders emoji sets. | Lazy-loaded on emoji select |
 
 ---
 
-## Usage
+## Contributing & Code Quality
 
-1. Write Markdown in the left editor pane.
-2. Preview the rendered output on the right.
-3. Import, export, share, or switch view modes using the toolbar.
-4. Use the tab bar to manage multiple documents.
+We welcome community contributions! Please check our [Contributing Guidelines Wiki](wiki/Contributing) before creating a pull request.
 
-**Keyboard Shortcuts**
-- `Ctrl/Cmd + S` → Export Markdown
-- `Ctrl/Cmd + C` → Copy rendered HTML (when no text is selected)
-- `Ctrl/Cmd + Shift + S` → Toggle sync scrolling (split view)
-- `Ctrl/Cmd + T` → New tab
-- `Ctrl/Cmd + W` → Close tab
-- `Tab` → Insert indentation in editor
+### Core Workflow Summary:
+1.  **Fork** the repository and create a feature branch (`git checkout -b feature/your-feature`).
+2.  **Verify Code Style:** Maintain a clean 2-space indentation style across HTML, CSS, and JS files. Ensure raw HTML structures are semantic. Avoid direct DOM queries inside processing workers.
+3.  **Conventional Commits:** Write clear commit messages prefixed with `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `perf:`, or `chore:`.
+4.  **Testing:** Test your revisions across Chrome, Firefox, Edge, and Safari viewports.
 
 ---
 
-## Documentation
+## Showcase & Community Projects
 
-Explore the full documentation on the wiki:
-
-- <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Features" target="_blank" rel="noopener noreferrer">Features</a>
-- <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Usage-Guide" target="_blank" rel="noopener noreferrer">Usage Guide</a>
-- <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Installation" target="_blank" rel="noopener noreferrer">Installation</a>
-- <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Markdown-Reference" target="_blank" rel="noopener noreferrer">Markdown Reference</a>
-- <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/FAQ" target="_blank" rel="noopener noreferrer">FAQ</a>
-- <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Configuration" target="_blank" rel="noopener noreferrer">Configuration</a>
-
----
-
-## Built With
-
-- HTML5, CSS3, JavaScript
-- <a href="https://getbootstrap.com/" target="_blank" rel="noopener noreferrer">Bootstrap</a>
-- <a href="https://marked.js.org/" target="_blank" rel="noopener noreferrer">Marked.js</a>
-- <a href="https://highlightjs.org/" target="_blank" rel="noopener noreferrer">highlight.js</a>
-- <a href="https://www.mathjax.org/" target="_blank" rel="noopener noreferrer">MathJax</a>
-- <a href="https://mermaid.js.org/" target="_blank" rel="noopener noreferrer">Mermaid</a>
-- <a href="https://github.com/cure53/DOMPurify" target="_blank" rel="noopener noreferrer">DOMPurify</a>
-- <a href="https://github.com/eligrey/FileSaver.js" target="_blank" rel="noopener noreferrer">FileSaver.js</a>
-- <a href="https://github.com/niklasvh/html2canvas" target="_blank" rel="noopener noreferrer">html2canvas</a> + <a href="https://www.npmjs.com/package/jspdf" target="_blank" rel="noopener noreferrer">jsPDF</a>
-- <a href="https://www.joypixels.com/" target="_blank" rel="noopener noreferrer">JoyPixels</a>
-
----
-
-## Showcase
-
-**Built with Markdown Viewer**
-
-| Project | Description |
-|---------|-------------|
-| <a href="https://github.com/jhrepo/markdown-desk" target="_blank" rel="noopener noreferrer">Markdown Desk</a> | Native macOS wrapper built with <a href="https://tauri.app/" target="_blank" rel="noopener noreferrer">Tauri</a>, adding live reload and native file open/save. |
-
----
-
-## Contributing
-
-Contributions are welcome! Please review the <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/wiki/Contributing" target="_blank" rel="noopener noreferrer">Contributing Guide</a> and open a pull request.
+*   **[Markdown Desk](https://github.com/jhrepo/markdown-desk):** A native macOS wrapper built using Tauri that adds native file-system handlers, menu bar integration, and auto-reload capabilities.
 
 ---
 
@@ -229,10 +445,12 @@ Markdown Viewer has grown from a lightweight Markdown parser into a full-feature
 
 ## License
 
-This project is licensed under the Apache License. See <a href="LICENSE" target="_blank" rel="noopener noreferrer">LICENSE</a> for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for the complete terms and conditions.
 
 ---
 
-## Contact
+## Contact & Support
 
-Developed and maintained by <a href="https://github.com/ThisIs-Developer" target="_blank" rel="noopener noreferrer">ThisIs-Developer</a>.
+Developed and maintained by **[ThisIs-Developer](https://github.com/ThisIs-Developer)**.
+*   **Bug Reports & Requests:** [Submit an Issue](https://github.com/ThisIs-Developer/Markdown-Viewer/issues)
+*   **Documentation:** [Browse the Wiki](wiki/Home)

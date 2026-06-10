@@ -1,6 +1,6 @@
-# Markdown Reference
+# Markdown Syntax Reference
 
-A complete reference for all Markdown syntax supported by **Markdown Viewer**, implementing [CommonMark](https://commonmark.org/) plus [GitHub Flavored Markdown (GFM)](https://github.github.com/gfm/) extensions.
+This page provides a comprehensive guide to writing GitHub-Flavored Markdown (GFM), LaTeX math formulas, and Mermaid diagrams in **Markdown Viewer** (v3.7.4).
 
 ---
 
@@ -8,39 +8,35 @@ A complete reference for all Markdown syntax supported by **Markdown Viewer**, i
 
 - [Headings](#headings)
 - [Paragraphs & Line Breaks](#paragraphs--line-breaks)
-- [Emphasis](#emphasis)
+- [Emphasis & Text Formatting](#emphasis--text-formatting)
 - [Blockquotes](#blockquotes)
-- [Lists](#lists)
-- [Task Lists](#task-lists)
-- [Code](#code)
+- [Lists & Task Lists](#lists--task-lists)
+- [Code Elements](#code-elements)
 - [Horizontal Rules](#horizontal-rules)
-- [Links](#links)
-- [Images](#images)
+- [Links & Images](#links--images)
 - [Tables](#tables)
 - [Footnotes](#footnotes)
-- [HTML](#html)
-- [Math (LaTeX)](#math-latex)
+- [HTML Sanitized Formatting](#html-sanitized-formatting)
+- [LaTeX Mathematical Formulas](#latex-mathematical-formulas)
 - [Mermaid Diagrams](#mermaid-diagrams)
-- [Emoji](#emoji)
-- [Strikethrough](#strikethrough)
-- [Escaping Characters](#escaping-characters)
-- [Security Notes](#security-notes)
+- [Emoji & Alerts](#emoji--alerts)
 
 ---
 
 ## Headings
 
+You can write headings using hash symbols (`#`) at the beginning of a line:
+
 ```markdown
-# Heading 1
-## Heading 2
-### Heading 3
+# Heading 1 (Document Title)
+## Heading 2 (Main Section)
+### Heading 3 (Sub-Section)
 #### Heading 4
 ##### Heading 5
 ###### Heading 6
 ```
 
-Alternative syntax for H1 and H2:
-
+Alternative Setext syntax for Heading 1 and Heading 2:
 ```markdown
 Heading 1
 =========
@@ -53,135 +49,103 @@ Heading 2
 
 ## Paragraphs & Line Breaks
 
-A blank line separates paragraphs.  
-Two trailing spaces or a backslash `\` at the end of a line creates a line break within a paragraph.
+*   **Paragraphs:** Separate paragraphs with a blank line.
+*   **Line Breaks:** Insert two spaces at the end of a line, or end the line with a backslash (`\`), to start a new line within the same paragraph.
 
 ```markdown
-First paragraph.
+This is paragraph one.
 
-Second paragraph.
+This is paragraph two.
 
-Line one  
-Line two (two trailing spaces before newline)
+Line one (ended with a backslash)\
+Line two inside the same paragraph.
 
-Line one\
-Line two (backslash before newline)
+Line one (ended with two spaces)  
+Line two inside the same paragraph.
 ```
 
 ---
 
-## Emphasis
+## Emphasis & Text Formatting
 
-| Syntax | Output |
-|--------|--------|
-| `*italic*` or `_italic_` | *italic* |
-| `**bold**` or `__bold__` | **bold** |
-| `***bold italic***` | ***bold italic*** |
-| `~~strikethrough~~` | ~~strikethrough~~ |
+| Style | Syntax | Output |
+| :--- | :--- | :--- |
+| **Italic** | `*text*` or `_text_` | *Italic* |
+| **Bold** | `**text**` or `__text__` | **Bold** |
+| **Bold Italic** | `***text***` | ***Bold Italic*** |
+| **Strikethrough** | `~~text~~` | ~~Strikethrough~~ |
+| **Underline (HTML)** | `<u>text</u>` | <u>Underline</u> |
+| **Highlight (HTML)** | `<mark>text</mark>` | <mark>Highlight</mark> |
 
 ---
 
 ## Blockquotes
 
+Use the `>` symbol to indent blockquotes:
+
 ```markdown
 > This is a blockquote.
 >
-> It can span multiple paragraphs.
-
-> Nested blockquote:
->> Second level
->>> Third level
+> You can write multiple paragraphs inside a blockquote.
+>
+>> This is a nested blockquote level 2.
 ```
 
 ---
 
-## Lists
+## Lists & Task Lists
 
 ### Unordered Lists
-
+Use `-`, `*`, or `+` to create bulleted lists:
 ```markdown
-- Item one
-- Item two
-  - Nested item
-  - Another nested item
-- Item three
+- Item A
+- Item B
+  - Nested Item B1
+  - Nested Item B2
 ```
 
-You can also use `*` or `+` as list markers.
-
 ### Ordered Lists
-
+Use numbers followed by a period:
 ```markdown
 1. First item
 2. Second item
    1. Nested ordered item
-3. Third item
 ```
 
-> Numbers do not need to be sequential; they are always rendered in order.
-
-### Loose Lists
-
-Add blank lines between items to create "loose" (paragraph-spaced) lists:
-
+### GFM Task Checklists
 ```markdown
-- Item one
-
-- Item two
-
-- Item three
-```
-
----
-
-## Task Lists
-
-GitHub Flavored Markdown task lists:
-
-```markdown
-- [x] Completed task
-- [ ] Incomplete task
+- [x] Completed task item
+- [ ] Incomplete task item
 - [x] Another completed task
 ```
 
-Checkboxes are rendered as interactive HTML checkboxes in the preview.
-
 ---
 
-## Code
+## Code Elements
 
 ### Inline Code
-
+Wrap inline code code segments in single backticks:
 ```markdown
-Use `backticks` for inline code.
+Use the `const api = "/v1"` configuration variable to target the endpoint.
 ```
 
-### Fenced Code Blocks
-
-Use triple backticks with an optional language identifier:
+### Code Blocks with Syntax Highlighting
+Wrap code blocks in triple backticks and specify the programming language (e.g. `javascript`, `python`, `html`, `css`, `bash`, `yaml`) to enable syntax highlighting:
 
 ````markdown
 ```javascript
-const greet = (name) => `Hello, ${name}!`;
-console.log(greet("World"));
+const greet = (name) => {
+    return `Hello, ${name}!`;
+};
+console.log(greet("Developer"));
 ```
 ````
-
-### Indented Code Blocks
-
-Indent 4 spaces to create a code block (no syntax highlighting):
-
-```markdown
-    function example() {
-        return true;
-    }
-```
 
 ---
 
 ## Horizontal Rules
 
-Use three or more hyphens, asterisks, or underscores on a line by themselves:
+Insert three or more hyphens, asterisks, or underscores on a line by themselves to create a divider:
 
 ```markdown
 ---
@@ -191,262 +155,186 @@ ___
 
 ---
 
-## Links
+## Links & Images
 
-### Inline Links
-
+### Links
 ```markdown
-[Link text](https://example.com)
-[Link with title](https://example.com "Title")
+# Inline link
+[GitHub](https://github.com)
+
+# Link with a title tooltip
+[GitHub](https://github.com "GitHub Homepage")
+
+# Reference link
+[GitHub][github-link]
+
+[github-link]: https://github.com
 ```
 
-### Reference Links
-
+### Images
 ```markdown
-[Link text][reference-id]
+# Standard image
+![Alt text](assets/icon.jpg)
 
-[reference-id]: https://example.com "Optional Title"
-```
+# Image with a title tooltip
+![Alt text](assets/icon.jpg "Logo")
 
-### Autolinks
+# Reference-style image
+![Alt text][logo-image]
 
-URLs and email addresses surrounded by angle brackets become links:
-
-```markdown
-<https://example.com>
-<user@example.com>
-```
-
-Bare URLs are also automatically linked:
-
-```markdown
-https://example.com
-```
-
----
-
-## Images
-
-```markdown
-![Alt text](https://example.com/image.png)
-![Alt text](https://example.com/image.png "Optional title")
-```
-
-Reference-style images:
-
-```markdown
-![Alt text][image-ref]
-
-[image-ref]: https://example.com/image.png "Title"
+[logo-image]: assets/icon.jpg
 ```
 
 ---
 
 ## Tables
 
-GFM tables use pipe characters and hyphens:
+Use vertical bars `|` to separate columns and hyphens `-` to create the header divider. You can align columns using colons `:`:
 
 ```markdown
-| Header 1 | Header 2 | Header 3 |
-|----------|:--------:|---------:|
-| Left     | Center   | Right    |
-| Cell     | Cell     | Cell     |
+| Product Name | Quantity | Price |
+| :--- | :---: | ---: |
+| Markdown Editor | 1 | $0.00 |
+| PDF Exporter | 5 | $0.00 |
+| Dynamic Diagrams | 2 | $0.00 |
 ```
 
-Column alignment is set by the colon position in the separator row:
-
-| Syntax | Alignment |
-|--------|-----------|
-| `---` | Left (default) |
-| `:---:` | Center |
-| `---:` | Right |
-| `:---` | Left (explicit) |
+*   `:---`: Left-aligned (default).
+*   `:---:`: Center-aligned.
+*   `---:`: Right-aligned.
 
 ---
 
 ## Footnotes
 
-```markdown
-Here is a sentence with a footnote.[^1]
-
-[^1]: This is the footnote content.
-```
-
-Multi-paragraph footnotes:
+Add footnotes using carets `[^]`:
 
 ```markdown
-[^long]: Footnote paragraph one.
+Here is a sentence with a footnote citation.[^1]
 
-    Footnote paragraph two (indented 4 spaces).
+[^1]: This is the text of the footnote displayed at the bottom of the page.
 ```
 
 ---
 
-## HTML
+## HTML Sanitized Formatting
 
-Raw HTML is supported and renders as-is (after DOMPurify sanitization):
+You can write HTML tags directly in your Markdown files. The application sanitizes HTML using **DOMPurify** to block unsafe code (like `<script>` elements and inline event handlers):
 
-```markdown
-<div style="color: red;">
-  This text is red.
-</div>
-
+```html
 <details>
-  <summary>Click to expand</summary>
-  Hidden content here.
+  <summary>Click to expand additional configurations</summary>
+  <p>Here is some additional content tucked inside an HTML details tag.</p>
 </details>
-```
 
-> **Note**: Some HTML attributes may be stripped by DOMPurify for security.
+<div class="alert alert-info">
+  This is a custom alert box using Bootstrap styles.
+</div>
+```
 
 ---
 
-## Math (LaTeX)
+## LaTeX Mathematical Formulas
 
-Requires MathJax (enabled by default).
+LaTeX mathematical equations are typeset in real time using MathJax.
 
 ### Inline Math
-
+Wrap formulas in single dollar signs (`$`):
 ```markdown
-Einstein's equation: $E = mc^2$
-
-The Pythagorean theorem: $a^2 + b^2 = c^2$
+The quadratic formula is defined as $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$ when solving equations.
 ```
 
-### Display (Block) Math
-
+### Block Math
+Wrap formulas in double dollar signs (`$$`):
 ```markdown
 $$
-\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
+\int_{a}^{b} f(x) \,dx = F(b) - F(a)
 $$
 ```
 
-### Common LaTeX Commands
+### LaTeX Examples
 
-| Command | Output |
-|---------|--------|
-| `\frac{a}{b}` | Fraction |
-| `\sqrt{x}` | Square root |
-| `x^{n}` | Superscript |
-| `x_{n}` | Subscript |
-| `\int_a^b` | Integral |
-| `\sum_{i=0}^n` | Summation |
-| `\alpha, \beta, \gamma` | Greek letters |
-| `\mathbf{v}` | Bold vector |
-| `\begin{matrix}…\end{matrix}` | Matrix |
+| Description | Formula Syntax |
+| :--- | :--- |
+| **Fractions** | `\frac{numerator}{denominator}` |
+| **Integrals** | `\int_{lower}^{upper} x^2 \,dx` |
+| **Summations** | `\sum_{i=1}^{n} a_i` |
+| **Matrices** | `\begin{matrix} a & b \\ c & d \end{matrix}` |
+| **Greek Letters** | `\alpha, \beta, \gamma, \theta, \lambda` |
+| **Roots** | `\sqrt{x^2 + y^2}` |
 
 ---
 
 ## Mermaid Diagrams
 
-Wrap Mermaid syntax in a fenced code block with the `mermaid` language identifier.
+Wrap Mermaid syntax in a fenced code block with the `mermaid` language tag:
 
 ### Flowchart
-
 ````markdown
 ```mermaid
 flowchart TD
-    A[Christmas] -->|Get money| B(Go shopping)
-    B --> C{Let me think}
-    C -->|One| D[Laptop]
-    C -->|Two| E[iPhone]
-    C -->|Three| F[fa:fa-car Car]
+    A[Start Node] --> B{Is Authentication Valid?}
+    B -- Yes --> C[Access granted]
+    B -- No --> D[Access denied]
 ```
 ````
 
 ### Sequence Diagram
-
 ````markdown
 ```mermaid
 sequenceDiagram
-    participant Alice
-    participant Bob
-    Alice->>John: Hello John, how are you?
-    loop HealthCheck
-        John->>John: Fight against hypochondria
-    end
-    John-->>Alice: Great!
-    John->>Bob: How about you?
-    Bob-->>John: Jolly good!
+    participant Client
+    participant API Worker
+    participant Storage
+    
+    Client->>API Worker: HTTP POST Request (markdown content)
+    API Worker->>Storage: Save file state
+    Storage-->>API Worker: State saved confirmation
+    API Worker-->>Client: HTTP 200 OK Response
 ```
 ````
 
 ### Gantt Chart
-
 ````markdown
 ```mermaid
 gantt
-    title A Gantt Diagram
-    dateFormat  YYYY-MM-DD
-    section Section
-    Task A      :a1, 2024-01-01, 30d
-    Task B      :after a1, 20d
-    section Another Section
-    Task C      :2024-01-12, 12d
-    Task D      :24d
-```
-````
-
-### Class Diagram
-
-````markdown
-```mermaid
-classDiagram
-    Animal <|-- Duck
-    Animal <|-- Fish
-    Animal : +int age
-    Animal : +String gender
-    Animal: +isMammal()
-    Duck: +String beakColor
-    Duck: +quack()
-    Fish: -int sizeInFeet
-    Fish: -canEat()
+    title Development Sprint Tasks
+    dateFormat YYYY-MM-DD
+    section Parsing Core
+    Web Worker Integration :a1, 2026-06-01, 10d
+    DOM Patching Engine :after a1, 5d
+    section Desktop wrapper
+    Neutralino Shell Integration :2026-06-15, 8d
 ```
 ````
 
 ---
 
-## Emoji
+## Emoji & Alerts
 
-Use GitHub-style emoji shortcodes:
+### Emoji
+Use emoji shortcodes to insert icons:
+```markdown
+:rocket: :tada: :sparkles: :warning: :memo:
+```
+*   Renders as: 🚀 🎉 ✨ ⚠️ 📝
+
+### GitHub Alerts
+GitHub-style alert callouts are rendered with corresponding styling:
 
 ```markdown
-:smile: :thumbsup: :rocket: :warning: :white_check_mark:
+> [!NOTE]
+> This is a general note callout box.
+
+> [!TIP]
+> This is a helpful tip callout box.
+
+> [!IMPORTANT]
+> This is a critical important callout box.
+
+> [!WARNING]
+> This is a warning callout box.
+
+> [!CAUTION]
+> This is a caution callout box.
 ```
-
-Renders as: 😄 👍 🚀 ⚠️ ✅
-
-A full list of supported shortcodes is available at [emoji.joypixels.com](https://emoji.joypixels.com/).
-
----
-
-## Strikethrough
-
-GFM extension:
-
-```markdown
-~~This text is struck through~~
-```
-
----
-
-## Escaping Characters
-
-Use a backslash to escape Markdown special characters:
-
-```markdown
-\*Not italic\*
-\# Not a heading
-\[Not a link\]
-\`Not code\`
-```
-
-Escapable characters: `\ ` ` * _ { } [ ] ( ) # + - . ! |`
-
----
-
-## Security Notes
-
-- **Sanitized HTML**: Raw HTML is sanitized with DOMPurify to remove unsafe tags and attributes.
-- **No script execution**: `<script>` tags and inline event handlers are stripped for safety.
-- **Local processing**: Markdown rendering happens entirely in the browser with no server-side processing.

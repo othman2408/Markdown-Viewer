@@ -1,442 +1,232 @@
-# Features
+# Detailed Features & Implementation Deep Dive
 
-A detailed reference for every feature supported by **Markdown Viewer**.
+This document details the features of **Markdown Viewer**, focusing on their architectural execution, performance strategies, and code-level configurations for version v3.7.4.
 
 ---
 
 ## Table of Contents
 
-- [Live Split-Screen Preview](#live-split-screen-preview)
-- [GitHub-Style Rendering](#github-style-rendering)
-- [Syntax Highlighting](#syntax-highlighting)
-- [LaTeX Mathematical Equations](#latex-mathematical-equations)
-- [Mermaid Diagrams](#mermaid-diagrams)
-- [Dark / Light Theme](#dark--light-theme)
-- [Export Options](#export-options)
-- [File Import](#file-import)
-- [Share via URL](#share-via-url)
-- [Content Statistics](#content-statistics)
-- [Emoji Support](#emoji-support)
-- [Copy to Clipboard](#copy-to-clipboard)
-- [Synchronized Scrolling](#synchronized-scrolling)
-- [Resizable Panes](#resizable-panes)
-- [Multiple View Modes](#multiple-view-modes)
-- [Multi-Document Tabs](#multi-document-tabs)
-- [Markdown Formatting Toolbar](#markdown-formatting-toolbar)
-- [Find & Replace](#find--replace)
-- [YAML Frontmatter](#yaml-frontmatter)
-- [GitHub Alerts](#github-alerts)
-- [Line Numbers](#line-numbers)
-- [Fullscreen Mode](#fullscreen-mode)
-- [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Responsive Design](#responsive-design)
-- [Privacy & Security](#privacy--security)
+1.  [Off-Thread Web Worker Parser](#1-off-thread-web-worker-parser)
+2.  [Segmented DOM Patching Engine](#2-segmented-dom-patching-engine)
+3.  [Ratio-Based Proportional Scroll Synchronization](#3-ratio-based-proportional-scroll-synchronization)
+4.  [LaTeX Mathematical Typesetting](#4-latex-mathematical-typesetting)
+5.  [Interactive Mermaid Diagrams with Drag-to-Pan](#5-interactive-mermaid-diagrams-with-drag-to-pan)
+6.  [Cascade PDF Layout Pagination Sandbox](#6-cascade-pdf-layout-pagination-sandbox)
+7.  [Multi-Document Session Persistence & Drag Reordering](#7-multi-document-session-persistence--drag-reordering)
+8.  [Binary Safety Gutter & Multi-File Importer](#8-binary-safety-gutter--multi-file-importer)
+9.  [Serverless Sharing via Compressed Hash Fragments](#9-serverless-sharing-via-compressed-hash-fragments)
+10. [Performance, Security, and UI Variables](#10-performance-security-and-ui-variables)
 
 ---
 
-## Live Split-Screen Preview
+## 1. Off-Thread Web Worker Parser
 
-The editor and preview panes update simultaneously as you type. There is no "refresh" button — rendering happens on every keystroke using a debounced function to keep performance smooth.
+To prevent typing lag and main-thread blocks, Markdown Viewer offloads compilation to a background Web Worker (`preview-worker.js`).
 
-- Rendering is powered by **[marked.js](https://marked.js.org/)**.
-- The preview is styled with **[github-markdown-css](https://github.com/sindresorhus/github-markdown-css)**, giving output identical to GitHub's rendering engine.
+### Size-Aware Debouncing
+The main thread throttles render requests based on the character length of the active document to conserve CPU cycles:
+*   **Small Documents (<10 KB):** 80ms render debounce.
+*   **Medium Documents (10 KB - 50 KB):** 150ms render debounce.
+*   **Large Documents (>50 KB):** 300ms render debounce.
 
----
+### Segmented Worker Parsing
+1.  **Block Splitting:** The worker splits incoming markdown strings by double-newlines (`\n\n`) while respecting boundary exclusions (like block math `$$` and code fences ` ``` `).
+2.  **FNV-1a Alphanumeric Hashing:** For each block, the worker computes a 32-bit FNV-1a hash. This is a non-cryptographic hash function designed for speed:
 
-## GitHub-Style Rendering
+    $$H_i = (H_{i-1} \oplus d_i) \times p$$
 
-Markdown Viewer implements the **GitHub Flavored Markdown (GFM)** specification:
-
-- Strikethrough (`~~text~~`)
-- Tables
-- Task lists (`- [x] item`)
-- Fenced code blocks with language identifiers
-- Autolinks
-- Extended autolinks (e.g., bare URLs become clickable links)
-
----
-
-## Syntax Highlighting
-
-Code blocks are automatically syntax-highlighted for **190+ programming languages** using **[highlight.js](https://highlightjs.org/)**.
-
-To enable highlighting, specify the language after the opening fence:
-
-````markdown
-```python
-def hello(name: str) -> str:
-    return f"Hello, {name}!"
-```
-````
-
-**Supported languages include** (but are not limited to):
-
-`bash`, `c`, `cpp`, `csharp`, `css`, `dart`, `diff`, `docker`, `go`, `graphql`, `haskell`, `html`, `java`, `javascript`, `json`, `kotlin`, `lua`, `markdown`, `nginx`, `perl`, `php`, `python`, `r`, `ruby`, `rust`, `scala`, `shell`, `sql`, `swift`, `toml`, `typescript`, `xml`, `yaml`, and many more.
+    where $p = 16777619$ (FNV prime) and $H_0 = 2166136261$ (offset basis).
+3.  **Selective Compilation:** If the document doesn't use complex global footnotes or reference-style declarations, the worker compiles only changed blocks using `marked.js` and `highlight.js`. It returns an array of compiled HTML strings paired with their FNV-1a hashes.
 
 ---
 
-## LaTeX Mathematical Equations
+## 2. Segmented DOM Patching Engine
 
-Mathematical expressions are rendered using **[MathJax](https://www.mathjax.org/)**.
+Updating the entire preview pane using `element.innerHTML` causes layout repaints, resets scrollbar offsets, wipes focus states, and collapses open toggle elements (like `<details>`). Markdown Viewer employs a custom patching controller:
 
-### Inline Math
-
-Wrap inline expressions with single dollar signs:
-
-```markdown
-The quadratic formula is $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$.
-```
-
-The quadratic formula is $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$.
-
-### Block / Display Math
-
-Wrap block expressions with double dollar signs:
-
-```markdown
-$$
-\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
-$$
-```
-
-$$
-\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
-$$
-
-MathJax supports the full LaTeX math-mode command set including matrices, fractions, sums, integrals, Greek letters, and more.
+### Patching Algorithm
+1.  **Hash Comparison:** The main thread compares the hashes of the incoming HTML block array against the child nodes of the preview pane.
+2.  **Targeted Replacement:**
+    *   If a node's hash matches, it is skipped.
+    *   If a node's hash differs, the script replaces the corresponding child node in place using `replaceWith()`.
+    *   If the new array has more elements, new nodes are appended.
+    *   Extra trailing nodes are pruned.
+3.  **Layout Containment:** Every block is wrapped in a `<section>` container configured with modern CSS rules:
+    ```css
+    content-visibility: auto;
+    contain-intrinsic-size: auto 220px;
+    ```
+    This instructs the browser's layout engine to bypass formatting and rendering of off-screen markdown sections, reducing repaint and reflow overhead.
 
 ---
 
-## Mermaid Diagrams
+## 3. Ratio-Based Proportional Scroll Synchronization
 
-Diagrams are rendered using **[Mermaid](https://mermaid.js.org/)** inside fenced code blocks tagged with `mermaid`.
+When editing in **Split View**, scrolling the editor textarea scrolls the HTML preview pane proportionally, and vice versa.
 
-### Supported Diagram Types
+### Math Formula
+Proportional scrolling is mapped using the scroll ratio:
 
-| Type | Keyword |
-|------|---------|
-| Flowchart | `flowchart` / `graph` |
-| Sequence Diagram | `sequenceDiagram` |
-| Class Diagram | `classDiagram` |
-| State Diagram | `stateDiagram-v2` |
-| Entity-Relationship | `erDiagram` |
-| Gantt Chart | `gantt` |
-| Pie Chart | `pie` |
-| User Journey | `journey` |
-| Git Graph | `gitGraph` |
-| Mindmap | `mindmap` |
+$$R_{\text{scroll}} = \frac{\text{scrollTop}}{\text{scrollHeight} - \text{clientHeight}}$$
 
-### Example
+The target container's scroll position is then calculated as:
 
-````markdown
-```mermaid
-flowchart LR
-    A[Start] --> B{Decision}
-    B -- Yes --> C[Action]
-    B -- No --> D[End]
-```
-````
+$$\text{Target-scroll-top} = R_{\text{scroll}} \times (\text{Target-scroll-height} - \text{Target-client-height})$$
 
-```mermaid
-flowchart LR
-    A[Start] --> B{Decision}
-    B -- Yes --> C[Action]
-    B -- No --> D[End]
-```
-
-### Diagram Toolbar & Zoom Modal
-
-Clicking a rendered diagram opens a full-screen zoom modal with an interactive toolbar:
-
-| Button | Action |
-|--------|--------|
-| ➕ Zoom In | Increase diagram size |
-| ➖ Zoom Out | Decrease diagram size |
-| 🔄 Reset | Reset zoom and pan to default |
-| 📋 Copy | Copy the diagram as an image to the clipboard |
-| 🖼 PNG | Download the diagram as a PNG image |
-| SVG | Download the diagram as an SVG file |
-
-Diagrams also support **pan** by clicking and dragging inside the modal.
+### Feedback Loop Prevention
+Since scrolling the target pane triggers its own scroll events, this can create an infinite update loop. To prevent this:
+*   The application implements state locks: `isEditorScrolling = true` and `isPreviewScrolling = true`.
+*   Scroll coordinates are updated within `requestAnimationFrame()`.
+*   A 50ms timeout releases the locks after scrolling stops.
 
 ---
 
-## Dark / Light Theme
+## 4. LaTeX Mathematical Typesetting
 
-Markdown Viewer uses **CSS custom properties** (CSS variables) for theming, enabling instant zero-flicker theme switching. Both themes are carefully tuned for comfortable reading and editing.
+LaTeX parsing uses **MathJax** loaded dynamically from a CDN.
 
-- The selected theme is persisted to `localStorage`.
-- On first visit, the theme defaults to the system preference (`prefers-color-scheme`).
+### Scanning and Typesetting
+*   The controller scans inputs using a regex test: `/\$\$|\$[^$]|\\\(|\\\[/`.
+*   If math markers are detected, the MathJax libraries are fetched.
+*   Once loaded, equations are rendered by calling:
+    ```javascript
+    MathJax.typesetPromise([previewElement]);
+    ```
 
----
-
-## Export Options
-
-### Markdown (`.md`)
-
-Saves the raw Markdown source from the editor using **FileSaver.js**.
-
-### HTML (`.html`)
-
-Saves the complete rendered HTML including all styles inline, producing a standalone file that looks identical to the preview when opened in any browser.
-
-### PDF (`.pdf`)
-
-Generates a PDF of the current preview using **jsPDF** + **html2canvas**. The export pipeline re-renders Mermaid diagrams and MathJax equations into the PDF output, applies smart page-break analysis, and scales oversized elements to fit the page. Complex layouts with wide code blocks or large diagrams may benefit from using the browser's built-in **Print → Save as PDF** instead.
+### Accessibility Post-Processing
+By default, MathJax appends assistive MathML containers (`<mjx-assistive-mml>`) with `tabindex="0"`. This interrupts keyboard tab order. A post-processing script runs after typesetting:
+1.  It queries all `<mjx-assistive-mml>` tags in the preview.
+2.  It removes the `tabindex` attribute from each element.
+3.  These assistive nodes are hidden or stripped prior to PDF canvas capture to prevent overlapping text.
 
 ---
 
-## File Import
+## 5. Interactive Mermaid Diagrams with Drag-to-Pan
 
-- **Drag & Drop**: Drag any `.md` file onto the editor pane. A full-window drop overlay appears as a visual cue.
-- **File Picker**: Click the Import button and choose **From files** to open the OS file dialog.
-- **GitHub Import**: Choose **From GitHub** and paste a public GitHub repository, folder, or file URL to browse and import Markdown files. Multi-file selection is supported.
+Mermaid code blocks are rendered as SVG diagrams with custom interactive features.
 
-Supported extensions: `.md`, `.markdown`.
+### Floating Action Toolbar
+Every rendered Mermaid diagram is wrapped in a container that appends a floating toolbar with four actions:
+1.  **Zoom modal:** Opens the diagram in a full-screen interactive modal.
+2.  **Download PNG:** Captures the SVG, draws it to a canvas element, and downloads it.
+3.  **Download SVG:** Serializes the SVG XML nodes and triggers a browser download.
+4.  **Copy Image:** Renders the diagram as a PNG blob and copies it to the system clipboard using the asynchronous Clipboard API:
+    ```javascript
+    navigator.clipboard.write([
+        new ClipboardItem({ "image/png": pngBlob })
+    ]);
+    ```
+
+### Drag-to-Pan Mechanics
+Inside the zoom modal, the SVG transform matrix is updated during mouse events:
+*   **Scale:** Computed using mouse-wheel offsets:
+
+    $$\text{scale} = \max(0.1, \min(\text{scale} + \text{delta}, 10))$$
+
+*   **Panning:** Tracks the difference between starting coordinates and current pointer coordinates:
+
+    $$X_{\text{pan}} = X_{\text{current}} - X_{\text{dragStart}}$$
+
+    $$Y_{\text{pan}} = Y_{\text{current}} - Y_{\text{dragStart}}$$
+*   **CSS Transform:** The updates are applied using hardware-accelerated CSS properties:
+    ```javascript
+    svg.style.transform = `translate(${modalPanX}px, ${modalPanY}px) scale(${modalZoomScale})`;
+    ```
 
 ---
 
-## Share via URL
+## 6. Cascade PDF Layout Pagination Sandbox
 
-The **Share** feature encodes your Markdown content into the page URL hash, allowing you to share documents via a link:
+Exporting long, complex Markdown previews to PDF often leads to sliced text lines and cut-off images. Markdown Viewer uses a custom pagination engine:
 
-1. Content is compressed with **pako** (deflate).
-2. Compressed bytes are Base64-URL encoded.
-3. The result is appended to the URL: `https://…/#content=<encoded>`.
-
-Recipients open the link and see your document pre-loaded in the editor. No server or sign-in required.
-
----
-
-## Content Statistics
-
-A live statistics panel in the header shows:
-
-- **Words** — Tokenized word count
-- **Characters** — Total character count (including whitespace)
-- **Reading time** — Estimated at 200 words per minute
-
-Statistics update in real-time as you type and are also accessible from the mobile menu.
+### Pagination Pipeline
+1.  **Sandbox Cloning:** The preview DOM is cloned into an off-screen sandbox element (`.pdf-export` class) set to A4 width (210mm).
+2.  **SVG to Raster Conversion:** Because `html2canvas` struggles to render inline SVGs, all Mermaid diagrams are converted to Base64-encoded PNG image elements inside the sandbox.
+3.  **Cascade Pagination Loop:** The pagination engine executes up to 10 passes:
+    *   *Keep-with-Next Headings:* Headings within 70px of a page break are shifted down via margin-top spacers (`.pdf-page-break-spacer`).
+    *   *Table Splitting:* Split rows are shifted, and the table header (`<thead>`) is duplicated onto the subsequent page.
+    *   *Text Alignment:* Lines are shifted downward to align page cuts cleanly between font heights, avoiding sliced characters.
+    *   *Oversized Graphics:* Images exceeding page boundaries are downscaled (minimum scale 0.5) to fit.
+4.  **Compilation:** The stabilized sandbox is captured page-by-page using `html2canvas`, and the resulting canvases are compiled into a PDF via `jsPDF`.
 
 ---
 
-## Emoji Support
+## 7. Multi-Document Session Persistence & Drag Reordering
 
-Emoji shortcodes are rendered using the **[JoyPixels](https://www.joypixels.com/)** library.
+Markdown Viewer supports working with multiple documents simultaneously via a tabbed workspace.
 
-```markdown
-:rocket: :tada: :sparkles: :heart: :fire:
+### Tab State Schema
+The workspace is managed in a global `tabs` array:
+```javascript
+{
+  id: "tab_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8),
+  title: "Document Title",
+  content: "# Markdown Content...",
+  scrollPos: 0,
+  viewMode: "split", // split | editor | preview
+  createdAt: 1718042710000
+}
 ```
 
-Renders as: 🚀 🎉 ✨ ❤️ 🔥
+### Save Pipeline
+*   **Debounced Save:** Document changes trigger an auto-save that is debounced by 500ms using a window timer to prevent blocking the UI thread with constant serialization.
+*   **Beforeunload Flush:** To ensure changes are saved when navigating away or closing the page, the state is flushed immediately during `beforeunload` and `visibilitychange` events (when the page is hidden).
 
-Standard Unicode emoji characters also render correctly in all modern browsers.
-
----
-
-## Copy to Clipboard
-
-The **Copy** button copies the **raw Markdown source** from the editor to the system clipboard. This is useful for quickly duplicating your Markdown content into another editor or tool.
-
----
-
-## Synchronized Scrolling
-
-When both panes are visible in **Split View**, scrolling either pane automatically scrolls the other one to the proportionally equivalent position. Toggle this behavior with the **Sync Scroll** button in the toolbar.
+### Drag-and-Drop Reordering
+*   Tab elements in the DOM are configured with `draggable="true"`.
+*   Drag events track the moving tab (`draggedTabId`).
+*   Releasing a tab over another swaps their indices in the state array, saves the updated array to `localStorage`, and updates the tab bar.
 
 ---
 
-## Resizable Panes
+## 8. Binary Safety Gutter & Multi-File Importer
 
-The divider between the editor and preview panes can be dragged horizontally to adjust the width of each pane. The layout is fluid and respects a minimum width for each pane (20% minimum per side).
+### Binary File Guard
+To prevent importing corrupted binary files, the file reader scans the first 8 KB of any imported file:
+*   If a null byte (`\x00`) is found, the import is aborted, and an error is displayed.
 
----
-
-## Multiple View Modes
-
-| Mode | Description |
-|------|-------------|
-| **Split** | Editor and preview side-by-side (default) |
-| **Editor Only** | Full-width editor; preview hidden |
-| **Preview Only** | Full-width preview; editor hidden |
-
-View mode buttons are available in both the desktop toolbar and the mobile menu.
+### Multi-File GitHub Importer
+Users can import documents directly from public GitHub repositories:
+1.  **URL Parsing:** The importer resolves repo, branch, folder, or file paths from a pasted URL.
+2.  **API Requests:** It queries public GitHub APIs (`api.github.com/repos/.../contents/...`) to fetch file trees.
+3.  **File Browser Modal:** Users can preview the file tree in a modal, select the files they want, and import them all at once. Selected files are loaded into separate document tabs.
 
 ---
 
-## Multi-Document Tabs
+## 9. Serverless Sharing via Compressed Hash Fragments
 
-Markdown Viewer supports multiple open documents simultaneously via a tab bar at the top of the workspace.
+Markdown Viewer lets you share documents via links that contain the entire compressed document content, eliminating the need for a database.
 
-- **New tab** — Create a new untitled document.
-- **Rename** — Double-click a tab or use the tab menu to rename it.
-- **Duplicate** — Clone the current document into a new tab.
-- **Delete** — Remove a tab; a confirmation step is shown when deleting the only open tab.
-- **Drag to reorder** — Tabs can be dragged left or right to change their order.
-- **Reset all** — A **Reset** button clears all tabs and starts fresh (with confirmation).
-- **Persistence** — Open tabs and their content are persisted to `localStorage` and restored on next visit.
+### Encoding Pipeline
 
-Each tab independently stores its content and view mode preference.
+$$\text{Markdown Text} \xrightarrow{\text{TextEncoder}} \text{Bytes} \xrightarrow{\text{Pako.deflate (zlib)}} \text{Compressed Bytes} \xrightarrow{\text{Base64-URL Encoding}} \text{URL Hash}$$
 
----
-
-## Markdown Formatting Toolbar
-
-A formatting toolbar below the header gives one-click access to common Markdown constructs without needing to remember syntax.
-
-### Editing Actions
-
-| Button | Action |
-|--------|--------|
-| ↩ Undo | Undo the last change |
-| ↪ Redo | Redo the last undone change |
-| 🧹 Clear Formatting | Strip all Markdown formatting from the document (with confirmation) |
-
-### Text Styling
-
-| Button | Action |
-|--------|--------|
-| **B** Bold | Wrap selection in `**…**` |
-| ~~S~~ Strikethrough | Wrap selection in `~~…~~` |
-| *I* Italic | Wrap selection in `*…*` |
-| " Blockquote | Prefix selection with `> ` |
-| Aa Title Case | Convert selection to title case |
-| A Uppercase | Convert selection to uppercase |
-| a Lowercase | Convert selection to lowercase |
-
-### Headings
-
-Buttons **H1** through **H6** insert the corresponding `#`–`######` heading prefix for the selected line.
-
-### Lists & Structure
-
-| Button | Action |
-|--------|--------|
-| Bulleted list | Convert lines to an unordered list |
-| Numbered list | Convert lines to an ordered list |
-| Horizontal rule | Insert `---` |
-
-### Insert Helpers
-
-| Button | Action |
-|--------|--------|
-| Link | Open a modal to insert a `[text](url)` link |
-| Reference | Open a modal to insert a numbered reference link |
-| Image | Open a modal to insert an image from a URL or uploaded from device |
-| Inline code | Wrap selection in backticks |
-| Code block | Insert a fenced code block |
-| Terminal block | Insert a fenced `bash` code block |
-| Table | Open a modal to insert a table with a configurable number of rows and columns |
-| Date & Time | Insert the current date and time |
-| Emoji | Open a searchable emoji picker (GitHub shortcodes) |
-| Symbols | Open a searchable symbols and HTML entities picker |
-| Alert | Open a picker to insert a GitHub-style alert block |
-
-### Utility
-
-| Button | Action |
-|--------|--------|
-| ⛶ Fullscreen | Toggle fullscreen mode for the editor |
-| 🔍 Find & Replace | Open the Find & Replace modal |
-| ? Help | Open the application help dialog |
-| ℹ About | Open the About Markdown dialog with version, license, and links |
+1.  The markdown text is encoded to bytes and compressed using `Pako.js` (DEFLATE).
+2.  The compressed bytes are converted to a Base64 string.
+3.  The string is made URL-safe by replacing `+` with `-`, `/` with `_`, and removing trailing `=` padding.
+4.  The hash is appended to the URL as `#share=<encoded_string>`.
+5.  A warning is displayed if the generated link exceeds 32,000 characters.
 
 ---
 
-## Find & Replace
+## 10. Performance, Security, and UI Variables
 
-A **Find & Replace** modal (`Ctrl`/`⌘` + `F`) provides text search and replacement within the editor:
+### Repaint & Transition Tuning
+*   Theme changes are managed using CSS variables.
+*   Transition animations are scoped to specific properties (`background-color`, `border-color`) rather than using `transition: all`.
+*   The background transition on the `<body>` element was removed to prevent repainting the entire viewport during theme shifts.
 
-- **Find** field with live match count (e.g., *2 of 5 matches*).
-- **Previous / Next** navigation arrows to cycle through matches.
-- **Replace** — Replace the currently highlighted match.
-- **Replace All** — Replace every match in the document at once.
+### Resizable Panes
+*   The divider between the editor and preview panes can be dragged horizontally.
+*   It updates the CSS grid layout dynamically using percentage variables.
+*   Drag limits prevent either pane from being scaled below 20% of the viewport width.
 
----
-
-## YAML Frontmatter
-
-Documents can include a YAML frontmatter block at the top, delimited by `---`:
-
-```markdown
----
-title: My Document
-date: 2024-01-01
-tags: [markdown, docs]
----
-
-# Content starts here
-```
-
-Frontmatter is parsed using **js-yaml** and rendered as a formatted metadata table above the document body in the preview. Nested objects and arrays are displayed as readable YAML snippets.
-
----
-
-## GitHub Alerts
-
-GitHub-style alert blocks are rendered with styled callout boxes matching GitHub's appearance. Supported alert types:
-
-| Keyword | Label |
-|---------|-------|
-| `NOTE` | 📘 Note |
-| `TIP` | 💡 Tip |
-| `IMPORTANT` | ❗ Important |
-| `WARNING` | ⚠️ Warning |
-| `CAUTION` | 🔴 Caution |
-
-```markdown
-> [!NOTE]
-> This is a note.
-
-> [!WARNING]
-> Be careful with this.
-```
-> [!TIP]
-> Tip details go here.
-
----
-
-## Line Numbers
-
-The editor displays a line number gutter on the left side that updates in real time as you type. The gutter width adjusts automatically as the document grows beyond single- or double-digit line counts.
-
----
-
-## Fullscreen Mode
-
-The **Fullscreen** button in the formatting toolbar (or keyboard shortcut) expands the editor to fill the entire browser viewport, providing a distraction-free writing environment. Press **Escape** or the same button to exit fullscreen.
-
----
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl`/`⌘` + `Z` | Undo |
-| `Ctrl`/`⌘` + `Shift` + `Z` | Redo |
-| `Ctrl`/`⌘` + `F` | Open Find & Replace |
-| `Ctrl`/`⌘` + `T` | New tab |
-| `Ctrl`/`⌘` + `C` / `V` | Copy / Paste |
-
----
-
-## Responsive Design
-
-The layout adapts to screen width:
-
-- **Desktop** (≥1024 px): Full split-screen layout with all controls visible.
-- **Tablet** (768–1024 px): Reduced toolbar; panes may stack.
-- **Mobile** (<768 px): Single-pane mode with a toggle between editor and preview. All toolbar actions (import, export, copy, share, theme, sync scroll, view mode, and stats) are accessible via a slide-out hamburger menu. Document tabs are also managed through the mobile menu.
-
----
-
-## Privacy & Security
-
-- **Local-only processing**: All content is processed locally in the browser.
-- **Local storage**: Tab content, UI preferences, and theme selection are stored in `localStorage`.
-- **Share links**: Shared URLs encode content in the hash fragment, with no server upload.
-- **GitHub import**: Public GitHub imports use `api.github.com` and `raw.githubusercontent.com`.
-- **CDN dependencies**: Third-party libraries load from public CDNs by default (cdnjs, jsDelivr). Self-host to avoid external requests.
-- **No tracking**: The app does not include analytics, cookies, or tracking scripts.
-- **XSS prevention**: Rendered HTML is sanitized with **[DOMPurify](https://github.com/cure53/DOMPurify)** before insertion.
-- **Security headers**: The Docker image's Nginx configuration includes headers like `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`.
+### Sanitization and Security
+*   All compiled HTML is sanitized on the main thread using **DOMPurify** before being rendered:
+    ```javascript
+    const cleanHtml = DOMPurify.sanitize(rawHtml, {
+        USE_PROFILES: { html: true },
+        ADD_ATTR: ['target', 'draggable', 'contenteditable']
+    });
+    ```
+*   This strips inline script handlers (e.g. `onload`, `onclick`) and `<script>` elements to prevent Cross-Site Scripting (XSS) when importing or loading external markdown files.
