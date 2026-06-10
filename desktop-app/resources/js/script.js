@@ -6949,7 +6949,12 @@ document.addEventListener("DOMContentLoaded", function () {
     state.cleanedUp = true;
 
     if (state.tempElement && state.tempElement.parentNode) {
-      state.tempElement.parentNode.removeChild(state.tempElement);
+      if (window.keepTempElementForAudit) {
+        window.auditedTempElement = state.tempElement;
+        console.log("Skipped tempElement removal for audit");
+      } else {
+        state.tempElement.parentNode.removeChild(state.tempElement);
+      }
     }
     if (state.overlay && state.overlay.parentNode) {
       state.overlay.parentNode.removeChild(state.overlay);
@@ -7471,79 +7476,82 @@ document.addEventListener("DOMContentLoaded", function () {
         const currentTop = item.top + accumulatedShift;
         const currentBottom = currentTop + item.height;
 
-        // Check if this element crosses any page boundary
-        let splitPageIndex = -1;
-        for (let i = 0; i < pageBoundaries.length; i++) {
-          if (currentTop < pageBoundaries[i] && currentBottom > pageBoundaries[i]) {
-            splitPageIndex = i;
-            break;
-          }
-        }
-
         let targetMargin = 0;
         let targetScale = 1.0;
 
-        if (splitPageIndex !== -1) {
-          const boundaryY = pageBoundaries[splitPageIndex];
-          const remainingSpace = boundaryY - currentTop;
-
-          if (item.type === 'text') {
-            // Text element splitting or heading safety keep-with-next check
-            const tag = item.element.tagName.toLowerCase();
-            const isHeading = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
-            
-            if (isHeading) {
-              let nextBoundaryY = pageBoundaries[0];
-              for (const boundary of pageBoundaries) {
-                if (currentTop < boundary) {
-                  nextBoundaryY = boundary;
-                  break;
-                }
-              }
-              const distanceToBoundary = nextBoundaryY - currentTop;
-              if (distanceToBoundary < 70) {
-                targetMargin = distanceToBoundary + 4; // Push heading entirely to next page
-              }
+        // 1. Heading Keep-With-Next Rule (must run for all headings regardless of split)
+        const tag = item.element.tagName.toLowerCase();
+        const isHeading = item.type === 'text' && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
+        
+        if (isHeading) {
+          let nextBoundaryY = null;
+          for (const boundary of pageBoundaries) {
+            if (currentTop < boundary) {
+              nextBoundaryY = boundary;
+              break;
             }
+          }
+          if (nextBoundaryY !== null) {
+            const distanceToBoundary = nextBoundaryY - currentTop;
+            if (distanceToBoundary < 70) {
+              targetMargin = distanceToBoundary + 4; // Push heading entirely to next page
+            }
+          }
+        }
 
-            if (targetMargin === 0 && splitPageIndex !== -1) {
+        // 2. If not already pushed by Keep-With-Next, perform standard page-split calculations
+        if (targetMargin === 0) {
+          // Check if this element crosses any page boundary
+          let splitPageIndex = -1;
+          for (let i = 0; i < pageBoundaries.length; i++) {
+            if (currentTop < pageBoundaries[i] && currentBottom > pageBoundaries[i]) {
+              splitPageIndex = i;
+              break;
+            }
+          }
+
+          if (splitPageIndex !== -1) {
+            const boundaryY = pageBoundaries[splitPageIndex];
+            const remainingSpace = boundaryY - currentTop;
+
+            if (item.type === 'text') {
               const shiftedItem = { ...item, top: currentTop, splitPageIndex: splitPageIndex };
               const shift = calculateTextElementShift(shiftedItem, pageBoundaries);
               if (shift > 0.5) {
                 targetMargin = shift;
               }
-            }
-          } else {
-            // Graphic element (svg, img, pre, math) splitting
-            const buffer = 5;
-            const scaleNeeded = (remainingSpace - buffer) / item.height;
-            const remainingSpacePercent = remainingSpace / pageHeightPxFromAnalysis;
-
-            // Rule 3: Enforce safety zone. If remaining page space is less than 20% of page height,
-            // or if the required scale factor to fit is less than 0.6, push the element entirely to the next page.
-            if (remainingSpacePercent >= 0.20 && scaleNeeded >= 0.6) {
-              // Fit on current page by scaling
-              targetScale = Math.min(1.0, scaleNeeded);
             } else {
-              // Push to next page
-              const marginNeeded = boundaryY - currentTop + buffer;
-              targetMargin = marginNeeded;
+              // Graphic element (svg, img, pre, math) splitting
+              const buffer = 5;
+              const scaleNeeded = (remainingSpace - buffer) / item.height;
+              const remainingSpacePercent = remainingSpace / pageHeightPxFromAnalysis;
 
-              // Check if it fits the next page height after being pushed (Rule 3 Case C)
-              const newTop = currentTop + marginNeeded;
-              const newBottom = newTop + item.height;
-              const nextBoundaryY = pageBoundaries[splitPageIndex + 1] || (boundaryY + pageHeightPxFromAnalysis);
-              if (newBottom > nextBoundaryY) {
-                const scaleToFitPage = (pageHeightPxFromAnalysis - 10) / item.height;
-                targetScale = Math.max(0.5, Math.min(1.0, scaleToFitPage));
+              // Rule 3: Enforce safety zone. If remaining page space is less than 20% of page height,
+              // or if the required scale factor to fit is less than 0.6, push the element entirely to the next page.
+              if (remainingSpacePercent >= 0.20 && scaleNeeded >= 0.6) {
+                // Fit on current page by scaling
+                targetScale = Math.min(1.0, scaleNeeded);
+              } else {
+                // Push to next page
+                const marginNeeded = boundaryY - currentTop + buffer;
+                targetMargin = marginNeeded;
+
+                // Check if it fits the next page height after being pushed (Rule 3 Case C)
+                const newTop = currentTop + marginNeeded;
+                const newBottom = newTop + item.height;
+                const nextBoundaryY = pageBoundaries[splitPageIndex + 1] || (boundaryY + pageHeightPxFromAnalysis);
+                if (newBottom > nextBoundaryY) {
+                  const scaleToFitPage = (pageHeightPxFromAnalysis - 10) / item.height;
+                  targetScale = Math.max(0.5, Math.min(1.0, scaleToFitPage));
+                }
               }
             }
-          }
-        } else {
-          // Element is not split. But graphic elements taller than a page must still scale to fit!
-          if (item.type !== 'text' && item.height > pageHeightPxFromAnalysis) {
-            const scaleToFitPage = (pageHeightPxFromAnalysis - 10) / item.height;
-            targetScale = Math.max(0.5, Math.min(1.0, scaleToFitPage));
+          } else {
+            // Element is not split. But graphic elements taller than a page must still scale to fit!
+            if (item.type !== 'text' && item.height > pageHeightPxFromAnalysis) {
+              const scaleToFitPage = (pageHeightPxFromAnalysis - 10) / item.height;
+              targetScale = Math.max(0.5, Math.min(1.0, scaleToFitPage));
+            }
           }
         }
 
@@ -7558,21 +7566,43 @@ document.addEventListener("DOMContentLoaded", function () {
         // Apply style adjustments to the DOM
         if (targetMargin > 0) {
           let targetElement = item.element;
+
+          // Redirect inline image or svg margins to their parent block element if nested
           if (item.type === 'svg' && item.element.parentElement) {
-            targetElement = item.element.parentElement;
-          } else if (item.type === 'img' && item.element.classList.contains('mermaid-img') && item.element.parentElement) {
             const parent = item.element.parentElement;
-            if (parent.parentElement && parent.parentElement.classList.contains('mermaid-container')) {
-              targetElement = parent.parentElement;
+            if (['p', 'li', 'blockquote'].includes(parent.tagName.toLowerCase())) {
+              targetElement = parent;
             } else {
               targetElement = parent;
             }
+          } else if (item.type === 'img' && item.element.parentElement) {
+            const parent = item.element.parentElement;
+            if (item.element.classList.contains('mermaid-img')) {
+              if (parent.parentElement && parent.parentElement.classList.contains('mermaid-container')) {
+                targetElement = parent.parentElement;
+              } else {
+                targetElement = parent;
+              }
+            } else if (['p', 'li', 'blockquote'].includes(parent.tagName.toLowerCase())) {
+              targetElement = parent;
+            }
           }
+
           if (!targetElement.dataset.hasOwnProperty('pdfOriginalMarginTop')) {
             targetElement.dataset.pdfOriginalMarginTop = targetElement.style.marginTop || '';
           }
-          const originalMargin = parseFloat(targetElement.dataset.pdfOriginalMarginTop) || 0;
-          targetElement.style.marginTop = `${originalMargin + targetMargin}px`;
+          const computedStyle = window.getComputedStyle(targetElement);
+          let computedMargin = parseFloat(computedStyle.marginTop) || 0;
+
+          // Account for margin collapse with the preceding sibling to ensure targetMargin shifts visual layout reliably
+          const prevSibling = targetElement.previousElementSibling;
+          if (prevSibling) {
+            const prevStyle = window.getComputedStyle(prevSibling);
+            const prevMarginBottom = parseFloat(prevStyle.marginBottom) || 0;
+            computedMargin = Math.max(computedMargin, prevMarginBottom);
+          }
+
+          targetElement.style.marginTop = `${computedMargin + targetMargin}px`;
 
           accumulatedShift += targetMargin;
         }
