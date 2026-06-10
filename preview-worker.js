@@ -319,6 +319,20 @@ function configureMarked() {
     return `<pre><code class="hljs ${escapeHtmlAttribute(validLanguage)}">${highlightedCode}</code></pre>`;
   };
 
+  renderer.heading = function(text, level, raw) {
+    let id = raw
+      .toLowerCase()
+      .trim()
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^\w-]/g, '')
+      .replace(/-+/g, '-');
+    if (!id) {
+      id = `heading-worker-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    return `<h${level} id="${id}">${text}</h${level}>`;
+  };
+
   marked.use({
     extensions: [
       blockMathExtension,

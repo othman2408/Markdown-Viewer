@@ -61,6 +61,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let syncScrollingEnabled = true;
   let isEditorScrolling = false;
   let isPreviewScrolling = false;
+  let isProgrammaticScrolling = false;
   let scrollSyncTimeout = null;
   const SCROLL_SYNC_DELAY = 10;
 
@@ -929,6 +930,20 @@ document.addEventListener("DOMContentLoaded", function () {
       language: validLanguage,
     }).value;
     return `<pre><code class="hljs ${validLanguage}">${highlightedCode}</code></pre>`;
+  };
+
+  renderer.heading = function (text, level, raw) {
+    let id = raw
+      .toLowerCase()
+      .trim()
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^\w-]/g, '')
+      .replace(/-+/g, '-');
+    if (!id) {
+      id = 'heading-' + Math.random().toString(36).substr(2, 9);
+    }
+    return `<h${level} id="${id}">${text}</h${level}>`;
   };
 
   marked.use({
@@ -2921,7 +2936,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function syncEditorToPreview() {
-    if (!syncScrollingEnabled || isPreviewScrolling) return;
+    if (!syncScrollingEnabled || isPreviewScrolling || isProgrammaticScrolling) return;
     isEditorScrolling = true;
 
     if (scrollSyncTimeout) cancelAnimationFrame(scrollSyncTimeout);
@@ -2944,7 +2959,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function syncPreviewToEditor() {
-    if (!syncScrollingEnabled || isEditorScrolling) return;
+    if (!syncScrollingEnabled || isEditorScrolling || isProgrammaticScrolling) return;
     isPreviewScrolling = true;
 
     if (scrollSyncTimeout) cancelAnimationFrame(scrollSyncTimeout);
@@ -9667,7 +9682,53 @@ document.addEventListener("DOMContentLoaded", function () {
         const href = link.getAttribute('href');
         if (href) {
           if (href.startsWith('#')) {
-            return; // Allow internal anchor navigation
+            const targetId = decodeURIComponent(href.slice(1));
+            let targetEl = null;
+            if (targetId) {
+              try {
+                targetEl = markdownPreview.querySelector(`[id="${CSS.escape(targetId)}"]`) ||
+                           markdownPreview.querySelector(`[name="${CSS.escape(targetId)}"]`);
+              } catch (err) {
+                targetEl = Array.from(markdownPreview.querySelectorAll('[id], [name]')).find(el => {
+                  return el.getAttribute('id') === targetId || el.getAttribute('name') === targetId;
+                });
+              }
+              
+              if (!targetEl) {
+                const cleanTargetId = targetId.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (cleanTargetId) {
+                  targetEl = Array.from(markdownPreview.querySelectorAll('h1, h2, h3, h4, h5, h6')).find(heading => {
+                    const cleanText = heading.textContent.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return cleanText === cleanTargetId;
+                  });
+                }
+              }
+            }
+            if (targetEl) {
+              e.preventDefault();
+              isProgrammaticScrolling = true;
+              
+              // Scroll preview pane to target heading
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              
+              // Scroll editor pane to the matching synced position
+              const previewScrollRange = previewPane.scrollHeight - previewPane.clientHeight;
+              const targetRatio = previewScrollRange > 0 ? Math.min(1, Math.max(0, targetEl.offsetTop / previewScrollRange)) : 0;
+              const editorScrollPosition = targetRatio * (markdownEditor.scrollHeight - markdownEditor.clientHeight);
+              
+              markdownEditor.scrollTo({
+                top: editorScrollPosition,
+                behavior: 'smooth'
+              });
+              
+              if (window.programmaticScrollTimeout) {
+                clearTimeout(window.programmaticScrollTimeout);
+              }
+              window.programmaticScrollTimeout = setTimeout(() => {
+                isProgrammaticScrolling = false;
+              }, 1000);
+            }
+            return;
           }
           
           e.preventDefault();
