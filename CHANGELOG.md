@@ -3,6 +3,20 @@
 All notable code changes to **Markdown Viewer** are documented here.
 Non-code commits (documentation, planning, README-only updates) are excluded.
 
+## v3.7.4
+
+- **Description:** Delivered substantial feature additions and reliability improvements, including language expansion, desktop app startup fix, export centering, re-engineered PDF page breaking, and advanced Find & Replace features.
+  - **Internationalization (i18n):** Added 9 new UI languages and synchronized desktop resources to improve global accessibility.
+  - **Desktop App Startup:** Fixed Windows desktop app startup issues for improved launch reliability.
+  - **HTML Export Centering:** Added support for script-disabled alignment centering for HTML exports (fixes #152).
+  - **Re-engineered PDF Page Breaks & Scaling:** Resolved text slicing, table pagination, layout overlaps, blockquote/callout pagination splits, and margin-collapse layout shifting. Serialized rendered Mermaid diagrams to base64 images for physical scaling and gap-less page breaks (fixes #166).
+  - **TOC Smooth Scrolling:** Resolved smooth scroll navigation for Table of Contents anchor links and prevented hash/address bar updates (fixes #169).
+  - **Find & Replace Pane Synchronization:** Implemented match highlighting and auto-scrolling to matches in the Preview Pane, and fixed alignment of editor pane highlights (fixes #169).
+- **Date:** 2026-06-10
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/8ea71a809063effe849b418da5e4b4527102a10f
+
+---
+
 ## v3.7.3
 
 - **Description:** Delivered critical rendering, export, and editor reliability fixes across the application.
