@@ -7025,6 +7025,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // Query all targeting elements in precise DOM layout flow order
     container.querySelectorAll('img, svg, pre, table, p, li, h1, h2, h3, h4, h5, h6, blockquote, hr, .math-block, mjx-container[display="true"]').forEach(el => {
       const tag = el.tagName.toLowerCase();
+      
+      // Skip any elements nested inside blockquotes to treat blockquotes as atomic containers
+      if (el.parentElement && el.parentElement.closest('blockquote')) {
+        return;
+      }
+
       let type = '';
       
       if (tag === 'img') type = 'img';
@@ -7036,10 +7042,13 @@ document.addEventListener("DOMContentLoaded", function () {
       else if (tag === 'pre') type = 'pre';
       else if (tag === 'table') type = 'table';
       else if (tag === 'hr') type = 'hr';
+      else if (tag === 'blockquote') {
+        type = 'blockquote';
+      }
       else if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
         type = 'text';
-      } else if (tag === 'li' || tag === 'blockquote') {
-        // Only target li/blockquote if they don't contain other block elements to avoid double targeting
+      } else if (tag === 'li') {
+        // Only target li if they don't contain other block elements to avoid double targeting
         const hasBlockChildren = el.querySelector('p, blockquote, pre, table, ul, ol') !== null;
         if (!hasBlockChildren) {
           type = 'text';
@@ -7294,6 +7303,9 @@ document.addEventListener("DOMContentLoaded", function () {
    * @param {HTMLElement} container - The container element to process
    */
   function resetGraphicsStyles(container) {
+    // Remove all dynamically inserted page-break spacers
+    container.querySelectorAll('.pdf-page-break-spacer').forEach(el => el.remove());
+
     container.querySelectorAll('[data-pdf-original-margin-top]').forEach(el => {
       el.style.marginTop = el.dataset.pdfOriginalMarginTop;
       el.removeAttribute('data-pdf-original-margin-top');
@@ -7588,22 +7600,16 @@ document.addEventListener("DOMContentLoaded", function () {
             }
           }
 
-          if (!targetElement.dataset.hasOwnProperty('pdfOriginalMarginTop')) {
-            targetElement.dataset.pdfOriginalMarginTop = targetElement.style.marginTop || '';
-          }
-          const computedStyle = window.getComputedStyle(targetElement);
-          let computedMargin = parseFloat(computedStyle.marginTop) || 0;
+          // Create a physical spacer element to avoid margin collapse issues entirely
+          const spacer = document.createElement('div');
+          spacer.className = 'pdf-page-break-spacer';
+          spacer.style.height = `${targetMargin}px`;
+          spacer.style.margin = '0';
+          spacer.style.padding = '0';
+          spacer.style.border = 'none';
+          spacer.style.display = 'block';
 
-          // Account for margin collapse with the preceding sibling to ensure targetMargin shifts visual layout reliably
-          const prevSibling = targetElement.previousElementSibling;
-          if (prevSibling) {
-            const prevStyle = window.getComputedStyle(prevSibling);
-            const prevMarginBottom = parseFloat(prevStyle.marginBottom) || 0;
-            computedMargin = Math.max(computedMargin, prevMarginBottom);
-          }
-
-          targetElement.style.marginTop = `${computedMargin + targetMargin}px`;
-
+          targetElement.parentNode.insertBefore(spacer, targetElement);
           accumulatedShift += targetMargin;
         }
 
@@ -7704,7 +7710,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (elementType === 'svg') {
         element.style.maxWidth = 'none';
       }
-    } else if (elementType === 'math' || elementType === 'pre') {
+    } else if (elementType === 'math' || elementType === 'pre' || elementType === 'blockquote') {
       if (!element.dataset.hasOwnProperty('pdfOriginalFontSize')) {
         element.dataset.pdfOriginalFontSize = element.style.fontSize || '';
       }
