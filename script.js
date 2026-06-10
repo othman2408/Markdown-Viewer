@@ -4659,6 +4659,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function updateFindHighlights() {
+    updatePreviewFindHighlights();
+
     if (!editorHighlightLayer) return;
     if (!isEditorVisible()) return;
     if (!isFindModalOpen || !findReplaceInput || !findReplaceInput.value || !findMatches.length) {
@@ -4685,6 +4687,157 @@ document.addEventListener("DOMContentLoaded", function () {
     editorHighlightLayer.appendChild(fragment);
     editorHighlightLayer.scrollTop = scrollTop;
     editorHighlightLayer.scrollLeft = scrollLeft;
+  }
+
+  let previewHighlights = [];
+  let activePreviewHighlightIndex = -1;
+
+  function isPreviewVisible() {
+    return currentViewMode === 'preview' || currentViewMode === 'split';
+  }
+
+  function clearPreviewFindHighlights() {
+    if (!markdownPreview) return;
+    const highlights = markdownPreview.querySelectorAll('.preview-find-highlight');
+    highlights.forEach(function(el) {
+      const parent = el.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+      }
+    });
+    markdownPreview.normalize();
+  }
+
+  function highlightPreviewText(node, regex) {
+    if (!node) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const val = node.nodeValue;
+      if (!val) return;
+      
+      regex.lastIndex = 0;
+      let match;
+      const matches = [];
+      while ((match = regex.exec(val)) !== null) {
+        if (match[0].length === 0) {
+          regex.lastIndex++;
+          continue;
+        }
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          text: match[0]
+        });
+      }
+      
+      if (matches.length > 0) {
+        const parent = node.parentNode;
+        if (!parent) return;
+        
+        const fragment = document.createDocumentFragment();
+        let lastIdx = 0;
+        
+        matches.forEach(function(m) {
+          if (m.start > lastIdx) {
+            fragment.appendChild(document.createTextNode(val.slice(lastIdx, m.start)));
+          }
+          const mark = document.createElement('mark');
+          mark.className = 'preview-find-highlight';
+          mark.textContent = m.text;
+          fragment.appendChild(mark);
+          lastIdx = m.end;
+        });
+        
+        if (lastIdx < val.length) {
+          fragment.appendChild(document.createTextNode(val.slice(lastIdx)));
+        }
+        
+        parent.replaceChild(fragment, node);
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const tagName = node.tagName.toLowerCase();
+      if (tagName === 'script' || tagName === 'style' || tagName === 'textarea' || tagName === 'noscript' || tagName === 'svg') {
+        return;
+      }
+      if (node.classList.contains('mermaid') || node.classList.contains('mjx-container') || node.closest('.mermaid') || node.closest('.mjx-container')) {
+        return;
+      }
+      
+      const children = Array.from(node.childNodes);
+      children.forEach(function(child) {
+        highlightPreviewText(child, regex);
+      });
+    }
+  }
+
+  function updatePreviewFindHighlights() {
+    clearPreviewFindHighlights();
+    previewHighlights = [];
+    
+    if (!isFindModalOpen || !findReplaceInput || !findReplaceInput.value || !isPreviewVisible()) {
+      return;
+    }
+    
+    const query = findReplaceInput.value;
+    const isRegex = document.getElementById('find-regex').classList.contains('active');
+    const isCaseSensitive = document.getElementById('find-case').classList.contains('active');
+    const isWholeWord = document.getElementById('find-word').classList.contains('active');
+    
+    let regex;
+    try {
+      let pattern = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (isWholeWord) {
+        pattern = `\\b${pattern}\\b`;
+      }
+      const flags = isCaseSensitive ? 'g' : 'gi';
+      regex = new RegExp(pattern, flags);
+    } catch (e) {
+      return;
+    }
+    
+    highlightPreviewText(markdownPreview, regex);
+    previewHighlights = Array.from(markdownPreview.querySelectorAll('.preview-find-highlight'));
+    updateActivePreviewHighlight();
+  }
+
+  function updateActivePreviewHighlight() {
+    previewHighlights.forEach(function(el) {
+      el.classList.remove('active');
+    });
+    
+    if (!previewHighlights.length) {
+      activePreviewHighlightIndex = -1;
+      return;
+    }
+    
+    if (findMatches.length > 0 && activeFindIndex >= 0) {
+      const ratio = activeFindIndex / findMatches.length;
+      activePreviewHighlightIndex = Math.min(
+        previewHighlights.length - 1,
+        Math.floor(ratio * previewHighlights.length)
+      );
+    } else {
+      activePreviewHighlightIndex = 0;
+    }
+    
+    if (activePreviewHighlightIndex >= 0 && activePreviewHighlightIndex < previewHighlights.length) {
+      const activeEl = previewHighlights[activePreviewHighlightIndex];
+      activeEl.classList.add('active');
+      scrollPreviewHighlightIntoView(activeEl);
+    }
+  }
+
+  function scrollPreviewHighlightIntoView(element) {
+    if (!element || !previewPane) return;
+    const paneRect = previewPane.getBoundingClientRect();
+    const elemRect = element.getBoundingClientRect();
+    const isVisible = (
+      elemRect.top >= paneRect.top + 40 &&
+      elemRect.bottom <= paneRect.bottom - 40
+    );
+    if (!isVisible) {
+      const scrollTop = previewPane.scrollTop + (elemRect.top - paneRect.top) - (paneRect.height / 2) + (elemRect.height / 2);
+      previewPane.scrollTop = scrollTop;
+    }
   }
 
   function syncHighlightScroll() {

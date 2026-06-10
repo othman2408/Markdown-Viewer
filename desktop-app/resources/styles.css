@@ -613,11 +613,26 @@ body {
   background-color: var(--fr-match-highlight, rgba(255, 223, 93, 0.4)) !important;
   border-radius: 2px;
   color: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .find-highlight.active {
   background-color: var(--fr-match-active, #ff9b30) !important;
   color: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.preview-find-highlight {
+  background-color: var(--fr-match-highlight, rgba(255, 223, 93, 0.4)) !important;
+  border-radius: 2px;
+  padding: 0 1px !important;
+  margin: 0 !important;
+}
+
+.preview-find-highlight.active {
+  background-color: var(--fr-match-active, #ff9b30) !important;
 }
 
 /* Dropdown improvements */
