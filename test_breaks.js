@@ -96,7 +96,11 @@ async function runAudit() {
       }
       else if (tag === 'li') {
         const hasBlockChildren = el.querySelector('p, blockquote, pre, table, ul, ol') !== null;
-        if (!hasBlockChildren) type = 'text';
+        if (hasBlockChildren) {
+          type = 'li';
+        } else {
+          type = 'text';
+        }
       } else if (el.classList.contains('math-block') || tag === 'mjx-container') {
         type = 'math';
       }

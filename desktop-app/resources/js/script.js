@@ -7031,6 +7031,17 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
+      // Skip any elements nested inside list items that contain block children (treat list items as atomic)
+      if (el.parentElement) {
+        const liAncestor = el.parentElement.closest('li');
+        if (liAncestor) {
+          const hasBlockChildren = liAncestor.querySelector('p, blockquote, pre, table, ul, ol') !== null;
+          if (hasBlockChildren) {
+            return;
+          }
+        }
+      }
+
       let type = '';
       
       if (tag === 'img') type = 'img';
@@ -7048,9 +7059,11 @@ document.addEventListener("DOMContentLoaded", function () {
       else if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
         type = 'text';
       } else if (tag === 'li') {
-        // Only target li if they don't contain other block elements to avoid double targeting
+        // Treat list items with block children as atomic containers, otherwise treat as text
         const hasBlockChildren = el.querySelector('p, blockquote, pre, table, ul, ol') !== null;
-        if (!hasBlockChildren) {
+        if (hasBlockChildren) {
+          type = 'li';
+        } else {
           type = 'text';
         }
       } else if (el.classList.contains('math-block') || tag === 'mjx-container') {
@@ -7335,6 +7348,10 @@ document.addEventListener("DOMContentLoaded", function () {
       el.style.fontSize = el.dataset.pdfOriginalFontSize;
       el.removeAttribute('data-pdf-original-font-size');
     });
+    container.querySelectorAll('[data-pdf-original-overflow]').forEach(el => {
+      el.style.overflow = el.dataset.pdfOriginalOverflow;
+      el.removeAttribute('data-pdf-original-overflow');
+    });
   }
 
   function mergeSplitTables(container) {
@@ -7513,10 +7530,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // 2. If not already pushed by Keep-With-Next, perform standard page-split calculations
         if (targetMargin === 0) {
-          // Check if this element crosses any page boundary
+          // Check if this element crosses any page boundary or starts extremely close to it (sub-pixel safety)
           let splitPageIndex = -1;
           for (let i = 0; i < pageBoundaries.length; i++) {
-            if (currentTop < pageBoundaries[i] && currentBottom > pageBoundaries[i]) {
+            if (currentTop < pageBoundaries[i] + 12 && currentBottom > pageBoundaries[i]) {
               splitPageIndex = i;
               break;
             }
@@ -7533,15 +7550,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 targetMargin = shift;
               }
             } else {
-              // Graphic element (svg, img, pre, math) splitting
-              const buffer = 5;
+              // Graphic element splitting (with larger buffer to ensure complete clearance)
+              const buffer = 15;
               const scaleNeeded = (remainingSpace - buffer) / item.height;
               const remainingSpacePercent = remainingSpace / pageHeightPxFromAnalysis;
 
-              // Rule 3: Enforce safety zone. If remaining page space is less than 20% of page height,
-              // or if the required scale factor to fit is less than 0.6, push the element entirely to the next page.
-              if (remainingSpacePercent >= 0.20 && scaleNeeded >= 0.6) {
-                // Fit on current page by scaling
+              const isTextContainer = ['blockquote', 'li', 'table', 'pre', 'math'].includes(item.type);
+
+              // Fit on current page by scaling if it's an image/svg and space/scale are acceptable.
+              // Otherwise, always push text/block containers to next page to prevent transform-scaling bugs.
+              if (!isTextContainer && remainingSpacePercent >= 0.20 && scaleNeeded >= 0.6) {
                 targetScale = Math.min(1.0, scaleNeeded);
               } else {
                 // Push to next page
@@ -7553,7 +7571,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 const newBottom = newTop + item.height;
                 const nextBoundaryY = pageBoundaries[splitPageIndex + 1] || (boundaryY + pageHeightPxFromAnalysis);
                 if (newBottom > nextBoundaryY) {
-                  const scaleToFitPage = (pageHeightPxFromAnalysis - 10) / item.height;
+                  const scaleToFitPage = (pageHeightPxFromAnalysis - 20) / item.height;
                   targetScale = Math.max(0.5, Math.min(1.0, scaleToFitPage));
                 }
               }
@@ -7561,7 +7579,7 @@ document.addEventListener("DOMContentLoaded", function () {
           } else {
             // Element is not split. But graphic elements taller than a page must still scale to fit!
             if (item.type !== 'text' && item.height > pageHeightPxFromAnalysis) {
-              const scaleToFitPage = (pageHeightPxFromAnalysis - 10) / item.height;
+              const scaleToFitPage = (pageHeightPxFromAnalysis - 20) / item.height;
               targetScale = Math.max(0.5, Math.min(1.0, scaleToFitPage));
             }
           }
@@ -7600,16 +7618,24 @@ document.addEventListener("DOMContentLoaded", function () {
             }
           }
 
-          // Create a physical spacer element to avoid margin collapse issues entirely
-          const spacer = document.createElement('div');
-          spacer.className = 'pdf-page-break-spacer';
-          spacer.style.height = `${targetMargin}px`;
-          spacer.style.margin = '0';
-          spacer.style.padding = '0';
-          spacer.style.border = 'none';
-          spacer.style.display = 'block';
+          // If target is a list item, apply marginTop directly to avoid invalid HTML / collapsed spacers
+          if (targetElement.tagName.toLowerCase() === 'li') {
+            if (!targetElement.dataset.hasOwnProperty('pdfOriginalMarginTop')) {
+              targetElement.dataset.pdfOriginalMarginTop = targetElement.style.marginTop || '';
+            }
+            targetElement.style.marginTop = `${targetMargin}px`;
+          } else {
+            // Create a physical spacer element to avoid margin collapse issues entirely
+            const spacer = document.createElement('div');
+            spacer.className = 'pdf-page-break-spacer';
+            spacer.style.height = `${targetMargin}px`;
+            spacer.style.margin = '0';
+            spacer.style.padding = '0';
+            spacer.style.border = 'none';
+            spacer.style.display = 'block';
 
-          targetElement.parentNode.insertBefore(spacer, targetElement);
+            targetElement.parentNode.insertBefore(spacer, targetElement);
+          }
           accumulatedShift += targetMargin;
         }
 
@@ -7710,25 +7736,28 @@ document.addEventListener("DOMContentLoaded", function () {
       if (elementType === 'svg') {
         element.style.maxWidth = 'none';
       }
-    } else if (elementType === 'math' || elementType === 'pre' || elementType === 'blockquote') {
-      if (!element.dataset.hasOwnProperty('pdfOriginalFontSize')) {
-        element.dataset.pdfOriginalFontSize = element.style.fontSize || '';
-      }
-      let origFontSize = parseFloat(element.dataset.pdfOriginalClientFontSize);
-      if (isNaN(origFontSize)) {
-        const style = window.getComputedStyle(element);
-        origFontSize = parseFloat(style.fontSize) || 14;
-        element.dataset.pdfOriginalClientFontSize = String(origFontSize);
-      }
-      element.style.fontSize = `${origFontSize * scaleFactor}px`;
     } else {
+      // For pre, table, blockquote, math, li, etc.
+      // Use transform: scale combined with physical height and overflow hidden to guarantee no native splits
+      if (!element.dataset.hasOwnProperty('pdfOriginalHeight')) {
+        element.dataset.pdfOriginalHeight = element.style.height || '';
+      }
+      if (!element.dataset.hasOwnProperty('pdfOriginalOverflow')) {
+        element.dataset.pdfOriginalOverflow = element.style.overflow || '';
+      }
+
       element.style.transform = `scale(${scaleFactor})`;
       element.style.transformOrigin = 'top left';
 
-      const originalHeight = element.offsetHeight;
-      const scaledHeight = originalHeight * scaleFactor;
-      const marginAdjustment = originalHeight - scaledHeight;
-      element.style.marginBottom = `-${marginAdjustment}px`;
+      let origHeight = parseFloat(element.dataset.pdfOriginalClientHeight);
+      if (isNaN(origHeight)) {
+        origHeight = element.offsetHeight || element.getBoundingClientRect().height;
+        element.dataset.pdfOriginalClientHeight = String(origHeight);
+      }
+
+      const scaledHeight = origHeight * scaleFactor;
+      element.style.height = `${scaledHeight}px`;
+      element.style.overflow = 'hidden';
     }
   }
 
@@ -7952,10 +7981,15 @@ document.addEventListener("DOMContentLoaded", function () {
       await waitForPdfFrame(progressState);
       throwIfPdfExportAborted(progressState.signal);
 
+      console.log(`[PDF DEBUG] canvas.width = ${canvas.width}, canvas.height = ${canvas.height}`);
+      console.log(`[PDF DEBUG] tempElement.offsetWidth = ${tempElement.offsetWidth}, rect.width = ${tempElement.getBoundingClientRect().width}`);
       const scaleFactor = canvas.width / contentWidth;
+      console.log(`[PDF DEBUG] scaleFactor = ${scaleFactor}, PAGE_CONFIG.scale = ${PAGE_CONFIG.scale}, captureScale = ${captureScale}`);
       const imgHeight = canvas.height / scaleFactor;
+      console.log(`[PDF DEBUG] imgHeight = ${imgHeight}, contentHeight = ${pageHeight - margin * 2}`);
       // Introduce a 0.5mm tolerance to prevent rounding errors from creating a trailing blank page
       const pagesCount = Math.ceil((imgHeight - 0.5) / (pageHeight - margin * 2));
+      console.log(`[PDF DEBUG] pagesCount = ${pagesCount}`);
 
       updatePdfProgress(progressState, 76, "Rendering pages");
       for (let page = 0; page < pagesCount; page++) {
