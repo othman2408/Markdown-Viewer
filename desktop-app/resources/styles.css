@@ -28,6 +28,8 @@
   --fr-btn-active-bg: #ddf4ff;
   --fr-match-highlight: #ffdf5d;
   --fr-match-active: #ff9b30;
+  --fr-match-text-color: #24292e;
+  --fr-match-active-text-color: #24292e;
   --fr-error-bg: #ffebe9;
   --fr-error-border: #ff8577;
   --fr-text-danger: #cf222e;
@@ -61,7 +63,9 @@
   --fr-btn-active: #2f81f7;
   --fr-btn-active-bg: rgba(56, 139, 253, 0.15);
   --fr-match-highlight: rgba(187, 128, 9, 0.4);
-  --fr-match-active: #f1e05a;
+  --fr-match-active: #ad6200;
+  --fr-match-text-color: #c9d1d9;
+  --fr-match-active-text-color: #ffffff;
   --fr-error-bg: rgba(248, 81, 73, 0.1);
   --fr-error-border: rgba(248, 81, 73, 0.4);
   --fr-text-danger: #ff7b72;
@@ -622,10 +626,13 @@ body {
   color: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
+  outline: 1px solid var(--accent-color, #0366d6) !important;
+  outline-offset: -1px;
 }
 
 .preview-find-highlight {
   background-color: var(--fr-match-highlight, rgba(255, 223, 93, 0.4)) !important;
+  color: var(--fr-match-text-color, inherit) !important;
   border-radius: 2px;
   padding: 0 1px !important;
   margin: 0 !important;
@@ -633,6 +640,9 @@ body {
 
 .preview-find-highlight.active {
   background-color: var(--fr-match-active, #ff9b30) !important;
+  color: var(--fr-match-active-text-color, inherit) !important;
+  outline: 1px solid var(--accent-color, #0366d6) !important;
+  outline-offset: -1px;
 }
 
 /* Dropdown improvements */
