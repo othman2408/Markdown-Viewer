@@ -33,8 +33,14 @@ document.addEventListener("DOMContentLoaded", function () {
     html2canvas: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
     pako: 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
     joypixels: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/lib/js/joypixels.min.js',
-    joypixels_css: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/extras/css/joypixels.min.css'
+    joypixels_css: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/extras/css/joypixels.min.css',
+    abcjs: 'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js'
   };
+
+  // Resolve local paths for desktop (Neutralinojs) offline support
+  if (typeof Neutralino !== 'undefined') {
+    CDN.abcjs = '/libs/abcjs-basic-min.js';
+  }
 
   let markdownRenderTimeout = null;
   let pendingPreviewRenderCancel = null;
@@ -52,7 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const PREVIEW_BLOCK_REUSE_LIMIT = 12000;
   const PREVIEW_SANITIZE_OPTIONS = {
     ADD_TAGS: ['mjx-container', 'input'],
-    ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code'],
+    ADD_ATTR: ['id', 'class', 'style', 'align', 'type', 'checked', 'disabled', 'data-original-code', 'role', 'aria-labelledby', 'aria-describedby'],
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
   };
   const RENDER_DELAY = 100;
@@ -923,6 +929,15 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
       return `<div class="mermaid-container is-loading"><div class="mermaid" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'abc') {
+      const uniqueId = 'abc-notation-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
     
     const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
@@ -2094,6 +2109,23 @@ document.addEventListener("DOMContentLoaded", function () {
     queryPreviewRoots(roots, '.mermaid-container.is-loading').forEach(function(container) {
       container.classList.remove('is-loading');
     });
+    queryPreviewRoots(roots, '.abc-container.is-loading').forEach(function(container) {
+      container.classList.remove('is-loading');
+    });
+  }
+
+  function parseAbcHeaders(abcString) {
+    const titleMatch = /^T:\s*(.*)$/m.exec(abcString);
+    const composerMatch = /^C:\s*(.*)$/m.exec(abcString);
+    const keyMatch = /^K:\s*(.*)$/m.exec(abcString);
+    const meterMatch = /^M:\s*(.*)$/m.exec(abcString);
+    
+    return {
+      title: titleMatch ? titleMatch[1].trim() : "Music notation block",
+      composer: composerMatch ? composerMatch[1].trim() : "Traditional",
+      key: keyMatch ? keyMatch[1].trim() : "C",
+      meter: meterMatch ? meterMatch[1].trim() : "4/4"
+    };
   }
 
   function postProcessPreview(rawVal, context, patchResult) {
@@ -2141,6 +2173,131 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (e) {
       console.warn("Mermaid rendering failed:", e);
+    }
+
+    try {
+      const abcNodes = queryPreviewRoots(roots, '.abc-notation');
+      if (abcNodes.length > 0) {
+        const renderAbcNodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          
+          const observer = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                const node = entry.target;
+                obs.unobserve(node);
+                
+                setTimeout(() => {
+                  if (context.renderId !== previewRenderGeneration) return;
+                  const originalCode = node.getAttribute('data-original-code');
+                  if (!originalCode) return;
+                  const decodedCode = decodeURIComponent(originalCode);
+                  
+                  const container = node.closest('.abc-container');
+                  try {
+                    node.innerHTML = '';
+                    ABCJS.renderAbc(node.id, decodedCode, {
+                      responsive: "resize",
+                      add_classes: true
+                    });
+                    
+                    node.innerHTML = DOMPurify.sanitize(node.innerHTML, PREVIEW_SANITIZE_OPTIONS);
+                    
+                    const headers = parseAbcHeaders(decodedCode);
+                    const svgElement = node.querySelector('svg');
+                    if (svgElement) {
+                      svgElement.setAttribute('role', 'img');
+                      const titleId = 'abc-title-' + node.id;
+                      const descId = 'abc-desc-' + node.id;
+                      svgElement.setAttribute('aria-labelledby', titleId + ' ' + descId);
+                      svgElement.setAttribute('aria-describedby', 'abc-source-' + node.id);
+                      
+                      const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                      svgTitle.id = titleId;
+                      svgTitle.textContent = `Sheet music for: ${headers.title}`;
+                      
+                      const svgDesc = document.createElementNS('http://www.w3.org/2000/svg', 'desc');
+                      svgDesc.id = descId;
+                      svgDesc.textContent = `Score in ${headers.key}, ${headers.meter} meter, composed by ${headers.composer}.`;
+                      
+                      svgElement.insertBefore(svgDesc, svgElement.firstChild);
+                      svgElement.insertBefore(svgTitle, svgElement.firstChild);
+                    }
+                    
+                    if (container) {
+                      container.classList.remove('is-loading');
+                      
+                      if (!container.querySelector('.abc-toolbar')) {
+                        const toolbar = document.createElement('div');
+                        toolbar.className = 'abc-toolbar';
+                        toolbar.style.cssText = 'display: flex; justify-content: flex-end; width: 100%; margin-bottom: 0.5em;';
+                        
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'tool-button abc-toggle-btn';
+                        btn.setAttribute('aria-pressed', 'false');
+                        btn.style.cssText = 'padding: 2px 8px; font-size: 11px;';
+                        btn.innerHTML = '<i class="bi bi-code-slash me-1"></i>View Code';
+                        toolbar.appendChild(btn);
+                        
+                        const rawPre = document.createElement('pre');
+                        rawPre.className = 'abc-raw-code';
+                        rawPre.style.cssText = 'display: none; width: 100%; margin: 0; padding: 1em; background: var(--editor-bg); border-radius: 4px; overflow-x: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-color);';
+                        rawPre.textContent = decodedCode;
+                        
+                        const srOnlyDiv = document.createElement('div');
+                        srOnlyDiv.className = 'abc-sr-only';
+                        srOnlyDiv.id = 'abc-source-' + node.id;
+                        srOnlyDiv.textContent = decodedCode;
+                        
+                        container.insertBefore(toolbar, node);
+                        container.appendChild(rawPre);
+                        container.appendChild(srOnlyDiv);
+                        
+                        btn.addEventListener('click', function() {
+                          const isPressed = btn.getAttribute('aria-pressed') === 'true';
+                          btn.setAttribute('aria-pressed', !isPressed);
+                          if (!isPressed) {
+                            node.style.display = 'none';
+                            rawPre.style.display = 'block';
+                            btn.innerHTML = '<i class="bi bi-eye me-1"></i>View Score';
+                          } else {
+                            node.style.display = 'block';
+                            rawPre.style.display = 'none';
+                            btn.innerHTML = '<i class="bi bi-code-slash me-1"></i>View Code';
+                          }
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error("ABCJS rendering failed:", err);
+                    if (container) container.classList.remove('is-loading');
+                  }
+                }, 0);
+              }
+            });
+          }, { rootMargin: '150px 0px' });
+          
+          abcNodes.forEach(node => observer.observe(node));
+        };
+        
+        if (typeof ABCJS === 'undefined') {
+          loadScript(CDN.abcjs).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            renderAbcNodes();
+          }).catch(function(e) { 
+            console.warn('Failed to load abcjs:', e);
+            abcNodes.forEach(function(node) {
+              const container = node.closest('.abc-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderAbcNodes();
+        }
+      }
+    } catch (e) {
+      console.warn("ABC notation processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '');
@@ -6739,6 +6896,7 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js"></script>
   <style>
       html {
           background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
@@ -6890,6 +7048,62 @@ document.addEventListener("DOMContentLoaded", function () {
           overflow-x: auto;
           text-align: center;
       }
+      .abc-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin: 1.5em 0;
+          padding: 1.25em;
+          background-color: ${isDarkTheme ? "#161b22" : "#f6f8fa"};
+          border: 1px solid ${isDarkTheme ? "#30363d" : "#e1e4e8"};
+          border-radius: 6px;
+          overflow-x: auto;
+      }
+      .abc-notation {
+          width: 100%;
+      }
+      .abc-notation svg {
+          background: transparent !important;
+          color: ${isDarkTheme ? "#c9d1d9" : "#24292e"} !important;
+          display: block;
+          margin: 0 auto;
+      }
+      .abc-notation svg path {
+          fill: currentColor;
+      }
+      .abc-notation svg text {
+          fill: currentColor !important;
+          stroke: none !important;
+      }
+      .abc-notation svg .abcjs-staff,
+      .abc-notation svg .abcjs-staff-extra,
+      .abc-notation svg .abcjs-bar,
+      .abc-notation svg .abcjs-ledger,
+      .abc-notation svg .abcjs-stem,
+      .abc-notation svg .abcjs-beam,
+      .abc-notation svg .abcjs-slur,
+      .abc-notation svg .abcjs-tie {
+          stroke: currentColor !important;
+      }
+      .abc-notation svg .abcjs-staff,
+      .abc-notation svg .abcjs-staff-extra,
+      .abc-notation svg .abcjs-ledger,
+      .abc-notation svg .abcjs-slur,
+      .abc-notation svg .abcjs-tie,
+      .abc-notation svg .abcjs-stem {
+          fill: none !important;
+      }
+      .abc-sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+      }
 
       @media (max-width: 767px) {
           .markdown-body {
@@ -6953,6 +7167,21 @@ document.addEventListener("DOMContentLoaded", function () {
                   window.mermaid.initialize({ startOnLoad: true, theme: '${isDarkTheme ? "dark" : "default"}' });
               } catch (e) {
                   console.warn('Mermaid initialization failed:', e);
+              }
+          }
+          if (window.ABCJS) {
+              try {
+                  var abcNodes = document.querySelectorAll('.abc-notation');
+                  abcNodes.forEach(function(node) {
+                      var code = decodeURIComponent(node.getAttribute('data-original-code') || '');
+                      if (code) {
+                          ABCJS.renderAbc(node.id, code, { responsive: 'resize' });
+                      }
+                      var container = node.closest('.abc-container');
+                      if (container) container.classList.remove('is-loading');
+                  });
+              } catch (e) {
+                  console.warn('ABCJS rendering failed:', e);
               }
           }
           mathReady.finally(queueMarkdownExportFit);
@@ -8087,6 +8316,75 @@ document.addEventListener("DOMContentLoaded", function () {
           if (mermaidError instanceof PdfExportCancelledError) throw mermaidError;
           console.warn("Mermaid rendering issue:", mermaidError);
           tempElement.querySelectorAll('.mermaid-container.is-loading').forEach(container => {
+            container.classList.remove('is-loading');
+          });
+        }
+        throwIfPdfExportAborted(progressState.signal);
+        await waitForPdfFrame(progressState);
+      }
+
+      const abcNodes = tempElement.querySelectorAll('.abc-notation');
+      if (abcNodes.length > 0) {
+        updatePdfProgress(progressState, 40, "Rendering music notation");
+        try {
+          if (typeof ABCJS === 'undefined') {
+            await runPdfAbortable(progressState, loadScript(CDN.abcjs));
+          }
+          throwIfPdfExportAborted(progressState.signal);
+          
+          abcNodes.forEach(node => {
+            const abcCode = decodeURIComponent(node.getAttribute('data-original-code') || '');
+            if (abcCode) {
+              ABCJS.renderAbc(node.id, abcCode, { responsive: 'resize' });
+            }
+          });
+          
+          tempElement.querySelectorAll('.abc-container.is-loading').forEach(container => {
+            container.classList.remove('is-loading');
+          });
+
+          // Convert all rendered ABC SVGs inside tempElement to <img> tags with data URI sources
+          const compiledAbcs = tempElement.querySelectorAll('.abc-container');
+          compiledAbcs.forEach(container => {
+            const svgElement = container.querySelector('svg');
+            if (svgElement) {
+              const rect = svgElement.getBoundingClientRect();
+              const width = rect.width || svgElement.clientWidth || parseFloat(svgElement.getAttribute('width')) || 600;
+              const height = rect.height || svgElement.clientHeight || parseFloat(svgElement.getAttribute('height')) || 400;
+
+              const clonedSvg = svgElement.cloneNode(true);
+              clonedSvg.setAttribute('width', width);
+              clonedSvg.setAttribute('height', height);
+              if (!clonedSvg.getAttribute('viewBox')) {
+                clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+              }
+              clonedSvg.style.width = `${width}px`;
+              clonedSvg.style.height = `${height}px`;
+
+              const svgString = new XMLSerializer().serializeToString(clonedSvg);
+              const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+              
+              const img = document.createElement('img');
+              img.className = 'abc-img';
+              img.src = 'data:image/svg+xml;base64,' + svgBase64;
+              
+              img.style.width = `${width}px`;
+              img.style.height = `${height}px`;
+              img.style.maxWidth = '100%';
+              img.style.display = 'block';
+              img.style.margin = '0 auto';
+              
+              img.dataset.originalWidth = String(width);
+              img.dataset.originalHeight = String(height);
+
+              container.innerHTML = '';
+              container.appendChild(img);
+            }
+          });
+        } catch (abcError) {
+          if (abcError instanceof PdfExportCancelledError) throw abcError;
+          console.warn("ABC rendering issue:", abcError);
+          tempElement.querySelectorAll('.abc-container.is-loading').forEach(container => {
             container.classList.remove('is-loading');
           });
         }

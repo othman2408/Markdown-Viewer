@@ -59,23 +59,24 @@ console.log("✓ Copied assets/ → resources/assets/ (excluding GIF demos)");
 /**
  * Validates the cryptographic integrity of a file against an expected SHA-384 hash.
  */
-function verifyIntegrity(filePath, expectedSha384) {
+function verifyIntegrity(filePath, expectedHash) {
   return new Promise((resolve, reject) => {
-    if (!expectedSha384) {
+    if (!expectedHash) {
       resolve(true); // Skip validation if no hash is provided (e.g., relative fonts)
       return;
     }
 
-    const hash = crypto.createHash("sha384");
+    const algo = expectedHash.startsWith("sha512-") ? "sha512" : "sha384";
+    const hash = crypto.createHash(algo);
     const stream = fs.createReadStream(filePath);
 
     stream.on("data", data => hash.update(data));
     stream.on("end", () => {
-      const calculated = "sha384-" + hash.digest("base64");
-      if (calculated === expectedSha384) {
+      const calculated = algo + "-" + hash.digest("base64");
+      if (calculated === expectedHash) {
         resolve(true);
       } else {
-        reject(new Error(`Integrity mismatch for ${path.basename(filePath)}:\nExpected: ${expectedSha384}\nCalculated: ${calculated}`));
+        reject(new Error(`Integrity mismatch for ${path.basename(filePath)}:\nExpected: ${expectedHash}\nCalculated: ${calculated}`));
       }
     });
     stream.on("error", reject);
@@ -186,6 +187,19 @@ async function prepareOfflineDependencies() {
   fs.mkdirSync(fontDir, { recursive: true });
   downloads.push(downloadFile("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff2", path.join(fontDir, "bootstrap-icons.woff2"), null));
   downloads.push(downloadFile("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff", path.join(fontDir, "bootstrap-icons.woff"), null));
+
+  // Dynamic / Lazy-loaded dependencies to download manually for offline capability
+  const dynamicLibs = [
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js",
+      dest: path.join(LIBS_DIR, "abcjs-basic-min.js"),
+      hash: "sha512-QJ21PAOSw5KSiQ12gnP74qwLRAEn9GZtrFI0yY1akCLLpcEaC7xwZ7BiONZ/7pyrfUADyh7sHnI3SYHifO+tmg=="
+    }
+  ];
+
+  for (const lib of dynamicLibs) {
+    downloads.push(downloadFile(lib.url, lib.dest, lib.hash));
+  }
 
   // Wait for all downloads and cryptographic validations to finish
   try {

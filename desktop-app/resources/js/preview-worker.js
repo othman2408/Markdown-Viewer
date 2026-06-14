@@ -3,6 +3,7 @@
 let librariesLoaded = false;
 let markedConfigured = false;
 let mermaidIdCounter = 0;
+let abcIdCounter = 0;
 
 const markedOptions = {
   gfm: true,
@@ -312,6 +313,11 @@ function configureMarked() {
       return `<div class="mermaid-container is-loading"><div class="mermaid" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
     }
 
+    if (language === "abc") {
+      const uniqueId = `abc-notation-worker-${abcIdCounter++}`;
+      return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
+    }
+
     const validLanguage = hljs && hljs.getLanguage(language) ? language : "plaintext";
     const highlightedCode = hljs
       ? hljs.highlight(code, { language: validLanguage }).value
@@ -481,6 +487,7 @@ self.onmessage = function(event) {
     const options = data.options || {};
     ensureLibraries(options.libraryUrls || {});
     mermaidIdCounter = 0;
+    abcIdCounter = 0;
     const result = renderSegmentedMarkdown(data.markdown || "", options);
     self.postMessage({
       type: "render-result",
