@@ -3847,12 +3847,110 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+/* --- ABC Notation Styles --- */
+.abc-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.5em 0;
+  padding: 1.25em;
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow-x: auto;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.abc-container.is-loading {
+  min-height: 120px;
+  background-color: var(--skeleton-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  animation: skeleton-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.abc-container.is-loading .abc-notation {
+  opacity: 0; /* Hide raw ABC text during compile */
+}
+
+.abc-container.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--skeleton-glow) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.abc-notation {
+  width: 100%;
+}
+
+.abc-notation svg {
+  background: transparent !important;
+  color: var(--preview-text-color) !important;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Theme Adaptation using currentColor */
+.abc-notation svg path {
+  fill: currentColor;
+}
+
+.abc-notation svg text {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+.abc-notation svg .abcjs-staff,
+.abc-notation svg .abcjs-staff-extra,
+.abc-notation svg .abcjs-bar,
+.abc-notation svg .abcjs-ledger,
+.abc-notation svg .abcjs-stem,
+.abc-notation svg .abcjs-beam,
+.abc-notation svg .abcjs-slur,
+.abc-notation svg .abcjs-tie {
+  stroke: currentColor !important;
+}
+
+.abc-notation svg .abcjs-staff,
+.abc-notation svg .abcjs-staff-extra,
+.abc-notation svg .abcjs-ledger,
+.abc-notation svg .abcjs-slur,
+.abc-notation svg .abcjs-tie,
+.abc-notation svg .abcjs-stem {
+  fill: none !important;
+}
+
+/* Accessibility screen-reader-only element */
+.abc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Accessibility: respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .skeleton-placeholder,
   .skeleton-placeholder::after,
   .mermaid-container.is-loading,
-  .mermaid-container.is-loading::after {
+  .mermaid-container.is-loading::after,
+  .abc-container.is-loading,
+  .abc-container.is-loading::after {
     animation: none;
   }
   .drag-overlay-inner {
@@ -3870,4 +3968,3 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
     transition: none;
   }
 }
-
