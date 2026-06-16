@@ -109,6 +109,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const exportMd = document.getElementById("export-md");
   const exportHtml = document.getElementById("export-html");
   const exportPdf = document.getElementById("export-pdf");
+  const exportPng = document.getElementById("export-png");
   const copyMarkdownButton = document.getElementById("copy-markdown-button");
   const dragOverlay = document.getElementById("drag-overlay");
   const toggleSyncButton = document.getElementById("toggle-sync");
@@ -146,6 +147,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileExportMd      = document.getElementById("mobile-export-md");
   const mobileExportHtml    = document.getElementById("mobile-export-html");
   const mobileExportPdf     = document.getElementById("mobile-export-pdf");
+  const mobileExportPng     = document.getElementById("mobile-export-png");
   const mobileCopyMarkdown  = document.getElementById("mobile-copy-markdown");
   const mobileThemeToggle   = document.getElementById("mobile-theme-toggle");
   const shareButton         = document.getElementById("share-button");
@@ -6495,6 +6497,7 @@ document.addEventListener("DOMContentLoaded", function () {
   mobileExportMd.addEventListener("click", () => exportMd.click());
   mobileExportHtml.addEventListener("click", () => exportHtml.click());
   mobileExportPdf.addEventListener("click", () => exportPdf.click());
+  mobileExportPng.addEventListener("click", () => exportPng.click());
   mobileCopyMarkdown.addEventListener("click", () => copyMarkdownButton.click());
   mobileThemeToggle.addEventListener("click", () => {
     themeToggle.click();
@@ -8519,6 +8522,217 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
+  exportPng.addEventListener("click", async function (event) {
+    event.preventDefault();
+    logPdfExportDebug("PNG export button clicked!");
+    if (activePdfExport) {
+      logPdfExportDebug("Export already active, ignoring click");
+      return;
+    }
+
+    const progressState = createPdfProgressState();
+    activePdfExport = progressState;
+    setPdfExportTriggersBusy(progressState, true);
+    document.body.appendChild(progressState.overlay);
+    updatePdfProgress(progressState, 5, "Starting PNG Export");
+    progressState.overlay.querySelector(".pdf-progress-cancel")?.focus();
+
+    try {
+      if (typeof html2canvas === 'undefined') {
+        updatePdfProgress(progressState, 15, "Loading image renderer");
+        await runPdfAbortable(progressState, loadScript(CDN.html2canvas));
+        throwIfPdfExportAborted(progressState.signal);
+      }
+      
+      updatePdfProgress(progressState, 25, "Parsing markdown");
+      await waitForPdfFrame(progressState);
+      const markdown = markdownEditor.value;
+      const html = marked.parse(markdown);
+      const sanitizedHtml = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath', 'input'],
+        ADD_ATTR: ['id', 'class', 'style', 'align', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start', 'type', 'checked', 'disabled', 'data-original-code'],
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+      });
+      throwIfPdfExportAborted(progressState.signal);
+
+      updatePdfProgress(progressState, 40, "Preparing document");
+      await waitForPdfFrame(progressState);
+      const tempElement = document.createElement("div");
+      progressState.tempElement = tempElement;
+      tempElement.className = "markdown-body pdf-export";
+      tempElement.innerHTML = sanitizedHtml;
+      enhanceGitHubAlerts(tempElement);
+      tempElement.style.padding = "40px"; // Give some padding for PNG
+      tempElement.style.width = "1000px";
+      tempElement.style.margin = "0 auto";
+      tempElement.style.fontSize = "16px";
+      tempElement.style.position = "fixed";
+      tempElement.style.left = "-9999px";
+      tempElement.style.top = "0";
+
+      const currentTheme = document.documentElement.getAttribute("data-theme");
+      tempElement.style.backgroundColor = currentTheme === "dark" ? "#0d1117" : "#ffffff";
+      tempElement.style.color = currentTheme === "dark" ? "#c9d1d9" : "#24292e";
+
+      document.body.appendChild(tempElement);
+      await waitForPdfFrame(progressState);
+
+      const mermaidNodes = tempElement.querySelectorAll('.mermaid');
+      if (mermaidNodes.length > 0) {
+        updatePdfProgress(progressState, 50, "Rendering diagrams");
+        try {
+          if (typeof mermaid === 'undefined') {
+            await runPdfAbortable(progressState, loadScript(CDN.mermaid));
+          }
+          throwIfPdfExportAborted(progressState.signal);
+          initMermaid(true);
+          await runPdfAbortable(progressState, mermaid.init(undefined, mermaidNodes));
+          tempElement.querySelectorAll('.mermaid-container.is-loading').forEach(container => container.classList.remove('is-loading'));
+
+          const compiledMermaids = tempElement.querySelectorAll('.mermaid-container');
+          compiledMermaids.forEach(container => {
+            const svgElement = container.querySelector('svg');
+            if (svgElement) {
+              const width = svgElement.getBoundingClientRect().width || 600;
+              const height = svgElement.getBoundingClientRect().height || 400;
+              const clonedSvg = svgElement.cloneNode(true);
+              clonedSvg.setAttribute('width', width);
+              clonedSvg.setAttribute('height', height);
+              if (!clonedSvg.getAttribute('viewBox')) {
+                clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+              }
+              const svgString = new XMLSerializer().serializeToString(clonedSvg);
+              const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+              const img = document.createElement('img');
+              img.className = 'mermaid-img';
+              img.src = 'data:image/svg+xml;base64,' + svgBase64;
+              img.style.width = `${width}px`;
+              img.style.height = `${height}px`;
+              img.style.display = 'block';
+              img.style.margin = '0 auto';
+              container.innerHTML = '';
+              container.appendChild(img);
+            }
+          });
+        } catch (e) {
+          if (e instanceof PdfExportCancelledError) throw e;
+          console.warn("Mermaid issue:", e);
+        }
+        throwIfPdfExportAborted(progressState.signal);
+        await waitForPdfFrame(progressState);
+      }
+      
+      const abcNodes = tempElement.querySelectorAll('.abc-notation');
+      if (abcNodes.length > 0) {
+        updatePdfProgress(progressState, 60, "Rendering music notation");
+        try {
+          if (typeof ABCJS === 'undefined') {
+            await runPdfAbortable(progressState, loadScript(CDN.abcjs));
+          }
+          throwIfPdfExportAborted(progressState.signal);
+          abcNodes.forEach(node => {
+            const abcCode = decodeURIComponent(node.getAttribute('data-original-code') || '');
+            if (abcCode) ABCJS.renderAbc(node.id, abcCode, { responsive: 'resize' });
+          });
+          tempElement.querySelectorAll('.abc-container.is-loading').forEach(container => container.classList.remove('is-loading'));
+
+          const compiledAbcs = tempElement.querySelectorAll('.abc-container');
+          compiledAbcs.forEach(container => {
+            const svgElement = container.querySelector('svg');
+            if (svgElement) {
+              const width = svgElement.getBoundingClientRect().width || 600;
+              const height = svgElement.getBoundingClientRect().height || 400;
+              const clonedSvg = svgElement.cloneNode(true);
+              clonedSvg.setAttribute('width', width);
+              clonedSvg.setAttribute('height', height);
+              if (!clonedSvg.getAttribute('viewBox')) {
+                clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+              }
+              const svgString = new XMLSerializer().serializeToString(clonedSvg);
+              const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+              const img = document.createElement('img');
+              img.src = 'data:image/svg+xml;base64,' + svgBase64;
+              img.style.width = `${width}px`;
+              img.style.height = `${height}px`;
+              img.style.display = 'block';
+              img.style.margin = '0 auto';
+              container.innerHTML = '';
+              container.appendChild(img);
+            }
+          });
+        } catch (e) {
+          if (e instanceof PdfExportCancelledError) throw e;
+          console.warn("ABC rendering issue:", e);
+        }
+        throwIfPdfExportAborted(progressState.signal);
+        await waitForPdfFrame(progressState);
+      }
+
+      if (window.MathJax && markdownLikelyContainsMath(markdown)) {
+        updatePdfProgress(progressState, 70, "Rendering math");
+        try {
+          await runPdfAbortable(progressState, MathJax.typesetPromise([tempElement]));
+        } catch (e) {
+          if (e instanceof PdfExportCancelledError) throw e;
+        }
+        throwIfPdfExportAborted(progressState.signal);
+        const assistiveElements = tempElement.querySelectorAll('mjx-assistive-mml');
+        assistiveElements.forEach(el => {
+          el.style.display = 'none';
+          el.style.visibility = 'hidden';
+          el.style.position = 'absolute';
+          el.style.width = '0';
+          el.style.height = '0';
+          el.style.overflow = 'hidden';
+          el.remove();
+        });
+        const mathScripts = tempElement.querySelectorAll('script[type*="math"], script[type*="tex"]');
+        mathScripts.forEach(el => el.remove());
+      }
+
+      await waitForPdfFrame(progressState);
+      fitExportElementToContent(tempElement);
+      await waitForPdfFrame(progressState);
+
+      updatePdfProgress(progressState, 80, "Loading document assets");
+      await runPdfAbortable(progressState, Promise.all([
+        waitForAllImages(tempElement),
+        document.fonts ? document.fonts.ready : Promise.resolve()
+      ]));
+      throwIfPdfExportAborted(progressState.signal);
+      await waitForPdfFrame(progressState);
+
+      // No page breaks needed for PNG
+      updatePdfProgress(progressState, 90, "Capturing image");
+      const canvas = await runPdfAbortable(progressState, html2canvas(tempElement, {
+        scale: 2, // 2x resolution
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        windowWidth: Math.max(1000, Math.ceil(tempElement.getBoundingClientRect().width)),
+        windowHeight: Math.ceil(tempElement.getBoundingClientRect().height)
+      }));
+      await waitForPdfFrame(progressState);
+      throwIfPdfExportAborted(progressState.signal);
+
+      updatePdfProgress(progressState, 95, "Saving image");
+      canvas.toBlob((blob) => {
+        saveAs(blob, "document.png");
+      }, "image/png");
+      updatePdfProgress(progressState, 100, "Complete");
+
+    } catch (error) {
+      if (error instanceof PdfExportCancelledError || progressState.signal.aborted) {
+        console.info("PNG export cancelled");
+      } else {
+        console.error("PNG export failed:", error);
+        alert("PNG export failed: " + error.message);
+      }
+    } finally {
+      cleanupPdfExport(progressState);
+    }
+  });
+
   copyMarkdownButton.addEventListener("click", function () {
     try {
       const markdownText = markdownEditor.value;
@@ -9255,6 +9469,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Copy",
       copied: "Copied!",
       share: "Share",
@@ -9293,6 +9508,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "导出 Markdown (.md)",
       exportHtml: "导出 HTML",
       exportPdf: "导出 PDF",
+      exportPng: "Image (.png)",
       copy: "复制",
       copied: "已复制!",
       share: "分享",
@@ -9331,6 +9547,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "コピー",
       copied: "コピー完了!",
       share: "共有",
@@ -9369,6 +9586,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "마크다운 (.md)",
       exportHtml: "HTML로 내보내기",
       exportPdf: "PDF로 내보내기",
+      exportPng: "Image (.png)",
       copy: "복사",
       copied: "복사됨!",
       share: "공유",
@@ -9407,6 +9625,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Copiar",
       copied: "Copiado!",
       share: "Compartilhar",
@@ -9445,6 +9664,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Copiar",
       copied: "¡Copiado!",
       share: "Compartir",
@@ -9483,6 +9703,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Copier",
       copied: "Copié !",
       share: "Partager",
@@ -9521,6 +9742,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Kopieren",
       copied: "Kopiert!",
       share: "Teilen",
@@ -9559,6 +9781,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Копировать",
       copied: "Скопировано!",
       share: "Поделиться",
@@ -9597,6 +9820,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Copia",
       copied: "Copiato!",
       share: "Condividi",
@@ -9635,6 +9859,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Kopyala",
       copied: "Kopyalandı!",
       share: "Paylaş",
@@ -9673,6 +9898,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Kopiuj",
       copied: "Skopiowano!",
       share: "Udostępnij",
@@ -9711,6 +9937,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "匯出 Markdown (.md)",
       exportHtml: "匯出 HTML",
       exportPdf: "匯出 PDF",
+      exportPng: "Image (.png)",
       copy: "複製",
       copied: "已複製!",
       share: "分享",
@@ -9749,6 +9976,7 @@ document.addEventListener("DOMContentLoaded", function () {
       exportMd: "Markdown (.md)",
       exportHtml: "HTML",
       exportPdf: "PDF",
+      exportPng: "Image (.png)",
       copy: "Копіювати",
       copied: "Скопійовано!",
       share: "Поділитися",
@@ -9872,6 +10100,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (exportHtmlEl) exportHtmlEl.innerHTML = `<i class="bi bi-file-earmark-code me-2"></i>${dict.exportHtml}`;
     const exportPdfEl = document.getElementById('export-pdf');
     if (exportPdfEl) exportPdfEl.innerHTML = `<i class="bi bi-file-earmark-pdf me-2"></i>${dict.exportPdf}`;
+    const exportPngEl = document.getElementById('export-png');
+    if (exportPngEl) exportPngEl.innerHTML = `<i class="bi bi-file-earmark-image me-2"></i>${dict.exportPng}`;
 
     const mExportMdEl = document.getElementById('mobile-export-md');
     if (mExportMdEl) mExportMdEl.innerHTML = `<i class="bi bi-file-earmark-text me-2"></i>${dict.exportMd}`;
@@ -9879,6 +10109,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (mExportHtmlEl) mExportHtmlEl.innerHTML = `<i class="bi bi-file-earmark-code me-2"></i>${dict.exportHtml}`;
     const mExportPdfEl = document.getElementById('mobile-export-pdf');
     if (mExportPdfEl) mExportPdfEl.innerHTML = `<i class="bi bi-file-earmark-pdf me-2"></i>${dict.exportPdf}`;
+    const mExportPngEl = document.getElementById('mobile-export-png');
+    if (mExportPngEl) mExportPngEl.innerHTML = `<i class="bi bi-file-earmark-image me-2"></i>${dict.exportPng}`;
 
     // Copy / Share
     if (copyMarkdownButton) {
