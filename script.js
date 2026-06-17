@@ -1153,6 +1153,16 @@ document.addEventListener("DOMContentLoaded", function () {
   let saveTabStateTimeout = null;
   let untitledCounter = 0;
 
+  function getExportFilename(extension, fallback) {
+    const activeTab = tabs.find(function(t) { return t.id === activeTabId; });
+    let title = activeTab ? activeTab.title : "";
+    if (title) {
+      title = title.replace(/\.(md|markdown|html|pdf|png)$/i, '');
+      title = title.replace(/[\\/:*?"<>|]/g, "_").trim();
+    }
+    return title ? `${title}.${extension}` : fallback;
+  }
+
   function loadTabsFromStorage() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -6851,7 +6861,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const blob = new Blob([markdownEditor.value], {
         type: "text/markdown;charset=utf-8",
       });
-      saveAs(blob, "document.md");
+      saveAs(blob, getExportFilename("md", "document.md"));
     } catch (e) {
       console.error("Export failed:", e);
       alert("Export failed: " + e.message);
@@ -7198,7 +7208,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (typeof Neutralino !== 'undefined') {
         nativeSaveHtml(fullHtml);
       } else {
-        saveAs(blob, "document.html");
+        saveAs(blob, getExportFilename("html", "document.html"));
       }
     } catch (e) {
       console.error("HTML export failed:", e);
@@ -8507,7 +8517,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       throwIfPdfExportAborted(progressState.signal);
       updatePdfProgress(progressState, 98, "Preparing download");
-      pdf.save("document.pdf");
+      pdf.save(getExportFilename("pdf", "document.pdf"));
       updatePdfProgress(progressState, 100, "Complete");
 
     } catch (error) {
@@ -8717,7 +8727,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       updatePdfProgress(progressState, 95, "Saving image");
       canvas.toBlob((blob) => {
-        saveAs(blob, "document.png");
+        saveAs(blob, getExportFilename("png", "document.png"));
       }, "image/png");
       updatePdfProgress(progressState, 100, "Complete");
 
