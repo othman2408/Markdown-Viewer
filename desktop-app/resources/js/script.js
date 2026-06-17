@@ -7275,7 +7275,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
   }
 
-  function createPdfProgressState() {
+  function createPdfProgressState(exportType = "pdf") {
     const abortController = new AbortController();
     const overlay = document.createElement("div");
     overlay.className = "pdf-progress-overlay";
@@ -7283,18 +7283,23 @@ document.addEventListener("DOMContentLoaded", function () {
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-labelledby", "pdf-progress-title");
 
+    const isPng = exportType === "png";
+    const titleText = isPng ? "Generating Image" : "Generating PDF";
+    const cancelLabelText = isPng ? "Cancel Image generation" : "Cancel PDF generation";
+    const progressLabelText = isPng ? "Image generation progress" : "PDF generation progress";
+
     overlay.innerHTML = `
       <div class="pdf-progress-modal">
         <div class="pdf-progress-header">
-          <p class="pdf-progress-title" id="pdf-progress-title">Generating PDF</p>
-          <button type="button" class="modal-close-btn pdf-progress-cancel-icon" aria-label="Cancel PDF generation" title="Cancel PDF generation">
+          <p class="pdf-progress-title" id="pdf-progress-title">${titleText}</p>
+          <button type="button" class="modal-close-btn pdf-progress-cancel-icon" aria-label="${cancelLabelText}" title="${cancelLabelText}">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
         <div class="pdf-progress-percent">0%</div>
         <div class="pdf-progress-track"
              role="progressbar"
-             aria-label="PDF generation progress"
+             aria-label="${progressLabelText}"
              aria-valuemin="0"
              aria-valuemax="100"
              aria-valuenow="0">
@@ -7316,6 +7321,7 @@ document.addEventListener("DOMContentLoaded", function () {
       </div>`;
 
     const state = {
+      exportType,
       abortController,
       signal: abortController.signal,
       startedAt: performance.now(),
@@ -7354,13 +7360,17 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function setPdfExportTriggersBusy(state, busy) {
-    const triggers = [exportPdf, mobileExportPdf].filter(Boolean);
+    const isPng = state.exportType === "png";
+    const triggers = isPng
+      ? [exportPng, mobileExportPng].filter(Boolean)
+      : [exportPdf, mobileExportPdf].filter(Boolean);
     triggers.forEach((trigger, index) => {
       if (busy) {
         state.triggerHtml.set(trigger, trigger.innerHTML);
+        const generatingLabel = isPng ? "Generating Image..." : "Generating PDF...";
         trigger.innerHTML = index === 0
           ? '<i class="bi bi-hourglass-split"></i> Generating...'
-          : '<i class="bi bi-hourglass-split me-2"></i> Generating PDF...';
+          : `<i class="bi bi-hourglass-split me-2"></i> ${generatingLabel}`;
         trigger.classList.add("pdf-export-loading");
         trigger.setAttribute("aria-disabled", "true");
         trigger.disabled = true;
@@ -8540,7 +8550,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    const progressState = createPdfProgressState();
+    const progressState = createPdfProgressState("png");
     activePdfExport = progressState;
     setPdfExportTriggersBusy(progressState, true);
     document.body.appendChild(progressState.overlay);
