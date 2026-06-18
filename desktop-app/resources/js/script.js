@@ -56,6 +56,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Active WebGL / Three.js 3D STL renderers Map for memory cleanup
   const activeStlViews = new Map();
+  let activeModalStlView = null;
 
   let markdownRenderTimeout = null;
   let pendingPreviewRenderCancel = null;
@@ -2311,6 +2312,283 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  function renderStlInContainer(container, code, viewId) {
+    const width = container.clientWidth || 400;
+    const height = container.clientHeight || 400;
+    
+    const scene = new THREE.Scene();
+    
+    // Camera
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    
+    // WebGLRenderer with preserveDrawingBuffer enabled for image export capability
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+    
+    // OrbitControls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    
+    // Premium studio lighting
+    const ambientLight = new THREE.AmbientLight(0x404040, 1.2);
+    scene.add(ambientLight);
+    
+    // Key light
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    keyLight.position.set(1, 1, 1).normalize();
+    scene.add(keyLight);
+    
+    // Fill light (subtle blue-gray tint)
+    const fillLight = new THREE.DirectionalLight(0xddddff, 0.4);
+    fillLight.position.set(-1, 0.5, -1).normalize();
+    scene.add(fillLight);
+    
+    // Rim light from below back
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    rimLight.position.set(-0.5, -1, 0.5).normalize();
+    scene.add(rimLight);
+    
+    // Parse geometry
+    const loader = new THREE.STLLoader();
+    const geometry = loader.parse(new TextEncoder().encode(code).buffer);
+    
+    geometry.computeBoundingBox();
+    geometry.computeVertexNormals();
+    
+    const boundingBox = geometry.boundingBox;
+    const center = new THREE.Vector3();
+    boundingBox.getCenter(center);
+    
+    const size = new THREE.Vector3();
+    boundingBox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    
+    // Add grid helper (underneath the model, matching the theme)
+    const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+    const gridColorCenter = currentTheme === 'dark' ? 0x555555 : 0xbbbbbb;
+    const gridColor = currentTheme === 'dark' ? 0x2d3139 : 0xe5e5e5;
+    
+    const gridHelper = new THREE.GridHelper(maxDim * 3, 20, gridColorCenter, gridColor);
+    gridHelper.position.y = -size.y / 2; // Position directly under model
+    scene.add(gridHelper);
+    
+    // Create modes materials
+    const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
+    const solidMaterial = new THREE.MeshStandardMaterial({
+      color: matColor,
+      roughness: 0.4,
+      metalness: 0.6
+    });
+    
+    const normalMaterial = new THREE.MeshNormalMaterial();
+    
+    const mesh = new THREE.Mesh(geometry, solidMaterial);
+    mesh.position.sub(center); // Center the mesh
+    scene.add(mesh);
+    
+    // Camera fitting
+    const fov = camera.fov * (Math.PI / 180);
+    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+    cameraZ *= 1.4;
+    
+    camera.position.set(maxDim * 0.9, maxDim * 0.9, cameraZ);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    
+    camera.far = maxDim * 10;
+    camera.updateProjectionMatrix();
+    
+    let animationFrameId;
+    const animate = function() {
+      animationFrameId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      
+      const activeView = activeStlViews.get(viewId);
+      if (activeView) {
+        activeView.animationFrameId = animationFrameId;
+      }
+    };
+    
+    const view = {
+      container,
+      renderer,
+      scene,
+      camera,
+      controls,
+      solidMaterial,
+      normalMaterial,
+      mesh,
+      gridHelper,
+      animationFrameId: null
+    };
+    
+    activeStlViews.set(viewId, view);
+    animate();
+    
+    return view;
+  }
+
+  function addStlToolbar(container, node, code, view) {
+    if (!container) return;
+    
+    const oldToolbar = container.querySelector('.stl-toolbar');
+    if (oldToolbar) oldToolbar.remove();
+    
+    const toolbar = document.createElement('div');
+    toolbar.className = 'stl-toolbar';
+    toolbar.setAttribute('aria-label', 'Model actions');
+    
+    // Mode toggles
+    const modeGroup = document.createElement('div');
+    modeGroup.className = 'stl-mode-group';
+    
+    const btnSolid = document.createElement('button');
+    btnSolid.type = 'button';
+    btnSolid.className = 'stl-toolbar-btn active';
+    btnSolid.setAttribute('data-mode', 'solid');
+    btnSolid.textContent = 'Solid';
+    
+    const btnAngle = document.createElement('button');
+    btnAngle.type = 'button';
+    btnAngle.className = 'stl-toolbar-btn';
+    btnAngle.setAttribute('data-mode', 'angle');
+    btnAngle.textContent = 'Surface Angle';
+    
+    const btnWireframe = document.createElement('button');
+    btnWireframe.type = 'button';
+    btnWireframe.className = 'stl-toolbar-btn';
+    btnWireframe.setAttribute('data-mode', 'wireframe');
+    btnWireframe.textContent = 'Wireframe';
+    
+    modeGroup.appendChild(btnSolid);
+    modeGroup.appendChild(btnAngle);
+    modeGroup.appendChild(btnWireframe);
+    
+    // Divider
+    const divider = document.createElement('div');
+    divider.className = 'stl-divider';
+    
+    // Zoom button
+    const btnZoom = document.createElement('button');
+    btnZoom.type = 'button';
+    btnZoom.className = 'stl-toolbar-btn btn-zoom';
+    btnZoom.title = 'Zoom model';
+    btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+    
+    // Copy button
+    const btnCopy = document.createElement('button');
+    btnCopy.type = 'button';
+    btnCopy.className = 'stl-toolbar-btn btn-copy';
+    btnCopy.title = 'Copy image to clipboard';
+    btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
+    
+    // PNG button
+    const btnPng = document.createElement('button');
+    btnPng.type = 'button';
+    btnPng.className = 'stl-toolbar-btn btn-png';
+    btnPng.title = 'Download PNG';
+    btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
+    
+    toolbar.appendChild(modeGroup);
+    toolbar.appendChild(divider);
+    toolbar.appendChild(btnZoom);
+    toolbar.appendChild(btnCopy);
+    toolbar.appendChild(btnPng);
+    
+    container.appendChild(toolbar);
+    
+    const setActiveClass = (activeBtn) => {
+      [btnSolid, btnAngle, btnWireframe].forEach(btn => btn.classList.remove('active'));
+      activeBtn.classList.add('active');
+    };
+    
+    btnSolid.addEventListener('click', () => {
+      view.solidMaterial.wireframe = false;
+      view.mesh.material = view.solidMaterial;
+      setActiveClass(btnSolid);
+    });
+    
+    btnAngle.addEventListener('click', () => {
+      view.mesh.material = view.normalMaterial;
+      setActiveClass(btnAngle);
+    });
+    
+    btnWireframe.addEventListener('click', () => {
+      view.solidMaterial.wireframe = true;
+      view.mesh.material = view.solidMaterial;
+      setActiveClass(btnWireframe);
+    });
+    
+    btnZoom.addEventListener('click', () => {
+      openStlZoomModal(code);
+    });
+    
+    btnCopy.addEventListener('click', () => {
+      const originalText = btnCopy.innerHTML;
+      btnCopy.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+      view.renderer.render(view.scene, view.camera);
+      view.renderer.domElement.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          btnCopy.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        } catch (err) {
+          console.error(err);
+          btnCopy.innerHTML = '<i class="bi bi-x-lg"></i>';
+        }
+        setTimeout(() => { btnCopy.innerHTML = originalText; }, 1500);
+      }, 'image/png');
+    });
+    
+    btnPng.addEventListener('click', () => {
+      const originalText = btnPng.innerHTML;
+      btnPng.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+      view.renderer.render(view.scene, view.camera);
+      const dataUrl = view.renderer.domElement.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `model-${Date.now()}.png`;
+      a.click();
+      btnPng.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btnPng.innerHTML = originalText; }, 1500);
+    });
+  }
+
+  function openStlZoomModal(code) {
+    const modal = document.getElementById('stl-zoom-modal');
+    const viewerContainer = document.getElementById('stl-modal-viewer');
+    viewerContainer.innerHTML = '';
+    
+    modal.classList.add('active');
+    
+    activeModalStlView = renderStlInContainer(viewerContainer, code, 'stl-modal-instance');
+    
+    const btnSolid = document.getElementById('stl-modal-btn-solid');
+    const btnAngle = document.getElementById('stl-modal-btn-angle');
+    const btnWireframe = document.getElementById('stl-modal-btn-wireframe');
+    
+    [btnSolid, btnAngle, btnWireframe].forEach(btn => btn.classList.remove('active'));
+    btnSolid.classList.add('active');
+  }
+
+  function closeStlZoomModal() {
+    const modal = document.getElementById('stl-zoom-modal');
+    modal.classList.remove('active');
+    
+    disposeStlView('stl-modal-instance');
+    activeModalStlView = null;
+    document.getElementById('stl-modal-viewer').innerHTML = '';
+  }
+
   function renderStlNode(node, context) {
     const originalCode = node.getAttribute('data-original-code');
     if (!originalCode) return;
@@ -2324,93 +2602,11 @@ document.addEventListener("DOMContentLoaded", function () {
     
     try {
       node.innerHTML = '';
-      const width = node.clientWidth || (container ? container.clientWidth : 400) || 400;
-      const height = 400;
-      
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      node.appendChild(renderer.domElement);
-      
-      const controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      
-      const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
-      scene.add(ambientLight);
-      
-      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight1.position.set(1, 1, 1).normalize();
-      scene.add(dirLight1);
-      
-      const dirLight2 = new THREE.DirectionalLight(0x90caf9, 0.3);
-      dirLight2.position.set(-1, -1, -1).normalize();
-      scene.add(dirLight2);
-      
-      const loader = new THREE.STLLoader();
-      const geometry = loader.parse(new TextEncoder().encode(decodedCode).buffer);
-      
-      const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
-      const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
-      
-      const material = new THREE.MeshStandardMaterial({
-        color: matColor,
-        roughness: 0.4,
-        metalness: 0.6
-      });
-      
-      const mesh = new THREE.Mesh(geometry, material);
-      scene.add(mesh);
-      
-      geometry.computeBoundingBox();
-      geometry.computeVertexNormals();
-      
-      const boundingBox = geometry.boundingBox;
-      const center = new THREE.Vector3();
-      boundingBox.getCenter(center);
-      mesh.position.sub(center);
-      
-      const size = new THREE.Vector3();
-      boundingBox.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z);
-      
-      const fov = camera.fov * (Math.PI / 180);
-      let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-      cameraZ *= 1.4;
-      
-      camera.position.set(maxDim * 0.8, maxDim * 0.8, cameraZ);
-      camera.lookAt(0, 0, 0);
-      controls.target.set(0, 0, 0);
-      
-      camera.far = maxDim * 10;
-      camera.updateProjectionMatrix();
-      
-      let animationFrameId;
-      const animate = function() {
-        animationFrameId = requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
-        
-        const activeView = activeStlViews.get(nodeId);
-        if (activeView) {
-          activeView.animationFrameId = animationFrameId;
-        }
-      };
-      
-      activeStlViews.set(nodeId, {
-        container: node,
-        renderer: renderer,
-        scene: scene,
-        camera: camera,
-        controls: controls,
-        animationFrameId: null
-      });
-      
-      animate();
+      const view = renderStlInContainer(node, decodedCode, nodeId);
       
       if (container) container.classList.remove('is-loading');
+      
+      addStlToolbar(container, node, decodedCode, view);
     } catch (err) {
       console.error("STL rendering failed:", err);
       node.innerHTML = `<div class="render-error-msg" style="padding: 2em; color: var(--text-color); text-align: center;">Error rendering 3D model: ${escapeHtml(err.message)}</div>`;
@@ -2454,11 +2650,39 @@ document.addEventListener("DOMContentLoaded", function () {
         const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
         
         view.scene.traverse(child => {
-          if (child instanceof THREE.Mesh && child.material) {
+          if (child instanceof THREE.Mesh && child.material && !(child.material instanceof THREE.MeshNormalMaterial)) {
             child.material.color.setHex(matColor);
             child.material.needsUpdate = true;
           }
         });
+        
+        if (view.gridHelper) {
+          view.scene.remove(view.gridHelper);
+          view.gridHelper.geometry.dispose();
+          if (Array.isArray(view.gridHelper.material)) {
+            view.gridHelper.material.forEach(m => m.dispose());
+          } else {
+            view.gridHelper.material.dispose();
+          }
+          
+          const mesh = view.mesh;
+          if (mesh && mesh.geometry) {
+            const boundingBox = mesh.geometry.boundingBox;
+            if (boundingBox) {
+              const size = new THREE.Vector3();
+              boundingBox.getSize(size);
+              const maxDim = Math.max(size.x, size.y, size.z);
+              
+              const gridColorCenter = currentTheme === 'dark' ? 0x555555 : 0xbbbbbb;
+              const gridColor = currentTheme === 'dark' ? 0x2d3139 : 0xe5e5e5;
+              
+              const newGrid = new THREE.GridHelper(maxDim * 3, 20, gridColorCenter, gridColor);
+              newGrid.position.y = -size.y / 2;
+              view.scene.add(newGrid);
+              view.gridHelper = newGrid;
+            }
+          }
+        }
       }
     });
   }
@@ -9848,6 +10072,79 @@ document.addEventListener("DOMContentLoaded", function () {
     const a = document.createElement('a');
     a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
     URL.revokeObjectURL(url);
+  });
+
+  // STL Zoom Modal Event Listeners
+  document.getElementById('stl-zoom-modal-close').addEventListener('click', closeStlZoomModal);
+  document.getElementById('stl-zoom-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeStlZoomModal();
+  });
+
+  const modalBtnSolid = document.getElementById('stl-modal-btn-solid');
+  const modalBtnAngle = document.getElementById('stl-modal-btn-angle');
+  const modalBtnWireframe = document.getElementById('stl-modal-btn-wireframe');
+  
+  const setModalActiveMode = (activeBtn) => {
+    [modalBtnSolid, modalBtnAngle, modalBtnWireframe].forEach(btn => btn.classList.remove('active'));
+    activeBtn.classList.add('active');
+  };
+
+  modalBtnSolid.addEventListener('click', () => {
+    if (activeModalStlView) {
+      activeModalStlView.solidMaterial.wireframe = false;
+      activeModalStlView.mesh.material = activeModalStlView.solidMaterial;
+      setModalActiveMode(modalBtnSolid);
+    }
+  });
+
+  modalBtnAngle.addEventListener('click', () => {
+    if (activeModalStlView) {
+      activeModalStlView.mesh.material = activeModalStlView.normalMaterial;
+      setModalActiveMode(modalBtnAngle);
+    }
+  });
+
+  modalBtnWireframe.addEventListener('click', () => {
+    if (activeModalStlView) {
+      activeModalStlView.solidMaterial.wireframe = true;
+      activeModalStlView.mesh.material = activeModalStlView.solidMaterial;
+      setModalActiveMode(modalBtnWireframe);
+    }
+  });
+
+  document.getElementById('stl-modal-btn-copy').addEventListener('click', function() {
+    if (!activeModalStlView) return;
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    activeModalStlView.renderer.render(activeModalStlView.scene, activeModalStlView.camera);
+    activeModalStlView.renderer.domElement.toBlob(async blob => {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+      } catch (err) {
+        console.error(err);
+        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+      }
+      setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+    }, 'image/png');
+  });
+
+  document.getElementById('stl-modal-btn-png').addEventListener('click', function() {
+    if (!activeModalStlView) return;
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    activeModalStlView.renderer.render(activeModalStlView.scene, activeModalStlView.camera);
+    const dataUrl = activeModalStlView.renderer.domElement.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `model-${Date.now()}.png`;
+    a.click();
+    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    setTimeout(() => { btn.innerHTML = originalText; }, 1500);
   });
 
   /**

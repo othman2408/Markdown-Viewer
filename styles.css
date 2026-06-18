@@ -4104,6 +4104,165 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   border-bottom: 1px solid var(--border-color);
 }
 
+/* --- STL Toolbar & Button Styling --- */
+.stl-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 10;
+  background-color: var(--editor-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 3px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.stl-mode-group {
+  display: flex;
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stl-toolbar-btn {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.stl-mode-group .stl-toolbar-btn {
+  border-right: 1px solid var(--border-color);
+}
+
+.stl-mode-group .stl-toolbar-btn:last-child {
+  border-right: none;
+}
+
+.stl-toolbar-btn:hover {
+  background-color: var(--border-color);
+}
+
+.stl-toolbar-btn.active {
+  background-color: var(--accent-color, #0969da);
+  color: #fff !important;
+}
+
+.stl-divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-color);
+  margin: 0 4px;
+}
+
+/* --- STL Zoom Modal Styles --- */
+#stl-zoom-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 10000;
+  justify-content: center;
+  align-items: center;
+}
+
+#stl-zoom-modal.active {
+  display: flex;
+}
+
+.stl-modal-content {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 90vw;
+  height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.stl-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--editor-bg);
+  color: var(--text-color);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.stl-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.stl-modal-close:hover {
+  background-color: var(--border-color);
+}
+
+.stl-modal-viewer {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: var(--preview-bg, #fff);
+  outline: none;
+}
+
+.stl-modal-viewer canvas {
+  display: block;
+}
+
+.stl-modal-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--editor-bg);
+}
+
+.stl-modal-controls .stl-toolbar-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.stl-modal-controls .stl-toolbar-btn:hover {
+  background-color: var(--border-color);
+}
+
+.stl-modal-controls .stl-toolbar-btn.active {
+  background-color: var(--accent-color, #0969da);
+  color: #fff;
+  border-color: var(--accent-color, #0969da);
+}
+
 /* Accessibility: respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .skeleton-placeholder,

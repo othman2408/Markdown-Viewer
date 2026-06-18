@@ -946,6 +946,37 @@
         </div>
     </div>
 
+    <!-- STL Zoom Modal -->
+    <div id="stl-zoom-modal" role="dialog" aria-modal="true" aria-label="STL 3D model zoom view" aria-hidden="true">
+        <div class="stl-modal-content">
+            <div class="stl-modal-header">
+                <span>3D Model Viewer</span>
+                <button class="stl-modal-close" id="stl-zoom-modal-close" title="Close" aria-label="Close 3D modal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="stl-modal-viewer" id="stl-modal-viewer"></div>
+            <div class="stl-modal-controls">
+                <button class="stl-toolbar-btn" id="stl-modal-btn-solid" title="Solid Mode">
+                    <i class="bi bi-circle-fill me-1"></i>Solid
+                </button>
+                <button class="stl-toolbar-btn" id="stl-modal-btn-angle" title="Surface Angle Mode">
+                    <i class="bi bi-circle-half me-1"></i>Surface Angle
+                </button>
+                <button class="stl-toolbar-btn" id="stl-modal-btn-wireframe" title="Wireframe Mode">
+                    <i class="bi bi-grid-3x3 me-1"></i>Wireframe
+                </button>
+                <div class="stl-divider"></div>
+                <button class="stl-toolbar-btn" id="stl-modal-btn-copy" title="Copy Image">
+                    <i class="bi bi-clipboard-image me-1"></i>Copy
+                </button>
+                <button class="stl-toolbar-btn" id="stl-modal-btn-png" title="Download PNG">
+                    <i class="bi bi-file-image me-1"></i>PNG
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script type="text/markdown" id="default-markdown">---
 title: Welcome to Markdown Viewer
 description: A GitHub-style Markdown renderer with live preview, math, diagrams, and export support.
