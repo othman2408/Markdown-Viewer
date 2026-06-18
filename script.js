@@ -2446,10 +2446,6 @@ document.addEventListener("DOMContentLoaded", function () {
     toolbar.className = 'stl-toolbar';
     toolbar.setAttribute('aria-label', 'Model actions');
     
-    // Mode toggles
-    const modeGroup = document.createElement('div');
-    modeGroup.className = 'stl-mode-group';
-    
     const btnSolid = document.createElement('button');
     btnSolid.type = 'button';
     btnSolid.className = 'stl-toolbar-btn active';
@@ -2468,37 +2464,30 @@ document.addEventListener("DOMContentLoaded", function () {
     btnWireframe.setAttribute('data-mode', 'wireframe');
     btnWireframe.textContent = 'Wireframe';
     
-    modeGroup.appendChild(btnSolid);
-    modeGroup.appendChild(btnAngle);
-    modeGroup.appendChild(btnWireframe);
-    
-    // Divider
-    const divider = document.createElement('div');
-    divider.className = 'stl-divider';
-    
-    // Zoom button
     const btnZoom = document.createElement('button');
     btnZoom.type = 'button';
     btnZoom.className = 'stl-toolbar-btn btn-zoom';
     btnZoom.title = 'Zoom model';
+    btnZoom.setAttribute('aria-label', 'Zoom model');
     btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
     
-    // Copy button
     const btnCopy = document.createElement('button');
     btnCopy.type = 'button';
     btnCopy.className = 'stl-toolbar-btn btn-copy';
     btnCopy.title = 'Copy image to clipboard';
+    btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
     btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
     
-    // PNG button
     const btnPng = document.createElement('button');
     btnPng.type = 'button';
     btnPng.className = 'stl-toolbar-btn btn-png';
     btnPng.title = 'Download PNG';
+    btnPng.setAttribute('aria-label', 'Download PNG');
     btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
     
-    toolbar.appendChild(modeGroup);
-    toolbar.appendChild(divider);
+    toolbar.appendChild(btnSolid);
+    toolbar.appendChild(btnAngle);
+    toolbar.appendChild(btnWireframe);
     toolbar.appendChild(btnZoom);
     toolbar.appendChild(btnCopy);
     toolbar.appendChild(btnPng);

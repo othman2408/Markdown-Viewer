@@ -4110,44 +4110,30 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   top: 8px;
   right: 8px;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  gap: 4px;
   z-index: 10;
-  background-color: var(--editor-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 3px 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-.stl-mode-group {
-  display: flex;
-  background-color: var(--code-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  overflow: hidden;
+.stl-container:hover .stl-toolbar {
+  opacity: 1;
 }
 
 .stl-toolbar-btn {
-  background: none;
-  border: none;
+  background-color: var(--editor-bg);
+  border: 1px solid var(--border-color);
   color: var(--text-color);
-  padding: 4px 10px;
+  padding: 2px 8px;
   font-size: 11px;
-  font-weight: 500;
+  border-radius: 4px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.stl-mode-group .stl-toolbar-btn {
-  border-right: 1px solid var(--border-color);
-}
-
-.stl-mode-group .stl-toolbar-btn:last-child {
-  border-right: none;
+  height: 24px;
+  font-family: var(--font-sans);
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .stl-toolbar-btn:hover {
@@ -4156,14 +4142,8 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
 
 .stl-toolbar-btn.active {
   background-color: var(--accent-color, #0969da);
+  border-color: var(--accent-color, #0969da);
   color: #fff !important;
-}
-
-.stl-divider {
-  width: 1px;
-  height: 16px;
-  background-color: var(--border-color);
-  margin: 0 4px;
 }
 
 /* --- STL Zoom Modal Styles --- */
