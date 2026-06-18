@@ -3,6 +3,20 @@
 All notable code changes to **Markdown Viewer** are documented here.
 Non-code commits (documentation, planning, README-only updates) are excluded.
 
+## v3.7.5
+
+- **Description:** Delivered key interactive visualization engines, export improvements, notation support, and syntax/contrast adjustments.
+  - **Interactive Map & 3D Renderers:** Added interactive parsing and rendering engines for GeoJSON, TopoJSON, and STL (ASCII/Binary) files. Built advanced STL viewport controls (grid helper, surface angle flat shading, reset action, and modal zoom) aligned to GitHub's camera perspective.
+  - **PNG Image Export:** Added support for exporting previews to PNG images with progress feedback, rendering on a solid white background instead of transparency to preserve contrast.
+  - **ABC Music Notation:** Implemented client-side ABC music notation stylesheet rendering and offline desktop app support.
+  - **Syntax Highlighting & Math:** Fixed PowerShell syntax highlighting conflicts and fenced LaTeX math block parser rendering.
+  - **Tab-Based Export Filename:** Configured exports to automatically inherit the active tab's title instead of a generic 'document' filename (fixes #178).
+  - **Contrast Remediation:** Enhanced highlighted search match visibility and contrast inside the editor under dark mode.
+- **Date:** 2026-06-18
+- **URL:** https://github.com/ThisIs-Developer/Markdown-Viewer/commit/be03e4510d79a4ae47df51240c028e0a2fc4ba05
+
+---
+
 ## v3.7.4
 
 - **Description:** Delivered substantial feature additions and reliability improvements, including language expansion, desktop app startup fix, export centering, re-engineered PDF page breaking, and advanced Find & Replace features.

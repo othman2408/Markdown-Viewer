@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // View Mode State - Story 1.1
   let currentViewMode = 'split'; // 'editor', 'split', or 'preview'
-  const APP_VERSION = '3.7.4';
+  const APP_VERSION = '3.7.5';
   let activeModal = null;
   let lastFocusedElement = null;
   let isFindModalOpen = false;

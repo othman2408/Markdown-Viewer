@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // View Mode State - Story 1.1
   let currentViewMode = 'split'; // 'editor', 'split', or 'preview'
-  const APP_VERSION = '3.7.4';
+  const APP_VERSION = '3.7.5';
   let activeModal = null;
   let lastFocusedElement = null;
   let isFindModalOpen = false;
@@ -2359,6 +2359,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const loader = new THREE.STLLoader();
     const geometry = loader.parse(new TextEncoder().encode(code).buffer);
     
+    // Rotate geometry from Z-up (CAD/STL standard) to Y-up (Three.js standard)
+    geometry.rotateX(-Math.PI / 2);
+    
     geometry.computeBoundingBox();
     geometry.computeVertexNormals();
     
@@ -2372,10 +2375,10 @@ document.addEventListener("DOMContentLoaded", function () {
     
     // Add grid helper (underneath the model, matching the theme)
     const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
-    const gridColorCenter = currentTheme === 'dark' ? 0x555555 : 0xbbbbbb;
-    const gridColor = currentTheme === 'dark' ? 0x2d3139 : 0xe5e5e5;
+    const gridColorCenter = currentTheme === 'dark' ? 0x888888 : 0xaaaaaa;
+    const gridColor = currentTheme === 'dark' ? 0x333742 : 0xcccccc;
     
-    const gridHelper = new THREE.GridHelper(maxDim * 3, 20, gridColorCenter, gridColor);
+    const gridHelper = new THREE.GridHelper(maxDim * 15, 30, gridColorCenter, gridColor);
     gridHelper.position.y = -size.y / 2; // Position directly under model
     scene.add(gridHelper);
     
@@ -2398,12 +2401,16 @@ document.addEventListener("DOMContentLoaded", function () {
     let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
     cameraZ *= 1.4;
     
-    camera.position.set(maxDim * 0.9, maxDim * 0.9, cameraZ);
+    // Set initial camera position symmetrically (X = 0) with a slight top-down angle
+    camera.position.set(0, maxDim * 0.9, cameraZ * 1.4);
     camera.lookAt(0, 0, 0);
     controls.target.set(0, 0, 0);
     
-    camera.far = maxDim * 10;
+    camera.far = maxDim * 50;
     camera.updateProjectionMatrix();
+
+    const initialPosition = camera.position.clone();
+    const initialTarget = controls.target.clone();
     
     let animationFrameId;
     const animate = function() {
@@ -2427,6 +2434,8 @@ document.addEventListener("DOMContentLoaded", function () {
       normalMaterial,
       mesh,
       gridHelper,
+      initialPosition,
+      initialTarget,
       animationFrameId: null
     };
     
@@ -2434,6 +2443,52 @@ document.addEventListener("DOMContentLoaded", function () {
     animate();
     
     return view;
+  }
+
+  function exportStlImage(view, isDownload, button, originalText) {
+    if (!view || !view.renderer || !view.scene || !view.camera) return;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    
+    // Force a render pass to ensure the canvas buffer is loaded with the current frame
+    view.renderer.render(view.scene, view.camera);
+    
+    const webglCanvas = view.renderer.domElement;
+    
+    // Create temporary 2D canvas of the same dimensions
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = webglCanvas.width;
+    tempCanvas.height = webglCanvas.height;
+    
+    const ctx = tempCanvas.getContext('2d');
+    // Draw solid white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    // Overlay the WebGL canvas content
+    ctx.drawImage(webglCanvas, 0, 0);
+    
+    if (isDownload) {
+      const dataUrl = tempCanvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `model-${Date.now()}.png`;
+      a.click();
+      button.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { button.innerHTML = originalText; }, 1500);
+    } else {
+      // Copy to clipboard
+      tempCanvas.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          button.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        } catch (err) {
+          console.error(err);
+          button.innerHTML = '<i class="bi bi-x-lg"></i>';
+        }
+        setTimeout(() => { button.innerHTML = originalText; }, 1500);
+      }, 'image/png');
+    }
   }
 
   function addStlToolbar(container, node, code, view) {
@@ -2450,19 +2505,19 @@ document.addEventListener("DOMContentLoaded", function () {
     btnSolid.type = 'button';
     btnSolid.className = 'stl-toolbar-btn active';
     btnSolid.setAttribute('data-mode', 'solid');
-    btnSolid.textContent = 'Solid';
+    btnSolid.innerHTML = '<i class="bi bi-circle-fill"></i> Solid';
     
     const btnAngle = document.createElement('button');
     btnAngle.type = 'button';
     btnAngle.className = 'stl-toolbar-btn';
     btnAngle.setAttribute('data-mode', 'angle');
-    btnAngle.textContent = 'Surface Angle';
+    btnAngle.innerHTML = '<i class="bi bi-circle-half"></i> Surface Angle';
     
     const btnWireframe = document.createElement('button');
     btnWireframe.type = 'button';
     btnWireframe.className = 'stl-toolbar-btn';
     btnWireframe.setAttribute('data-mode', 'wireframe');
-    btnWireframe.textContent = 'Wireframe';
+    btnWireframe.innerHTML = '<i class="bi bi-grid-3x3"></i> Wireframe';
     
     const btnZoom = document.createElement('button');
     btnZoom.type = 'button';
@@ -2521,34 +2576,11 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     
     btnCopy.addEventListener('click', () => {
-      const originalText = btnCopy.innerHTML;
-      btnCopy.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-      view.renderer.render(view.scene, view.camera);
-      view.renderer.domElement.toBlob(async blob => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ]);
-          btnCopy.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-        } catch (err) {
-          console.error(err);
-          btnCopy.innerHTML = '<i class="bi bi-x-lg"></i>';
-        }
-        setTimeout(() => { btnCopy.innerHTML = originalText; }, 1500);
-      }, 'image/png');
+      exportStlImage(view, false, btnCopy, btnCopy.innerHTML);
     });
     
     btnPng.addEventListener('click', () => {
-      const originalText = btnPng.innerHTML;
-      btnPng.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-      view.renderer.render(view.scene, view.camera);
-      const dataUrl = view.renderer.domElement.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `model-${Date.now()}.png`;
-      a.click();
-      btnPng.innerHTML = '<i class="bi bi-check-lg"></i>';
-      setTimeout(() => { btnPng.innerHTML = originalText; }, 1500);
+      exportStlImage(view, true, btnPng, btnPng.innerHTML);
     });
   }
 
@@ -10063,10 +10095,44 @@ document.addEventListener("DOMContentLoaded", function () {
     URL.revokeObjectURL(url);
   });
 
+  function zoomStl(view, factor) {
+    if (!view || !view.camera || !view.controls) return;
+    const camera = view.camera;
+    const controls = view.controls;
+    
+    const target = controls.target;
+    const position = camera.position;
+    const offset = new THREE.Vector3().subVectors(position, target);
+    
+    offset.multiplyScalar(factor);
+    
+    position.copy(target).add(offset);
+    controls.update();
+  }
+
+  function resetStlView(view) {
+    if (!view || !view.camera || !view.controls || !view.initialPosition || !view.initialTarget) return;
+    view.camera.position.copy(view.initialPosition);
+    view.controls.target.copy(view.initialTarget);
+    view.controls.update();
+  }
+
   // STL Zoom Modal Event Listeners
   document.getElementById('stl-zoom-modal-close').addEventListener('click', closeStlZoomModal);
   document.getElementById('stl-zoom-modal').addEventListener('click', function(e) {
     if (e.target === this) closeStlZoomModal();
+  });
+
+  document.getElementById('stl-modal-btn-zoom-in').addEventListener('click', () => {
+    if (activeModalStlView) zoomStl(activeModalStlView, 0.8);
+  });
+
+  document.getElementById('stl-modal-btn-zoom-out').addEventListener('click', () => {
+    if (activeModalStlView) zoomStl(activeModalStlView, 1.25);
+  });
+
+  document.getElementById('stl-modal-btn-zoom-reset').addEventListener('click', () => {
+    if (activeModalStlView) resetStlView(activeModalStlView);
   });
 
   const modalBtnSolid = document.getElementById('stl-modal-btn-solid');
@@ -10102,38 +10168,15 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   document.getElementById('stl-modal-btn-copy').addEventListener('click', function() {
-    if (!activeModalStlView) return;
-    const btn = this;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    activeModalStlView.renderer.render(activeModalStlView.scene, activeModalStlView.camera);
-    activeModalStlView.renderer.domElement.toBlob(async blob => {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
-        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-      } catch (err) {
-        console.error(err);
-        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
-      }
-      setTimeout(() => { btn.innerHTML = originalText; }, 1500);
-    }, 'image/png');
+    if (activeModalStlView) {
+      exportStlImage(activeModalStlView, false, this, this.innerHTML);
+    }
   });
 
   document.getElementById('stl-modal-btn-png').addEventListener('click', function() {
-    if (!activeModalStlView) return;
-    const btn = this;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    activeModalStlView.renderer.render(activeModalStlView.scene, activeModalStlView.camera);
-    const dataUrl = activeModalStlView.renderer.domElement.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `model-${Date.now()}.png`;
-    a.click();
-    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-    setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+    if (activeModalStlView) {
+      exportStlImage(activeModalStlView, true, this, this.innerHTML);
+    }
   });
 
   /**

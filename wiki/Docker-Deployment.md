@@ -1,6 +1,6 @@
 # Docker Deployment Guide
 
-This page provides comprehensive documentation for containerizing, running, and proxying **Markdown Viewer** (v3.7.4) using Docker and Docker Compose.
+This page provides comprehensive documentation for containerizing, running, and proxying **Markdown Viewer** (v3.7.5) using Docker and Docker Compose.
 
 ---
 
