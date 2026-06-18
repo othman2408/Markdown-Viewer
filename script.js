@@ -457,6 +457,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return {
       marked: getLoadedScriptUrl("marked", "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"),
       highlight: getLoadedScriptUrl("highlight", "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"),
+      powershell: getLoadedScriptUrl("powershell.min.js", "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/powershell.min.js"),
     };
   }
 
@@ -940,6 +941,10 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
       return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'math') {
+      return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
     
     const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
@@ -2312,7 +2317,7 @@ document.addEventListener("DOMContentLoaded", function () {
       console.warn("ABC notation processing failed:", e);
     }
 
-    const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '');
+    const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
     if (hasMath) {
       const typesetTargets = roots.filter(function(root) {
         return root && root.nodeType === Node.ELEMENT_NODE && /\$\$|\$[^$]|\\\(|\\\[/.test(root.textContent || '');
@@ -7420,7 +7425,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function markdownLikelyContainsMath(markdown) {
-    return /(^|[^\\])\$\$|\\\[|\\\(|(^|[^\\])\$[^$\n]+\$/.test(markdown);
+    return /(^|[^\\])\$\$|\\\[|\\\(|(^|[^\\])\$[^$\n]+\$/.test(markdown) || /```math\b/.test(markdown);
   }
 
   function choosePdfCanvasScale(element) {
