@@ -2359,6 +2359,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const loader = new THREE.STLLoader();
     const geometry = loader.parse(new TextEncoder().encode(code).buffer);
     
+    // Rotate geometry from Z-up (CAD/STL standard) to Y-up (Three.js standard)
+    geometry.rotateX(-Math.PI / 2);
+    
     geometry.computeBoundingBox();
     geometry.computeVertexNormals();
     
