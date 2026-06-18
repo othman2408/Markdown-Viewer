@@ -3943,6 +3943,167 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   border: 0;
 }
 
+/* --- GeoJSON and TopoJSON Map Styles --- */
+.geojson-container, .topojson-container {
+  display: flex;
+  flex-direction: column;
+  margin: 1.5em 0;
+  padding: 0.5em;
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.geojson-container.is-loading, .topojson-container.is-loading {
+  min-height: 400px;
+  background-color: var(--skeleton-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  animation: skeleton-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.geojson-container.is-loading .geojson-map,
+.topojson-container.is-loading .topojson-map {
+  opacity: 0;
+}
+
+.geojson-container.is-loading::after,
+.topojson-container.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--skeleton-glow) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.geojson-map, .topojson-map {
+  width: 100%;
+  height: 400px;
+  border-radius: 4px;
+  background: transparent;
+}
+
+/* Map Popup Styling */
+.map-popup-container {
+  max-width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-color, #333);
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: var(--code-bg) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+}
+
+.leaflet-popup-tip {
+  background-color: var(--code-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.map-popup-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+.map-popup-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.map-popup-table tr:last-child td {
+  border-bottom: none;
+}
+
+.map-popup-table td.prop-key {
+  color: var(--accent-color, #0969da);
+  font-weight: 600;
+  padding-right: 12px;
+}
+
+.map-popup-table td.prop-val {
+  color: var(--text-color);
+}
+
+/* --- STL 3D Viewer Styles --- */
+.stl-container {
+  display: flex;
+  flex-direction: column;
+  margin: 1.5em 0;
+  padding: 0.5em;
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.stl-container.is-loading {
+  min-height: 400px;
+  background-color: var(--skeleton-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  animation: skeleton-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.stl-container.is-loading .stl-viewer {
+  opacity: 0;
+}
+
+.stl-container.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--skeleton-glow) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.stl-viewer {
+  width: 100%;
+  height: 400px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.stl-viewer canvas {
+  display: block;
+}
+
+.stl-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 4px 8px;
+  background-color: var(--editor-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
 /* Accessibility: respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .skeleton-placeholder,
@@ -3950,7 +4111,13 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   .mermaid-container.is-loading,
   .mermaid-container.is-loading::after,
   .abc-container.is-loading,
-  .abc-container.is-loading::after {
+  .abc-container.is-loading::after,
+  .geojson-container.is-loading,
+  .geojson-container.is-loading::after,
+  .topojson-container.is-loading,
+  .topojson-container.is-loading::after,
+  .stl-container.is-loading,
+  .stl-container.is-loading::after {
     animation: none;
   }
   .drag-overlay-inner {

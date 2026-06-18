@@ -34,13 +34,28 @@ document.addEventListener("DOMContentLoaded", function () {
     pako: 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
     joypixels: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/lib/js/joypixels.min.js',
     joypixels_css: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/extras/css/joypixels.min.css',
-    abcjs: 'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js'
+    abcjs: 'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js',
+    leaflet_css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+    leaflet_js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+    topojson: 'https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js',
+    three: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+    stlLoader: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js',
+    orbitControls: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'
   };
 
   // Resolve local paths for desktop (Neutralinojs) offline support
   if (typeof Neutralino !== 'undefined') {
     CDN.abcjs = '/libs/abcjs-basic-min.js';
+    CDN.leaflet_css = '/libs/leaflet.css';
+    CDN.leaflet_js = '/libs/leaflet.js';
+    CDN.topojson = '/libs/topojson.min.js';
+    CDN.three = '/libs/three.min.js';
+    CDN.stlLoader = '/libs/STLLoader.js';
+    CDN.orbitControls = '/libs/OrbitControls.js';
   }
+
+  // Active WebGL / Three.js 3D STL renderers Map for memory cleanup
+  const activeStlViews = new Map();
 
   let markdownRenderTimeout = null;
   let pendingPreviewRenderCancel = null;
@@ -941,6 +956,33 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
       return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'geojson') {
+      const uniqueId = 'geojson-map-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="geojson-container is-loading"><div class="geojson-map" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'topojson') {
+      const uniqueId = 'topojson-map-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="topojson-container is-loading"><div class="topojson-map" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'stl') {
+      const uniqueId = 'stl-viewer-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="stl-container is-loading"><div class="stl-viewer" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
 
     if (language === 'math') {
@@ -2145,8 +2187,291 @@ document.addEventListener("DOMContentLoaded", function () {
     };
   }
 
+  function disposeStlView(viewId) {
+    const view = activeStlViews.get(viewId);
+    if (!view) return;
+    
+    if (view.animationFrameId) {
+      cancelAnimationFrame(view.animationFrameId);
+    }
+    if (view.controls) {
+      view.controls.dispose();
+    }
+    if (view.scene) {
+      view.scene.traverse(node => {
+        if (node.geometry) {
+          node.geometry.dispose();
+        }
+        if (node.material) {
+          if (Array.isArray(node.material)) {
+            node.material.forEach(mat => mat.dispose());
+          } else {
+            node.material.dispose();
+          }
+        }
+      });
+    }
+    if (view.renderer) {
+      view.renderer.dispose();
+      if (view.renderer.domElement && view.renderer.domElement.parentElement) {
+        view.renderer.domElement.parentElement.removeChild(view.renderer.domElement);
+      }
+    }
+    activeStlViews.delete(viewId);
+  }
+
+  function renderMapNode(node, isTopo, context) {
+    const originalCode = node.getAttribute('data-original-code');
+    if (!originalCode) return;
+    const decodedCode = decodeURIComponent(originalCode);
+    const container = node.closest('.geojson-container') || node.closest('.topojson-container');
+    
+    try {
+      let geojsonData;
+      if (isTopo) {
+        const topology = JSON.parse(decodedCode);
+        if (topology && topology.objects) {
+          const features = [];
+          for (const key in topology.objects) {
+            if (Object.prototype.hasOwnProperty.call(topology.objects, key)) {
+              const feature = topojson.feature(topology, topology.objects[key]);
+              if (feature.type === 'FeatureCollection') {
+                features.push(...feature.features);
+              } else {
+                features.push(feature);
+              }
+            }
+          }
+          geojsonData = {
+            type: 'FeatureCollection',
+            features: features
+          };
+        }
+      } else {
+        geojsonData = JSON.parse(decodedCode);
+      }
+      
+      if (!geojsonData) return;
+      
+      node.innerHTML = '';
+      const map = L.map(node);
+      node._leafletMap = map;
+      
+      const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+      let tileUrl;
+      let tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+      
+      if (currentTheme === 'dark') {
+        tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+      } else {
+        tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+      }
+      
+      L.tileLayer(tileUrl, {
+        attribution: tileAttribution,
+        maxZoom: 19
+      }).addTo(map);
+      
+      const geojsonLayer = L.geoJSON(geojsonData, {
+        onEachFeature: function(feature, layer) {
+          if (feature.properties) {
+            let popupContent = '<div class="map-popup-container"><table class="map-popup-table">';
+            let hasProps = false;
+            for (const key in feature.properties) {
+              if (Object.prototype.hasOwnProperty.call(feature.properties, key)) {
+                const val = feature.properties[key];
+                const escapedKey = escapeHtml(String(key));
+                const escapedVal = escapeHtml(String(typeof val === 'object' ? JSON.stringify(val) : val));
+                popupContent += `<tr><td class="prop-key">${escapedKey}</td><td class="prop-val">${escapedVal}</td></tr>`;
+                hasProps = true;
+              }
+            }
+            popupContent += '</table></div>';
+            if (hasProps) {
+              layer.bindPopup(popupContent);
+            }
+          }
+        }
+      }).addTo(map);
+      
+      const bounds = geojsonLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds);
+      } else {
+        map.setView([0, 0], 2);
+      }
+      
+      if (container) container.classList.remove('is-loading');
+    } catch (err) {
+      console.error("Map rendering failed:", err);
+      node.innerHTML = `<div class="render-error-msg" style="padding: 2em; color: var(--text-color); text-align: center;">Error rendering map: ${escapeHtml(err.message)}</div>`;
+      if (container) container.classList.remove('is-loading');
+    }
+  }
+
+  function renderStlNode(node, context) {
+    const originalCode = node.getAttribute('data-original-code');
+    if (!originalCode) return;
+    const decodedCode = decodeURIComponent(originalCode);
+    const container = node.closest('.stl-container');
+    const nodeId = node.id;
+    
+    if (activeStlViews.has(nodeId)) {
+      disposeStlView(nodeId);
+    }
+    
+    try {
+      node.innerHTML = '';
+      const width = node.clientWidth || (container ? container.clientWidth : 400) || 400;
+      const height = 400;
+      
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      node.appendChild(renderer.domElement);
+      
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      
+      const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+      scene.add(ambientLight);
+      
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight1.position.set(1, 1, 1).normalize();
+      scene.add(dirLight1);
+      
+      const dirLight2 = new THREE.DirectionalLight(0x90caf9, 0.3);
+      dirLight2.position.set(-1, -1, -1).normalize();
+      scene.add(dirLight2);
+      
+      const loader = new THREE.STLLoader();
+      const geometry = loader.parse(new TextEncoder().encode(decodedCode).buffer);
+      
+      const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+      const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
+      
+      const material = new THREE.MeshStandardMaterial({
+        color: matColor,
+        roughness: 0.4,
+        metalness: 0.6
+      });
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+      
+      geometry.computeBoundingBox();
+      geometry.computeVertexNormals();
+      
+      const boundingBox = geometry.boundingBox;
+      const center = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      mesh.position.sub(center);
+      
+      const size = new THREE.Vector3();
+      boundingBox.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      
+      const fov = camera.fov * (Math.PI / 180);
+      let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+      cameraZ *= 1.4;
+      
+      camera.position.set(maxDim * 0.8, maxDim * 0.8, cameraZ);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      
+      camera.far = maxDim * 10;
+      camera.updateProjectionMatrix();
+      
+      let animationFrameId;
+      const animate = function() {
+        animationFrameId = requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+        
+        const activeView = activeStlViews.get(nodeId);
+        if (activeView) {
+          activeView.animationFrameId = animationFrameId;
+        }
+      };
+      
+      activeStlViews.set(nodeId, {
+        container: node,
+        renderer: renderer,
+        scene: scene,
+        camera: camera,
+        controls: controls,
+        animationFrameId: null
+      });
+      
+      animate();
+      
+      if (container) container.classList.remove('is-loading');
+    } catch (err) {
+      console.error("STL rendering failed:", err);
+      node.innerHTML = `<div class="render-error-msg" style="padding: 2em; color: var(--text-color); text-align: center;">Error rendering 3D model: ${escapeHtml(err.message)}</div>`;
+      if (container) container.classList.remove('is-loading');
+    }
+  }
+
+  function updateMapThemes() {
+    if (typeof L === 'undefined') return;
+    const mapNodes = markdownPreview.querySelectorAll('.geojson-map, .topojson-map');
+    mapNodes.forEach(node => {
+      const map = node._leafletMap;
+      if (map) {
+        map.eachLayer(layer => {
+          if (layer instanceof L.TileLayer) {
+            const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+            let tileUrl;
+            let tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+            if (currentTheme === 'dark') {
+              tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+              tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+            } else {
+              tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+              tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+            }
+            layer.setUrl(tileUrl);
+            layer.setAttribution(tileAttribution);
+          }
+        });
+      }
+    });
+  }
+
+  function updateStlThemes() {
+    if (typeof THREE === 'undefined') return;
+    const stlNodes = markdownPreview.querySelectorAll('.stl-viewer');
+    stlNodes.forEach(node => {
+      const view = activeStlViews.get(node.id);
+      if (view && view.scene) {
+        const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+        const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
+        
+        view.scene.traverse(child => {
+          if (child instanceof THREE.Mesh && child.material) {
+            child.material.color.setHex(matColor);
+            child.material.needsUpdate = true;
+          }
+        });
+      }
+    });
+  }
+
   function postProcessPreview(rawVal, context, patchResult) {
     const roots = getPreviewPostProcessRoots(patchResult);
+
+    // Clean up orphaned STL views that are no longer present in the document
+    activeStlViews.forEach((view, id) => {
+      if (!document.body.contains(view.container)) {
+        disposeStlView(id);
+      }
+    });
 
     roots.forEach(function(root) {
       processEmojis(root);
@@ -2315,6 +2640,99 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (e) {
       console.warn("ABC notation processing failed:", e);
+    }
+
+    try {
+      const geojsonNodes = queryPreviewRoots(roots, '.geojson-map');
+      const topojsonNodes = queryPreviewRoots(roots, '.topojson-map');
+      
+      if (geojsonNodes.length > 0 || topojsonNodes.length > 0) {
+        const renderAllMaps = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          geojsonNodes.forEach(node => renderMapNode(node, false, context));
+          topojsonNodes.forEach(node => renderMapNode(node, true, context));
+        };
+        
+        const promises = [];
+        if (typeof L === 'undefined') {
+          promises.push(loadStyle(CDN.leaflet_css));
+          promises.push(loadScript(CDN.leaflet_js));
+        }
+        if (topojsonNodes.length > 0 && typeof topojson === 'undefined') {
+          promises.push(loadScript(CDN.topojson));
+        }
+        
+        if (promises.length > 0) {
+          Promise.all(promises).then(function() {
+            renderAllMaps();
+          }).catch(function(e) {
+            console.warn('Failed to load map libraries:', e);
+            geojsonNodes.concat(topojsonNodes).forEach(node => {
+              const container = node.closest('.geojson-container') || node.closest('.topojson-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderAllMaps();
+        }
+      }
+    } catch (e) {
+      console.warn("GeoJSON/TopoJSON processing failed:", e);
+    }
+
+    try {
+      const stlNodes = queryPreviewRoots(roots, '.stl-viewer');
+      if (stlNodes.length > 0) {
+        const renderAllStls = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          stlNodes.forEach(node => renderStlNode(node, context));
+        };
+        
+        const promises = [];
+        if (typeof THREE === 'undefined') {
+          promises.push(loadScript(CDN.three));
+        }
+        
+        const loadLoaderAndControls = function() {
+          const subPromises = [];
+          if (typeof THREE.STLLoader === 'undefined') {
+            subPromises.push(loadScript(CDN.stlLoader));
+          }
+          if (typeof THREE.OrbitControls === 'undefined') {
+            subPromises.push(loadScript(CDN.orbitControls));
+          }
+          if (subPromises.length > 0) {
+            return Promise.all(subPromises);
+          }
+          return Promise.resolve();
+        };
+        
+        if (typeof THREE === 'undefined') {
+          loadScript(CDN.three).then(function() {
+            return loadLoaderAndControls();
+          }).then(function() {
+            renderAllStls();
+          }).catch(function(e) {
+            console.warn('Failed to load Three.js libraries:', e);
+            stlNodes.forEach(node => {
+              const container = node.closest('.stl-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          loadLoaderAndControls().then(function() {
+            renderAllStls();
+          }).catch(function(e) {
+            console.warn('Failed to load Three.js addons:', e);
+            stlNodes.forEach(node => {
+              const container = node.closest('.stl-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("STL processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
@@ -6737,6 +7155,9 @@ document.addEventListener("DOMContentLoaded", function () {
         console.warn('Mermaid theme re-render failed:', e);
       }
     }
+
+    updateMapThemes();
+    updateStlThemes();
   });
 
   async function nativeSaveMarkdown() {

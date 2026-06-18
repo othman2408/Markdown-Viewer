@@ -4,6 +4,9 @@ let librariesLoaded = false;
 let markedConfigured = false;
 let mermaidIdCounter = 0;
 let abcIdCounter = 0;
+let geojsonIdCounter = 0;
+let topojsonIdCounter = 0;
+let stlIdCounter = 0;
 
 const markedOptions = {
   gfm: true,
@@ -318,6 +321,21 @@ function configureMarked() {
       return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
     }
 
+    if (language === "geojson") {
+      const uniqueId = `geojson-map-worker-${geojsonIdCounter++}`;
+      return `<div class="geojson-container is-loading"><div class="geojson-map" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
+    }
+
+    if (language === "topojson") {
+      const uniqueId = `topojson-map-worker-${topojsonIdCounter++}`;
+      return `<div class="topojson-container is-loading"><div class="topojson-map" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
+    }
+
+    if (language === "stl") {
+      const uniqueId = `stl-viewer-worker-${stlIdCounter++}`;
+      return `<div class="stl-container is-loading"><div class="stl-viewer" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
+    }
+
     if (language === "math") {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -495,6 +513,9 @@ self.onmessage = function(event) {
     ensureLibraries(options.libraryUrls || {});
     mermaidIdCounter = 0;
     abcIdCounter = 0;
+    geojsonIdCounter = 0;
+    topojsonIdCounter = 0;
+    stlIdCounter = 0;
     const result = renderSegmentedMarkdown(data.markdown || "", options);
     self.postMessage({
       type: "render-result",
