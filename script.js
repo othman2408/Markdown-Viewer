@@ -2372,10 +2372,10 @@ document.addEventListener("DOMContentLoaded", function () {
     
     // Add grid helper (underneath the model, matching the theme)
     const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
-    const gridColorCenter = currentTheme === 'dark' ? 0x555555 : 0xbbbbbb;
-    const gridColor = currentTheme === 'dark' ? 0x2d3139 : 0xe5e5e5;
+    const gridColorCenter = currentTheme === 'dark' ? 0x888888 : 0xaaaaaa;
+    const gridColor = currentTheme === 'dark' ? 0x333742 : 0xcccccc;
     
-    const gridHelper = new THREE.GridHelper(maxDim * 3, 20, gridColorCenter, gridColor);
+    const gridHelper = new THREE.GridHelper(maxDim * 15, 30, gridColorCenter, gridColor);
     gridHelper.position.y = -size.y / 2; // Position directly under model
     scene.add(gridHelper);
     
@@ -2398,11 +2398,12 @@ document.addEventListener("DOMContentLoaded", function () {
     let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
     cameraZ *= 1.4;
     
-    camera.position.set(maxDim * 0.9, maxDim * 0.9, cameraZ);
+    // Set initial camera position symmetrically (X = 0) with a slight top-down angle
+    camera.position.set(0, maxDim * 0.9, cameraZ * 1.4);
     camera.lookAt(0, 0, 0);
     controls.target.set(0, 0, 0);
     
-    camera.far = maxDim * 10;
+    camera.far = maxDim * 50;
     camera.updateProjectionMatrix();
 
     const initialPosition = camera.position.clone();
