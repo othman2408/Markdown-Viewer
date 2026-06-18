@@ -318,6 +318,10 @@ function configureMarked() {
       return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
     }
 
+    if (language === "math") {
+      return `<div class="math-block">$$\n${code}\n$$</div>\n`;
+    }
+
     const validLanguage = hljs && hljs.getLanguage(language) ? language : "plaintext";
     const highlightedCode = hljs
       ? hljs.highlight(code, { language: validLanguage }).value
@@ -364,6 +368,9 @@ function configureMarked() {
 function ensureLibraries(urls) {
   if (!librariesLoaded) {
     importScripts(urls.marked, urls.highlight);
+    if (urls.powershell) {
+      importScripts(urls.powershell);
+    }
     librariesLoaded = true;
   }
   configureMarked();
