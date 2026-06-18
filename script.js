@@ -2445,6 +2445,52 @@ document.addEventListener("DOMContentLoaded", function () {
     return view;
   }
 
+  function exportStlImage(view, isDownload, button, originalText) {
+    if (!view || !view.renderer || !view.scene || !view.camera) return;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    
+    // Force a render pass to ensure the canvas buffer is loaded with the current frame
+    view.renderer.render(view.scene, view.camera);
+    
+    const webglCanvas = view.renderer.domElement;
+    
+    // Create temporary 2D canvas of the same dimensions
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = webglCanvas.width;
+    tempCanvas.height = webglCanvas.height;
+    
+    const ctx = tempCanvas.getContext('2d');
+    // Draw solid white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    // Overlay the WebGL canvas content
+    ctx.drawImage(webglCanvas, 0, 0);
+    
+    if (isDownload) {
+      const dataUrl = tempCanvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `model-${Date.now()}.png`;
+      a.click();
+      button.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { button.innerHTML = originalText; }, 1500);
+    } else {
+      // Copy to clipboard
+      tempCanvas.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          button.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        } catch (err) {
+          console.error(err);
+          button.innerHTML = '<i class="bi bi-x-lg"></i>';
+        }
+        setTimeout(() => { button.innerHTML = originalText; }, 1500);
+      }, 'image/png');
+    }
+  }
+
   function addStlToolbar(container, node, code, view) {
     if (!container) return;
     
@@ -2530,34 +2576,11 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     
     btnCopy.addEventListener('click', () => {
-      const originalText = btnCopy.innerHTML;
-      btnCopy.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-      view.renderer.render(view.scene, view.camera);
-      view.renderer.domElement.toBlob(async blob => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ]);
-          btnCopy.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-        } catch (err) {
-          console.error(err);
-          btnCopy.innerHTML = '<i class="bi bi-x-lg"></i>';
-        }
-        setTimeout(() => { btnCopy.innerHTML = originalText; }, 1500);
-      }, 'image/png');
+      exportStlImage(view, false, btnCopy, btnCopy.innerHTML);
     });
     
     btnPng.addEventListener('click', () => {
-      const originalText = btnPng.innerHTML;
-      btnPng.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-      view.renderer.render(view.scene, view.camera);
-      const dataUrl = view.renderer.domElement.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `model-${Date.now()}.png`;
-      a.click();
-      btnPng.innerHTML = '<i class="bi bi-check-lg"></i>';
-      setTimeout(() => { btnPng.innerHTML = originalText; }, 1500);
+      exportStlImage(view, true, btnPng, btnPng.innerHTML);
     });
   }
 
@@ -10145,38 +10168,15 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   document.getElementById('stl-modal-btn-copy').addEventListener('click', function() {
-    if (!activeModalStlView) return;
-    const btn = this;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    activeModalStlView.renderer.render(activeModalStlView.scene, activeModalStlView.camera);
-    activeModalStlView.renderer.domElement.toBlob(async blob => {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
-        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-      } catch (err) {
-        console.error(err);
-        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
-      }
-      setTimeout(() => { btn.innerHTML = originalText; }, 1500);
-    }, 'image/png');
+    if (activeModalStlView) {
+      exportStlImage(activeModalStlView, false, this, this.innerHTML);
+    }
   });
 
   document.getElementById('stl-modal-btn-png').addEventListener('click', function() {
-    if (!activeModalStlView) return;
-    const btn = this;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    activeModalStlView.renderer.render(activeModalStlView.scene, activeModalStlView.camera);
-    const dataUrl = activeModalStlView.renderer.domElement.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `model-${Date.now()}.png`;
-    a.click();
-    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-    setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+    if (activeModalStlView) {
+      exportStlImage(activeModalStlView, true, this, this.innerHTML);
+    }
   });
 
   /**
