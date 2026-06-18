@@ -34,13 +34,29 @@ document.addEventListener("DOMContentLoaded", function () {
     pako: 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
     joypixels: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/lib/js/joypixels.min.js',
     joypixels_css: 'https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/extras/css/joypixels.min.css',
-    abcjs: 'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js'
+    abcjs: 'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js',
+    leaflet_css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+    leaflet_js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+    topojson: 'https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js',
+    three: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+    stlLoader: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js',
+    orbitControls: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'
   };
 
   // Resolve local paths for desktop (Neutralinojs) offline support
   if (typeof Neutralino !== 'undefined') {
     CDN.abcjs = '/libs/abcjs-basic-min.js';
+    CDN.leaflet_css = '/libs/leaflet.css';
+    CDN.leaflet_js = '/libs/leaflet.js';
+    CDN.topojson = '/libs/topojson.min.js';
+    CDN.three = '/libs/three.min.js';
+    CDN.stlLoader = '/libs/STLLoader.js';
+    CDN.orbitControls = '/libs/OrbitControls.js';
   }
+
+  // Active WebGL / Three.js 3D STL renderers Map for memory cleanup
+  const activeStlViews = new Map();
+  let activeModalStlView = null;
 
   let markdownRenderTimeout = null;
   let pendingPreviewRenderCancel = null;
@@ -941,6 +957,33 @@ document.addEventListener("DOMContentLoaded", function () {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
       return `<div class="abc-container is-loading"><div class="abc-notation" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'geojson') {
+      const uniqueId = 'geojson-map-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="geojson-container is-loading"><div class="geojson-map" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'topojson') {
+      const uniqueId = 'topojson-map-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="topojson-container is-loading"><div class="topojson-map" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
+    if (language === 'stl') {
+      const uniqueId = 'stl-viewer-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="stl-container is-loading"><div class="stl-viewer" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
 
     if (language === 'math') {
@@ -2145,8 +2188,535 @@ document.addEventListener("DOMContentLoaded", function () {
     };
   }
 
+  function disposeStlView(viewId) {
+    const view = activeStlViews.get(viewId);
+    if (!view) return;
+    
+    if (view.animationFrameId) {
+      cancelAnimationFrame(view.animationFrameId);
+    }
+    if (view.controls) {
+      view.controls.dispose();
+    }
+    if (view.scene) {
+      view.scene.traverse(node => {
+        if (node.geometry) {
+          node.geometry.dispose();
+        }
+        if (node.material) {
+          if (Array.isArray(node.material)) {
+            node.material.forEach(mat => mat.dispose());
+          } else {
+            node.material.dispose();
+          }
+        }
+      });
+    }
+    if (view.renderer) {
+      view.renderer.dispose();
+      if (view.renderer.domElement && view.renderer.domElement.parentElement) {
+        view.renderer.domElement.parentElement.removeChild(view.renderer.domElement);
+      }
+    }
+    activeStlViews.delete(viewId);
+  }
+
+  function renderMapNode(node, isTopo, context) {
+    const originalCode = node.getAttribute('data-original-code');
+    if (!originalCode) return;
+    const decodedCode = decodeURIComponent(originalCode);
+    const container = node.closest('.geojson-container') || node.closest('.topojson-container');
+    
+    try {
+      let geojsonData;
+      if (isTopo) {
+        const topology = JSON.parse(decodedCode);
+        if (topology && topology.objects) {
+          const features = [];
+          for (const key in topology.objects) {
+            if (Object.prototype.hasOwnProperty.call(topology.objects, key)) {
+              const feature = topojson.feature(topology, topology.objects[key]);
+              if (feature.type === 'FeatureCollection') {
+                features.push(...feature.features);
+              } else {
+                features.push(feature);
+              }
+            }
+          }
+          geojsonData = {
+            type: 'FeatureCollection',
+            features: features
+          };
+        }
+      } else {
+        geojsonData = JSON.parse(decodedCode);
+      }
+      
+      if (!geojsonData) return;
+      
+      node.innerHTML = '';
+      const map = L.map(node);
+      node._leafletMap = map;
+      
+      const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+      let tileUrl;
+      let tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+      
+      if (currentTheme === 'dark') {
+        tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+      } else {
+        tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+      }
+      
+      L.tileLayer(tileUrl, {
+        attribution: tileAttribution,
+        maxZoom: 19
+      }).addTo(map);
+      
+      const geojsonLayer = L.geoJSON(geojsonData, {
+        onEachFeature: function(feature, layer) {
+          if (feature.properties) {
+            let popupContent = '<div class="map-popup-container"><table class="map-popup-table">';
+            let hasProps = false;
+            for (const key in feature.properties) {
+              if (Object.prototype.hasOwnProperty.call(feature.properties, key)) {
+                const val = feature.properties[key];
+                const escapedKey = escapeHtml(String(key));
+                const escapedVal = escapeHtml(String(typeof val === 'object' ? JSON.stringify(val) : val));
+                popupContent += `<tr><td class="prop-key">${escapedKey}</td><td class="prop-val">${escapedVal}</td></tr>`;
+                hasProps = true;
+              }
+            }
+            popupContent += '</table></div>';
+            if (hasProps) {
+              layer.bindPopup(popupContent);
+            }
+          }
+        }
+      }).addTo(map);
+      
+      const bounds = geojsonLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds);
+      } else {
+        map.setView([0, 0], 2);
+      }
+      
+      if (container) container.classList.remove('is-loading');
+    } catch (err) {
+      console.error("Map rendering failed:", err);
+      node.innerHTML = `<div class="render-error-msg" style="padding: 2em; color: var(--text-color); text-align: center;">Error rendering map: ${escapeHtml(err.message)}</div>`;
+      if (container) container.classList.remove('is-loading');
+    }
+  }
+
+  function renderStlInContainer(container, code, viewId) {
+    const width = container.clientWidth || 400;
+    const height = container.clientHeight || 400;
+    
+    const scene = new THREE.Scene();
+    
+    // Camera
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    
+    // WebGLRenderer with preserveDrawingBuffer enabled for image export capability
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+    
+    // OrbitControls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    
+    // Premium studio lighting
+    const ambientLight = new THREE.AmbientLight(0x404040, 1.2);
+    scene.add(ambientLight);
+    
+    // Key light
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    keyLight.position.set(1, 1, 1).normalize();
+    scene.add(keyLight);
+    
+    // Fill light (subtle blue-gray tint)
+    const fillLight = new THREE.DirectionalLight(0xddddff, 0.4);
+    fillLight.position.set(-1, 0.5, -1).normalize();
+    scene.add(fillLight);
+    
+    // Rim light from below back
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    rimLight.position.set(-0.5, -1, 0.5).normalize();
+    scene.add(rimLight);
+    
+    // Parse geometry
+    const loader = new THREE.STLLoader();
+    const geometry = loader.parse(new TextEncoder().encode(code).buffer);
+    
+    // Rotate geometry from Z-up (CAD/STL standard) to Y-up (Three.js standard)
+    geometry.rotateX(-Math.PI / 2);
+    
+    geometry.computeBoundingBox();
+    geometry.computeVertexNormals();
+    
+    const boundingBox = geometry.boundingBox;
+    const center = new THREE.Vector3();
+    boundingBox.getCenter(center);
+    
+    const size = new THREE.Vector3();
+    boundingBox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    
+    // Add grid helper (underneath the model, matching the theme)
+    const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+    const gridColorCenter = currentTheme === 'dark' ? 0x888888 : 0xaaaaaa;
+    const gridColor = currentTheme === 'dark' ? 0x333742 : 0xcccccc;
+    
+    const gridHelper = new THREE.GridHelper(maxDim * 15, 30, gridColorCenter, gridColor);
+    gridHelper.position.y = -size.y / 2; // Position directly under model
+    scene.add(gridHelper);
+    
+    // Create modes materials
+    const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
+    const solidMaterial = new THREE.MeshStandardMaterial({
+      color: matColor,
+      roughness: 0.4,
+      metalness: 0.6
+    });
+    
+    const normalMaterial = new THREE.MeshNormalMaterial();
+    
+    const mesh = new THREE.Mesh(geometry, solidMaterial);
+    mesh.position.sub(center); // Center the mesh
+    scene.add(mesh);
+    
+    // Camera fitting
+    const fov = camera.fov * (Math.PI / 180);
+    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+    cameraZ *= 1.4;
+    
+    // Set initial camera position symmetrically (X = 0) with a slight top-down angle
+    camera.position.set(0, maxDim * 0.9, cameraZ * 1.4);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    
+    camera.far = maxDim * 50;
+    camera.updateProjectionMatrix();
+
+    const initialPosition = camera.position.clone();
+    const initialTarget = controls.target.clone();
+    
+    let animationFrameId;
+    const animate = function() {
+      animationFrameId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      
+      const activeView = activeStlViews.get(viewId);
+      if (activeView) {
+        activeView.animationFrameId = animationFrameId;
+      }
+    };
+    
+    const view = {
+      container,
+      renderer,
+      scene,
+      camera,
+      controls,
+      solidMaterial,
+      normalMaterial,
+      mesh,
+      gridHelper,
+      initialPosition,
+      initialTarget,
+      animationFrameId: null
+    };
+    
+    activeStlViews.set(viewId, view);
+    animate();
+    
+    return view;
+  }
+
+  function exportStlImage(view, isDownload, button, originalText) {
+    if (!view || !view.renderer || !view.scene || !view.camera) return;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    
+    // Force a render pass to ensure the canvas buffer is loaded with the current frame
+    view.renderer.render(view.scene, view.camera);
+    
+    const webglCanvas = view.renderer.domElement;
+    
+    // Create temporary 2D canvas of the same dimensions
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = webglCanvas.width;
+    tempCanvas.height = webglCanvas.height;
+    
+    const ctx = tempCanvas.getContext('2d');
+    // Draw solid white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    // Overlay the WebGL canvas content
+    ctx.drawImage(webglCanvas, 0, 0);
+    
+    if (isDownload) {
+      const dataUrl = tempCanvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `model-${Date.now()}.png`;
+      a.click();
+      button.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { button.innerHTML = originalText; }, 1500);
+    } else {
+      // Copy to clipboard
+      tempCanvas.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          button.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        } catch (err) {
+          console.error(err);
+          button.innerHTML = '<i class="bi bi-x-lg"></i>';
+        }
+        setTimeout(() => { button.innerHTML = originalText; }, 1500);
+      }, 'image/png');
+    }
+  }
+
+  function addStlToolbar(container, node, code, view) {
+    if (!container) return;
+    
+    const oldToolbar = container.querySelector('.stl-toolbar');
+    if (oldToolbar) oldToolbar.remove();
+    
+    const toolbar = document.createElement('div');
+    toolbar.className = 'stl-toolbar';
+    toolbar.setAttribute('aria-label', 'Model actions');
+    
+    const btnSolid = document.createElement('button');
+    btnSolid.type = 'button';
+    btnSolid.className = 'stl-toolbar-btn active';
+    btnSolid.setAttribute('data-mode', 'solid');
+    btnSolid.innerHTML = '<i class="bi bi-circle-fill"></i> Solid';
+    
+    const btnAngle = document.createElement('button');
+    btnAngle.type = 'button';
+    btnAngle.className = 'stl-toolbar-btn';
+    btnAngle.setAttribute('data-mode', 'angle');
+    btnAngle.innerHTML = '<i class="bi bi-circle-half"></i> Surface Angle';
+    
+    const btnWireframe = document.createElement('button');
+    btnWireframe.type = 'button';
+    btnWireframe.className = 'stl-toolbar-btn';
+    btnWireframe.setAttribute('data-mode', 'wireframe');
+    btnWireframe.innerHTML = '<i class="bi bi-grid-3x3"></i> Wireframe';
+    
+    const btnZoom = document.createElement('button');
+    btnZoom.type = 'button';
+    btnZoom.className = 'stl-toolbar-btn btn-zoom';
+    btnZoom.title = 'Zoom model';
+    btnZoom.setAttribute('aria-label', 'Zoom model');
+    btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+    
+    const btnCopy = document.createElement('button');
+    btnCopy.type = 'button';
+    btnCopy.className = 'stl-toolbar-btn btn-copy';
+    btnCopy.title = 'Copy image to clipboard';
+    btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
+    btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
+    
+    const btnPng = document.createElement('button');
+    btnPng.type = 'button';
+    btnPng.className = 'stl-toolbar-btn btn-png';
+    btnPng.title = 'Download PNG';
+    btnPng.setAttribute('aria-label', 'Download PNG');
+    btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
+    
+    toolbar.appendChild(btnSolid);
+    toolbar.appendChild(btnAngle);
+    toolbar.appendChild(btnWireframe);
+    toolbar.appendChild(btnZoom);
+    toolbar.appendChild(btnCopy);
+    toolbar.appendChild(btnPng);
+    
+    container.appendChild(toolbar);
+    
+    const setActiveClass = (activeBtn) => {
+      [btnSolid, btnAngle, btnWireframe].forEach(btn => btn.classList.remove('active'));
+      activeBtn.classList.add('active');
+    };
+    
+    btnSolid.addEventListener('click', () => {
+      view.solidMaterial.wireframe = false;
+      view.mesh.material = view.solidMaterial;
+      setActiveClass(btnSolid);
+    });
+    
+    btnAngle.addEventListener('click', () => {
+      view.mesh.material = view.normalMaterial;
+      setActiveClass(btnAngle);
+    });
+    
+    btnWireframe.addEventListener('click', () => {
+      view.solidMaterial.wireframe = true;
+      view.mesh.material = view.solidMaterial;
+      setActiveClass(btnWireframe);
+    });
+    
+    btnZoom.addEventListener('click', () => {
+      openStlZoomModal(code);
+    });
+    
+    btnCopy.addEventListener('click', () => {
+      exportStlImage(view, false, btnCopy, btnCopy.innerHTML);
+    });
+    
+    btnPng.addEventListener('click', () => {
+      exportStlImage(view, true, btnPng, btnPng.innerHTML);
+    });
+  }
+
+  function openStlZoomModal(code) {
+    const modal = document.getElementById('stl-zoom-modal');
+    const viewerContainer = document.getElementById('stl-modal-viewer');
+    viewerContainer.innerHTML = '';
+    
+    modal.classList.add('active');
+    
+    activeModalStlView = renderStlInContainer(viewerContainer, code, 'stl-modal-instance');
+    
+    const btnSolid = document.getElementById('stl-modal-btn-solid');
+    const btnAngle = document.getElementById('stl-modal-btn-angle');
+    const btnWireframe = document.getElementById('stl-modal-btn-wireframe');
+    
+    [btnSolid, btnAngle, btnWireframe].forEach(btn => btn.classList.remove('active'));
+    btnSolid.classList.add('active');
+  }
+
+  function closeStlZoomModal() {
+    const modal = document.getElementById('stl-zoom-modal');
+    modal.classList.remove('active');
+    
+    disposeStlView('stl-modal-instance');
+    activeModalStlView = null;
+    document.getElementById('stl-modal-viewer').innerHTML = '';
+  }
+
+  function renderStlNode(node, context) {
+    const originalCode = node.getAttribute('data-original-code');
+    if (!originalCode) return;
+    const decodedCode = decodeURIComponent(originalCode);
+    const container = node.closest('.stl-container');
+    const nodeId = node.id;
+    
+    if (activeStlViews.has(nodeId)) {
+      disposeStlView(nodeId);
+    }
+    
+    try {
+      node.innerHTML = '';
+      const view = renderStlInContainer(node, decodedCode, nodeId);
+      
+      if (container) container.classList.remove('is-loading');
+      
+      addStlToolbar(container, node, decodedCode, view);
+    } catch (err) {
+      console.error("STL rendering failed:", err);
+      node.innerHTML = `<div class="render-error-msg" style="padding: 2em; color: var(--text-color); text-align: center;">Error rendering 3D model: ${escapeHtml(err.message)}</div>`;
+      if (container) container.classList.remove('is-loading');
+    }
+  }
+
+  function updateMapThemes() {
+    if (typeof L === 'undefined') return;
+    const mapNodes = markdownPreview.querySelectorAll('.geojson-map, .topojson-map');
+    mapNodes.forEach(node => {
+      const map = node._leafletMap;
+      if (map) {
+        map.eachLayer(layer => {
+          if (layer instanceof L.TileLayer) {
+            const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+            let tileUrl;
+            let tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+            if (currentTheme === 'dark') {
+              tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+              tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+            } else {
+              tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+              tileAttribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+            }
+            layer.setUrl(tileUrl);
+            layer.setAttribution(tileAttribution);
+          }
+        });
+      }
+    });
+  }
+
+  function updateStlThemes() {
+    if (typeof THREE === 'undefined') return;
+    const stlNodes = markdownPreview.querySelectorAll('.stl-viewer');
+    stlNodes.forEach(node => {
+      const view = activeStlViews.get(node.id);
+      if (view && view.scene) {
+        const currentTheme = document.documentElement.getAttribute("data-theme") || 'light';
+        const matColor = currentTheme === 'dark' ? 0x90caf9 : 0x1976d2;
+        
+        view.scene.traverse(child => {
+          if (child instanceof THREE.Mesh && child.material && !(child.material instanceof THREE.MeshNormalMaterial)) {
+            child.material.color.setHex(matColor);
+            child.material.needsUpdate = true;
+          }
+        });
+        
+        if (view.gridHelper) {
+          view.scene.remove(view.gridHelper);
+          view.gridHelper.geometry.dispose();
+          if (Array.isArray(view.gridHelper.material)) {
+            view.gridHelper.material.forEach(m => m.dispose());
+          } else {
+            view.gridHelper.material.dispose();
+          }
+          
+          const mesh = view.mesh;
+          if (mesh && mesh.geometry) {
+            const boundingBox = mesh.geometry.boundingBox;
+            if (boundingBox) {
+              const size = new THREE.Vector3();
+              boundingBox.getSize(size);
+              const maxDim = Math.max(size.x, size.y, size.z);
+              
+              const gridColorCenter = currentTheme === 'dark' ? 0x555555 : 0xbbbbbb;
+              const gridColor = currentTheme === 'dark' ? 0x2d3139 : 0xe5e5e5;
+              
+              const newGrid = new THREE.GridHelper(maxDim * 3, 20, gridColorCenter, gridColor);
+              newGrid.position.y = -size.y / 2;
+              view.scene.add(newGrid);
+              view.gridHelper = newGrid;
+            }
+          }
+        }
+      }
+    });
+  }
+
   function postProcessPreview(rawVal, context, patchResult) {
     const roots = getPreviewPostProcessRoots(patchResult);
+
+    // Clean up orphaned STL views that are no longer present in the document
+    activeStlViews.forEach((view, id) => {
+      if (!document.body.contains(view.container)) {
+        disposeStlView(id);
+      }
+    });
 
     roots.forEach(function(root) {
       processEmojis(root);
@@ -2315,6 +2885,99 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (e) {
       console.warn("ABC notation processing failed:", e);
+    }
+
+    try {
+      const geojsonNodes = queryPreviewRoots(roots, '.geojson-map');
+      const topojsonNodes = queryPreviewRoots(roots, '.topojson-map');
+      
+      if (geojsonNodes.length > 0 || topojsonNodes.length > 0) {
+        const renderAllMaps = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          geojsonNodes.forEach(node => renderMapNode(node, false, context));
+          topojsonNodes.forEach(node => renderMapNode(node, true, context));
+        };
+        
+        const promises = [];
+        if (typeof L === 'undefined') {
+          promises.push(loadStyle(CDN.leaflet_css));
+          promises.push(loadScript(CDN.leaflet_js));
+        }
+        if (topojsonNodes.length > 0 && typeof topojson === 'undefined') {
+          promises.push(loadScript(CDN.topojson));
+        }
+        
+        if (promises.length > 0) {
+          Promise.all(promises).then(function() {
+            renderAllMaps();
+          }).catch(function(e) {
+            console.warn('Failed to load map libraries:', e);
+            geojsonNodes.concat(topojsonNodes).forEach(node => {
+              const container = node.closest('.geojson-container') || node.closest('.topojson-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderAllMaps();
+        }
+      }
+    } catch (e) {
+      console.warn("GeoJSON/TopoJSON processing failed:", e);
+    }
+
+    try {
+      const stlNodes = queryPreviewRoots(roots, '.stl-viewer');
+      if (stlNodes.length > 0) {
+        const renderAllStls = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          stlNodes.forEach(node => renderStlNode(node, context));
+        };
+        
+        const promises = [];
+        if (typeof THREE === 'undefined') {
+          promises.push(loadScript(CDN.three));
+        }
+        
+        const loadLoaderAndControls = function() {
+          const subPromises = [];
+          if (typeof THREE.STLLoader === 'undefined') {
+            subPromises.push(loadScript(CDN.stlLoader));
+          }
+          if (typeof THREE.OrbitControls === 'undefined') {
+            subPromises.push(loadScript(CDN.orbitControls));
+          }
+          if (subPromises.length > 0) {
+            return Promise.all(subPromises);
+          }
+          return Promise.resolve();
+        };
+        
+        if (typeof THREE === 'undefined') {
+          loadScript(CDN.three).then(function() {
+            return loadLoaderAndControls();
+          }).then(function() {
+            renderAllStls();
+          }).catch(function(e) {
+            console.warn('Failed to load Three.js libraries:', e);
+            stlNodes.forEach(node => {
+              const container = node.closest('.stl-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          loadLoaderAndControls().then(function() {
+            renderAllStls();
+          }).catch(function(e) {
+            console.warn('Failed to load Three.js addons:', e);
+            stlNodes.forEach(node => {
+              const container = node.closest('.stl-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("STL processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
@@ -6737,6 +7400,9 @@ document.addEventListener("DOMContentLoaded", function () {
         console.warn('Mermaid theme re-render failed:', e);
       }
     }
+
+    updateMapThemes();
+    updateStlThemes();
   });
 
   async function nativeSaveMarkdown() {
@@ -9427,6 +10093,90 @@ document.addEventListener("DOMContentLoaded", function () {
     const a = document.createElement('a');
     a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
     URL.revokeObjectURL(url);
+  });
+
+  function zoomStl(view, factor) {
+    if (!view || !view.camera || !view.controls) return;
+    const camera = view.camera;
+    const controls = view.controls;
+    
+    const target = controls.target;
+    const position = camera.position;
+    const offset = new THREE.Vector3().subVectors(position, target);
+    
+    offset.multiplyScalar(factor);
+    
+    position.copy(target).add(offset);
+    controls.update();
+  }
+
+  function resetStlView(view) {
+    if (!view || !view.camera || !view.controls || !view.initialPosition || !view.initialTarget) return;
+    view.camera.position.copy(view.initialPosition);
+    view.controls.target.copy(view.initialTarget);
+    view.controls.update();
+  }
+
+  // STL Zoom Modal Event Listeners
+  document.getElementById('stl-zoom-modal-close').addEventListener('click', closeStlZoomModal);
+  document.getElementById('stl-zoom-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeStlZoomModal();
+  });
+
+  document.getElementById('stl-modal-btn-zoom-in').addEventListener('click', () => {
+    if (activeModalStlView) zoomStl(activeModalStlView, 0.8);
+  });
+
+  document.getElementById('stl-modal-btn-zoom-out').addEventListener('click', () => {
+    if (activeModalStlView) zoomStl(activeModalStlView, 1.25);
+  });
+
+  document.getElementById('stl-modal-btn-zoom-reset').addEventListener('click', () => {
+    if (activeModalStlView) resetStlView(activeModalStlView);
+  });
+
+  const modalBtnSolid = document.getElementById('stl-modal-btn-solid');
+  const modalBtnAngle = document.getElementById('stl-modal-btn-angle');
+  const modalBtnWireframe = document.getElementById('stl-modal-btn-wireframe');
+  
+  const setModalActiveMode = (activeBtn) => {
+    [modalBtnSolid, modalBtnAngle, modalBtnWireframe].forEach(btn => btn.classList.remove('active'));
+    activeBtn.classList.add('active');
+  };
+
+  modalBtnSolid.addEventListener('click', () => {
+    if (activeModalStlView) {
+      activeModalStlView.solidMaterial.wireframe = false;
+      activeModalStlView.mesh.material = activeModalStlView.solidMaterial;
+      setModalActiveMode(modalBtnSolid);
+    }
+  });
+
+  modalBtnAngle.addEventListener('click', () => {
+    if (activeModalStlView) {
+      activeModalStlView.mesh.material = activeModalStlView.normalMaterial;
+      setModalActiveMode(modalBtnAngle);
+    }
+  });
+
+  modalBtnWireframe.addEventListener('click', () => {
+    if (activeModalStlView) {
+      activeModalStlView.solidMaterial.wireframe = true;
+      activeModalStlView.mesh.material = activeModalStlView.solidMaterial;
+      setModalActiveMode(modalBtnWireframe);
+    }
+  });
+
+  document.getElementById('stl-modal-btn-copy').addEventListener('click', function() {
+    if (activeModalStlView) {
+      exportStlImage(activeModalStlView, false, this, this.innerHTML);
+    }
+  });
+
+  document.getElementById('stl-modal-btn-png').addEventListener('click', function() {
+    if (activeModalStlView) {
+      exportStlImage(activeModalStlView, true, this, this.innerHTML);
+    }
   });
 
   /**

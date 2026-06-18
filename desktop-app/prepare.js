@@ -188,12 +188,61 @@ async function prepareOfflineDependencies() {
   downloads.push(downloadFile("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff2", path.join(fontDir, "bootstrap-icons.woff2"), null));
   downloads.push(downloadFile("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff", path.join(fontDir, "bootstrap-icons.woff"), null));
 
+  // Create Leaflet images directory for offline map icons
+  const leafletImagesDir = path.join(LIBS_DIR, "images");
+  fs.mkdirSync(leafletImagesDir, { recursive: true });
+
   // Dynamic / Lazy-loaded dependencies to download manually for offline capability
   const dynamicLibs = [
     {
       url: "https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.5.2/abcjs-basic-min.js",
       dest: path.join(LIBS_DIR, "abcjs-basic-min.js"),
       hash: "sha512-QJ21PAOSw5KSiQ12gnP74qwLRAEn9GZtrFI0yY1akCLLpcEaC7xwZ7BiONZ/7pyrfUADyh7sHnI3SYHifO+tmg=="
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js",
+      dest: path.join(LIBS_DIR, "leaflet.js"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css",
+      dest: path.join(LIBS_DIR, "leaflet.css"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+      dest: path.join(leafletImagesDir, "marker-icon.png"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+      dest: path.join(leafletImagesDir, "marker-icon-2x.png"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+      dest: path.join(leafletImagesDir, "marker-shadow.png"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js",
+      dest: path.join(LIBS_DIR, "topojson.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+      dest: path.join(LIBS_DIR, "three.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js",
+      dest: path.join(LIBS_DIR, "STLLoader.js"),
+      hash: null
+    },
+    {
+      url: "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
+      dest: path.join(LIBS_DIR, "OrbitControls.js"),
+      hash: null
     }
   ];
 
