@@ -2404,6 +2404,9 @@ document.addEventListener("DOMContentLoaded", function () {
     
     camera.far = maxDim * 10;
     camera.updateProjectionMatrix();
+
+    const initialPosition = camera.position.clone();
+    const initialTarget = controls.target.clone();
     
     let animationFrameId;
     const animate = function() {
@@ -2427,6 +2430,8 @@ document.addEventListener("DOMContentLoaded", function () {
       normalMaterial,
       mesh,
       gridHelper,
+      initialPosition,
+      initialTarget,
       animationFrameId: null
     };
     
@@ -2450,19 +2455,19 @@ document.addEventListener("DOMContentLoaded", function () {
     btnSolid.type = 'button';
     btnSolid.className = 'stl-toolbar-btn active';
     btnSolid.setAttribute('data-mode', 'solid');
-    btnSolid.textContent = 'Solid';
+    btnSolid.innerHTML = '<i class="bi bi-circle-fill"></i> Solid';
     
     const btnAngle = document.createElement('button');
     btnAngle.type = 'button';
     btnAngle.className = 'stl-toolbar-btn';
     btnAngle.setAttribute('data-mode', 'angle');
-    btnAngle.textContent = 'Surface Angle';
+    btnAngle.innerHTML = '<i class="bi bi-circle-half"></i> Surface Angle';
     
     const btnWireframe = document.createElement('button');
     btnWireframe.type = 'button';
     btnWireframe.className = 'stl-toolbar-btn';
     btnWireframe.setAttribute('data-mode', 'wireframe');
-    btnWireframe.textContent = 'Wireframe';
+    btnWireframe.innerHTML = '<i class="bi bi-grid-3x3"></i> Wireframe';
     
     const btnZoom = document.createElement('button');
     btnZoom.type = 'button';
@@ -10063,10 +10068,44 @@ document.addEventListener("DOMContentLoaded", function () {
     URL.revokeObjectURL(url);
   });
 
+  function zoomStl(view, factor) {
+    if (!view || !view.camera || !view.controls) return;
+    const camera = view.camera;
+    const controls = view.controls;
+    
+    const target = controls.target;
+    const position = camera.position;
+    const offset = new THREE.Vector3().subVectors(position, target);
+    
+    offset.multiplyScalar(factor);
+    
+    position.copy(target).add(offset);
+    controls.update();
+  }
+
+  function resetStlView(view) {
+    if (!view || !view.camera || !view.controls || !view.initialPosition || !view.initialTarget) return;
+    view.camera.position.copy(view.initialPosition);
+    view.controls.target.copy(view.initialTarget);
+    view.controls.update();
+  }
+
   // STL Zoom Modal Event Listeners
   document.getElementById('stl-zoom-modal-close').addEventListener('click', closeStlZoomModal);
   document.getElementById('stl-zoom-modal').addEventListener('click', function(e) {
     if (e.target === this) closeStlZoomModal();
+  });
+
+  document.getElementById('stl-modal-btn-zoom-in').addEventListener('click', () => {
+    if (activeModalStlView) zoomStl(activeModalStlView, 0.8);
+  });
+
+  document.getElementById('stl-modal-btn-zoom-out').addEventListener('click', () => {
+    if (activeModalStlView) zoomStl(activeModalStlView, 1.25);
+  });
+
+  document.getElementById('stl-modal-btn-zoom-reset').addEventListener('click', () => {
+    if (activeModalStlView) resetStlView(activeModalStlView);
   });
 
   const modalBtnSolid = document.getElementById('stl-modal-btn-solid');

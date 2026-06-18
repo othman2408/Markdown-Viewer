@@ -1603,7 +1603,8 @@ a:focus {
   opacity: 1;
 }
 
-.mermaid-toolbar-btn {
+.mermaid-toolbar-btn,
+.stl-toolbar-btn {
   background-color: var(--button-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
@@ -1618,24 +1619,28 @@ a:focus {
   white-space: nowrap;
 }
 
-.mermaid-toolbar-btn:hover {
+.mermaid-toolbar-btn:hover,
+.stl-toolbar-btn:hover {
   background-color: var(--button-hover);
   color: var(--accent-color);
 }
 
-.mermaid-toolbar-btn:active {
+.mermaid-toolbar-btn:active,
+.stl-toolbar-btn:active {
   background-color: var(--button-active);
 }
 
-.mermaid-toolbar-btn i {
+.mermaid-toolbar-btn i,
+.stl-toolbar-btn i {
   font-size: 14px;
 }
 
 /* ========================================
-   MERMAID ZOOM MODAL
+   MERMAID & STL ZOOM MODAL STYLES
    ======================================== */
 
-#mermaid-zoom-modal {
+#mermaid-zoom-modal,
+#stl-zoom-modal {
   display: none;
   position: fixed;
   inset: 0;
@@ -1645,11 +1650,13 @@ a:focus {
   justify-content: center;
 }
 
-#mermaid-zoom-modal.active {
+#mermaid-zoom-modal.active,
+#stl-zoom-modal.active {
   display: flex;
 }
 
-.mermaid-modal-content {
+.mermaid-modal-content,
+.stl-modal-content {
   background-color: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -1664,7 +1671,8 @@ a:focus {
 }
 
 @media (max-width: 576px) {
-  .mermaid-modal-content {
+  .mermaid-modal-content,
+  .stl-modal-content {
     width: 95vw;
     height: 90vh;
     max-width: 95vw;
@@ -1673,19 +1681,22 @@ a:focus {
   }
 }
 
-.mermaid-modal-header {
+.mermaid-modal-header,
+.stl-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.mermaid-modal-header span {
+.mermaid-modal-header span,
+.stl-modal-header span {
   font-weight: 600;
   font-size: 15px;
   color: var(--text-color);
 }
 
-.mermaid-modal-close {
+.mermaid-modal-close,
+.stl-modal-close {
   background: none;
   border: none;
   color: var(--text-color);
@@ -1698,7 +1709,8 @@ a:focus {
   transition: background-color 0.2s ease;
 }
 
-.mermaid-modal-close:hover {
+.mermaid-modal-close:hover,
+.stl-modal-close:hover {
   background-color: var(--button-hover);
 }
 
@@ -1722,14 +1734,16 @@ a:focus {
   max-width: none;
 }
 
-.mermaid-modal-controls {
+.mermaid-modal-controls,
+.stl-modal-controls {
   display: flex;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.mermaid-modal-controls .mermaid-toolbar-btn {
+.mermaid-modal-controls .mermaid-toolbar-btn,
+.stl-modal-controls .stl-toolbar-btn {
   opacity: 1;
 }
 
@@ -4095,15 +4109,6 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   display: block;
 }
 
-.stl-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 4px 8px;
-  background-color: var(--editor-bg);
-  border-bottom: 1px solid var(--border-color);
-}
-
 /* --- STL Toolbar & Button Styling --- */
 .stl-toolbar {
   position: absolute;
@@ -4120,47 +4125,20 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   opacity: 1;
 }
 
-.stl-toolbar-btn {
-  background-color: var(--editor-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  padding: 2px 8px;
-  font-size: 11px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 24px;
-  font-family: var(--font-sans);
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.stl-toolbar-btn:hover {
-  background-color: var(--border-color);
-}
-
 .stl-toolbar-btn.active {
   background-color: var(--accent-color, #0969da);
   border-color: var(--accent-color, #0969da);
   color: #fff !important;
 }
 
+.stl-divider {
+  width: 1px;
+  background-color: var(--border-color);
+  align-self: stretch;
+  margin: 0 4px;
+}
+
 /* --- STL Zoom Modal Styles --- */
-#stl-zoom-modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 10000;
-  justify-content: center;
-  align-items: center;
-}
-
-#stl-zoom-modal.active {
-  display: flex;
-}
-
 .stl-modal-viewer {
   flex: 1;
   width: 100%;
