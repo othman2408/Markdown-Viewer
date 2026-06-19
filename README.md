@@ -35,18 +35,6 @@
   - [System Architecture](#system-architecture)
     - [High-Level Architecture Diagram](#high-level-architecture-diagram)
     - [Core File Walkthrough](#core-file-walkthrough)
-  - [Under-the-Hood Subsystems Deep-Dive](#under-the-hood-subsystems-deep-dive)
-    - [1. Global State & Session Persistence](#1-global-state--session-persistence)
-    - [2. Document Tab & Session Lifecycle](#2-document-tab--session-lifecycle)
-    - [3. Tab Overflow & Navigation](#3-tab-overflow--navigation)
-    - [4. Responsive Pane Resizer & View Mode Layout Controller](#4-responsive-pane-resizer--view-mode-layout-controller)
-    - [5. Rich Text Editor History & Undo/Redo Engine](#5-rich-text-editor-history--undoredo-engine)
-    - [6. Dynamic Line-Number Gutter & Selection Highlighter](#6-dynamic-line-number-gutter--selection-highlighter)
-    - [7. Web Worker Segmented Markdown Compilation & Sanitization](#7-web-worker-segmented-markdown-compilation--sanitization)
-    - [8. Throttled Bidirectional Scroll Synchronization](#8-throttled-bidirectional-scroll-synchronization)
-    - [9. Interactive Mermaid Diagram & MathJax LaTeX Renderer](#9-interactive-mermaid-diagram--mathjax-latex-renderer)
-    - [10. Draggable Find/Replace Search & Diff Preview Engine](#10-draggable-findreplace-search--diff-preview-engine)
-    - [11. Layout-Aware PDF Export & URL Sharing Subsystem](#11-layout-aware-pdf-export--url-sharing-subsystem)
   - [Getting Started & Installation](#getting-started--installation)
   - [Usage Guide & Keyboard Shortcuts](#usage-guide--keyboard-shortcuts)
   - [Project Directory Structure](#project-directory-structure)
@@ -280,107 +268,20 @@ graph TD
 
 ---
 
-## Under-the-Hood Subsystems Deep-Dive
-
-Markdown Viewer employs custom-engineered client-side engines to deliver production-grade performance. Below is a detailed breakdown of the 11 core subsystems. For full source code listings and in-depth details of each implementation, please check the [Features Wiki](wiki/Features).
-
-### 1. Global State & Session Persistence
-The global state manages application-wide preferences (such as theme, text direction, active tab, and split-pane ratio). It uses an **in-memory shadowing cache** to skip repeated parsing/serialization cycles over the synchronous `localStorage` block (preventing blocking disk I/O). 
-
-Theme switches write the theme attribute directly to the HTML document root to avoid visual flash or full-page layout reflows during loading. CSS transitions are strictly scoped to color properties to prevent costly layout recalculations:
-
-$$\text{document.documentElement.setAttribute("data-theme", theme)}$$
-
-### 2. Document Tab & Session Lifecycle
-Document files reside in an isolated document tab array structure. Tab dragging reorders tabs using the HTML5 Drag and Drop API, updating the underlying index array. Dropdown menus are positioned relative to the tab's bounding rectangle via `getBoundingClientRect()`. Keyboard accessibility mappings (`ArrowRight`, `ArrowLeft`, `Home`, `End`, `Enter`, `Space`) coordinate focus states inside the tab-list.
-
-### 3. Tab Overflow & Navigation
-When open tabs exceed the horizontal viewport, the tab bar switches to an overflow state. Vertical mouse scroll wheel inputs are intercepted and translated to horizontal scroll coordinates to enable side-scrolling:
-
-$$\Delta X_{\text{scroll}} = \Delta Y_{\text{wheel}}$$
-
-Overflow check checks the inequality `scrollWidth > clientWidth` to toggle the visibility of click-to-scroll navigation arrows.
-
-### 4. Responsive Pane Resizer & View Mode Layout Controller
-The horizontal resizer calculates the percentage width of the editor relative to its parent container during window resizing:
-
-$$\text{Percent}_{\text{editor}} = \text{clamp}\left(\frac{X_{\text{mouse}} - X_{\text{container-left}}}{W_{\text{container}}} \times 100, 20\\%, 80\\%\right)$$
-
-The event loop tracks global resizing states on window mouse and touch move events, updating layout grid constraints via CSS properties.
-
-### 5. Rich Text Editor History & Undo/Redo Engine
-To maintain separate command histories when navigating multiple documents, the history manager maintains tab-specific undo/redo stacks. Edits are batched to avoid bloated memory allocations; updates are pushed to the history stack only when transition boundaries occur, word borders (spaces) are typed, or keyboard idle time exceeds 300ms.
-
-### 6. Dynamic Line-Number Gutter & Selection Highlighter
-To keep line numbers in the gutter aligned with wrapped text in the transparent editor area, the gutter employs font-size wrap calculations:
-
-$$\text{LineHeight} = \text{fontSize} \times 1.5$$
-
-$$\text{wrapCount} = \text{Math.ceil}\left(\frac{\text{TextLength} \times \text{CharWidth}}{\text{EditorWidth}}\right)$$
-
-DOM gutter paints are scheduled via `requestAnimationFrame` to prevent layout thrashing. A background overlay matches the text scroll coordinates to highlight find-and-replace queries.
-
-### 7. Web Worker Segmented Markdown Compilation & Sanitization
-Document parsing is offloaded to `preview-worker.js` on a background thread. Before offloading, the system runs safety checks to ensure the document contains no global definitions or complex footnotes. If safe, the worker tokenizes the text into blocks on double-newlines, calculates 32-bit FNV-1a hashes for each segment:
-
-$$H_i = (H_{i-1} \oplus d_i) \times p$$
-
-where $p = 16777619$ (FNV prime) and $H_0 = 2166136261$ (offset basis). Only modified blocks are re-parsed, saving substantial CPU cycles.
-
-### 8. Throttled Bidirectional Scroll Synchronization
-Proportional scrolling coordinates positions between the text editor and preview pane:
-
-$$Y_{\text{target}} = \frac{Y_{\text{source}}}{H_{\text{source-scroll}} - H_{\text{source-client}}} \times (H_{\text{target-scroll}} - H_{\text{target-client}})$$
-
-Scrolling feedback loops are prevented using state locks and decoupled animation schedules using `requestAnimationFrame` with a 50ms release timeout.
-
-### 9. Interactive Mermaid Diagram & MathJax LaTeX Renderer
-MathJax typesets equations asynchronously. A cleanup script strips MathJax's default assistive markup elements to prevent duplicate accessibility readings. Rendered SVG diagrams are manipulated in zoom modals using transform translation matrices:
-
-$$\mathbf{T}_{\text{svg}} = \text{translate}(X_{\text{pan}}, Y_{\text{pan}}) \times \text{scale}(S_{\text{zoom}})$$
-
-### 10. Draggable Find/Replace Search & Diff Preview Engine
-Regular expression searches are parsed inside try-catch validation locks to avoid breaking runtime operations. The floating panel coordinates are clamped inside the window bounds:
-
-$$X_{\text{clamp}} = \max(0, \min(X_{\text{mouse}}, W_{\text{window}} - W_{\text{panel}}))$$
-
-$$Y_{\text{clamp}} = \max(0, \min(Y_{\text{mouse}}, H_{\text{window}} - H_{\text{panel}}))$$
-
-A diff comparison engine computes modified line buffers to display a red/green visual preview before applying replacements.
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/b4314cf0-8059-40f1-a445-9d24f00a23b0" alt="Markdown Viewer - Draggable find and replace panel with scoped search filters for Mermaid diagrams, LaTeX equations, and raw text diff preview" width="90%" />
-</p>
-
-### 11. Layout-Aware PDF Export & URL Sharing Subsystem
-PDF generation uses a multi-pass stabilization cascade loop (up to 10 iterations) to align layout components:
-- Inline SVGs are converted to Base64 PNGs.
-- Header elements near borders are shifted down via `.pdf-page-break-spacer` to prevent orphan tags.
-- Tables are dynamically split and `<thead>` elements are re-injected onto split tables.
-- Text element slicing is prevented by shifting lines downward past page cuts:
-
-$$\text{Shift} = (Y_{\text{boundary}} - Y_{\text{line-top}}) + 4\text{px}$$
-
-Documents are shared database-free via zlib DEFLATE compressed Base64 hashes.
-
----
-
 ## Getting Started & Installation
 
-### Prerequisites
-
-| Path | Dependency | Version | Install Link |
-| :--- | :--- | :--- | :--- |
-| **All Paths** | [Git](https://git-scm.com/) | `>= 2.24` | [Download](https://git-scm.com/downloads) |
-| **Docker Path** | [Docker Desktop](https://www.docker.com/) | `>= 20.10` | [Download](https://www.docker.com/products/docker-desktop/) |
-| **Local Path** | [Node.js](https://nodejs.org/) | `>= 18.0.0` | [Download](https://nodejs.org/en/download/) |
+### 💻 Option 1: Quick Local Run (No Installation/No Server)
+Because Markdown Viewer runs completely client-side utilizing standard HTML, CSS, and JavaScript, you can run it instantly directly from your filesystem:
+1. Clone or download the repository to your local machine.
+2. Open the repository folder in your system **File Manager**.
+3. Simply double-click **`index.html`** to open the editor directly in your default web browser.
 
 ---
 
-### 🐳 Option 1: Docker (Pre-built Quick Start)
+### 🐳 Option 2: Docker Container Deployment
+If you prefer running the application inside a containerized environment, choose one of the following methods:
 
-This is the fastest way to run the application. No local compiler or runtimes are required:
-
+**Pre-built Docker Image (GHCR):**
 ```bash
 docker run -d \
   --name markdown-viewer \
@@ -388,63 +289,41 @@ docker run -d \
   --restart unless-stopped \
   ghcr.io/thisis-developer/markdown-viewer:latest
 ```
+Open **[http://localhost:8080](http://localhost:8080)** in your browser.
 
+**Local Docker Compose Build:**
+```bash
+git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
+cd Markdown-Viewer
+docker compose up -d
+```
 Open **[http://localhost:8080](http://localhost:8080)** in your browser.
 
 ---
 
-### 🛠️ Option 2: Local & Alternative Setup Paths
+### 🖥️ Option 3: Building the Desktop Application
+You can compile and run a native standalone desktop app (Windows, macOS, or Linux) locally from source:
+1. Clone the repository and navigate into the `desktop-app/` directory:
+   ```bash
+   cd desktop-app
+   ```
+2. Open the `desktop-app` directory in your system **File Manager**.
+3. Open a command prompt/terminal inside this folder and run the installation and build commands:
+   ```powershell
+   # Install node dependencies and download Neutralino binaries
+   npm install
+   node setup-binaries.js
 
-<details>
-  <summary><b>🛠️ View Docker Compose & Local Run Instructions</b></summary>
-  <br />
+   # Synchronize resources with the main web app
+   node prepare.js
 
-  #### 📦 Docker Compose (Local Build)
-  Clone the repository and spin up the container using Compose:
-  ```bash
-  git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
-  cd Markdown-Viewer
-  docker compose up -d
-  ```
-  The application will start on **[http://localhost:8080](http://localhost:8080)**.
+   # Build/compile the application for Windows and other systems
+   npm run build
+   # Or build a standalone portable executable
+   npm run build:portable
+   ```
 
-  #### 💻 Local Static Web Server
-  Because the code runs completely client-side, you can host the root directory using any static web server:
-  ```bash
-  # Serve with Python (built-in)
-  python3 -m http.server 8080
-
-  # Serve with Node.js serve
-  npx serve . -p 8080
-  ```
-
-  #### 🖥️ Desktop Application Build
-  Pre-built desktop binaries are available on the [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) page.
-
-  To build the desktop application locally from source:
-  1. Navigate to the `desktop-app/` directory:
-     ```bash
-     cd desktop-app
-     ```
-  2. Install dependencies and download Neutralino binaries:
-     ```bash
-     npm install
-     node setup-binaries.js
-     ```
-  3. Synchronize files with the main web app:
-     ```bash
-     node prepare.js
-     ```
-  4. Compile the application:
-     ```bash
-     # Built embedded version
-     npm run build
-     # Or built portable version
-     npm run build:portable
-     ```
-
-  For detailed desktop settings, see the [Desktop App Wiki](wiki/Desktop-App).
-</details>
+*Note: You can also download prebuilt standalone binaries directly from the [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) page without compiling it yourself.*
 
 ---
 
