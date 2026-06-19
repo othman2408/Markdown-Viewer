@@ -45,6 +45,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Resolve local paths for desktop (Neutralinojs) offline support
   if (typeof Neutralino !== 'undefined') {
+    CDN.mermaid = '/libs/mermaid.min.js';
+    CDN.mathjax = '/libs/tex-mml-chtml.min.js';
+    CDN.jspdf = '/libs/jspdf.umd.min.js';
+    CDN.html2canvas = '/libs/html2canvas.min.js';
+    CDN.pako = '/libs/pako.min.js';
+    CDN.joypixels = '/libs/joypixels.min.js';
+    CDN.joypixels_css = '/libs/joypixels.min.css';
     CDN.abcjs = '/libs/abcjs-basic-min.js';
     CDN.leaflet_css = '/libs/leaflet.css';
     CDN.leaflet_js = '/libs/leaflet.js';
