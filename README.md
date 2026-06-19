@@ -1,38 +1,22 @@
 <div align="center">
-<h1>Markdown Viewer</h1>
-  
-  <img src="assets/icon.jpg" alt="Markdown Viewer Logo" width="140" />
-</div>
 
-<div align="center">
-  <p><strong>A Markdown Editor That Lives in Your Browser, Desktop, and a Single URL.</strong></p>
-  <p>Fast GitHub-style Markdown editing with live preview, diagrams, LaTeX, syntax highlighting, PDF export, and multi-tab support across web, desktop, and Docker.</p>
+  <img src="assets/icon.jpg" alt="Markdown Viewer Logo" width="100" />
 
-  <p>
-    <a href="https://markdownviewer.pages.dev/" target="_blank" rel="noopener noreferrer"><strong>Live Production Demo</strong></a> ·
-    <a href="wiki/Home" rel="noopener noreferrer">Documentation Wiki</a> ·
-    <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/issues" target="_blank" rel="noopener noreferrer">Issue Tracker</a> ·
-    <a href="https://github.com/ThisIs-Developer/Markdown-Viewer/releases" target="_blank" rel="noopener noreferrer">Releases</a>
-  </p>
+  <h1>Markdown Viewer</h1>
 
-  <p>
-    <img alt="License" src="https://img.shields.io/github/license/ThisIs-Developer/Markdown-Viewer?color=2ea043" />
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/ThisIs-Developer/Markdown-Viewer" />
-    <img alt="Last commit" src="https://img.shields.io/github/last-commit/ThisIs-Developer/Markdown-Viewer" />
-    <img alt="Stars" src="https://img.shields.io/github/stars/ThisIs-Developer/Markdown-Viewer?style=flat" />
-  </p>
+  **A Markdown Editor That Lives in Your Browser, Desktop, and a Single URL.**
 
-  <p>
-    <a href="https://codewiki.google/github.com/thisis-developer/markdown-viewer" target="_blank" rel="noopener noreferrer">
-      <img src="https://img.shields.io/badge/CodeWiki-Explore-4285F4?logo=wikipedia&logoColor=white&style=flat" alt="CodeWiki" />
-    </a>
-    <a href="https://deepwiki.com/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
-      <img src="https://deepwiki.com/badge.svg" alt="DeepWiki" />
-    </a>
-    <a href="https://oosmetrics.com/repo/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
-      <img src="https://api.oosmetrics.com/api/v1/badge/achievement/b13c27be-447e-489d-a04d-55f7ccaf9175.svg" alt="OOSMetrics" />
-    </a>
-  </p>
+  *Fast GitHub-style Markdown editing with live preview, diagrams, LaTeX, syntax highlighting, PDF export, and multi-tab support across web, desktop, and Docker.*
+
+  [![License](https://img.shields.io/github/license/ThisIs-Developer/Markdown-Viewer?style=flat-square&color=2ea043)](https://github.com/ThisIs-Developer/Markdown-Viewer/blob/main/LICENSE)
+  [![Latest Release](https://img.shields.io/github/v/release/ThisIs-Developer/Markdown-Viewer?style=flat-square&color=3178C6)](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
+  [![Last Commit](https://img.shields.io/github/last-commit/ThisIs-Developer/Markdown-Viewer?style=flat-square)](https://github.com/ThisIs-Developer/Markdown-Viewer/commits/main)
+  [![Stars](https://img.shields.io/github/stars/ThisIs-Developer/Markdown-Viewer?style=flat-square&color=dfb317)](https://github.com/ThisIs-Developer/Markdown-Viewer/stargazers)
+
+  🌐 **English** • <a href="wiki/Localization#zh-cn">简体中文</a> • <a href="wiki/Localization#ja">日本語</a> • <a href="wiki/Localization#ko">한국어</a> • <a href="wiki/Localization#pt-br">Português (Brasil)</a>
+
+  [Live Production Demo](https://markdownviewer.pages.dev/) • [Documentation Wiki](wiki/Home) • [Issue Tracker](https://github.com/ThisIs-Developer/Markdown-Viewer/issues) • [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
+
 </div>
 
 <p align="center">
@@ -42,35 +26,38 @@
 
 ## Table of Contents
 
-- [About the Project](#about-the-project)
-- [Key Features](#key-features)
-- [System Architecture](#system-architecture)
-  - [High-Level Architecture Diagram](#high-level-architecture-diagram)
-  - [Core File Walkthrough](#core-file-walkthrough)
-- [Under-the-Hood Subsystems Deep-Dive](#under-the-hood-subsystems-deep-dive)
-  - [1. Global State & Session Persistence](#1-global-state--session-persistence)
-  - [2. Document Tab & Session Lifecycle](#2-document-tab--session-lifecycle)
-  - [3. Tab Overflow & Navigation](#3-tab-overflow--navigation)
-  - [4. Responsive Pane Resizer & View Mode Layout Controller](#4-responsive-pane-resizer--view-mode-layout-controller)
-  - [5. Rich Text Editor History & Undo/Redo Engine](#5-rich-text-editor-history--undoredo-engine)
-  - [6. Dynamic Line-Number Gutter & Selection Highlighter](#6-dynamic-line-number-gutter--selection-highlighter)
-  - [7. Web Worker Segmented Markdown Compilation & Sanitization](#7-web-worker-segmented-markdown-compilation--sanitization)
-  - [8. Throttled Bidirectional Scroll Synchronization](#8-throttled-bidirectional-scroll-synchronization)
-  - [9. Interactive Mermaid Diagram & MathJax LaTeX Renderer](#9-interactive-mermaid-diagram--mathjax-latex-renderer)
-  - [10. Draggable Find/Replace Search & Diff Preview Engine](#10-draggable-findreplace-search--diff-preview-engine)
-  - [11. Layout-Aware PDF Export & URL Sharing Subsystem](#11-layout-aware-pdf-export--url-sharing-subsystem)
-- [Getting Started & Installation](#getting-started--installation)
-  - [Option 1: Docker (Pre-built Image)](#option-1-docker-pre-built-image)
-  - [Option 2: Docker Compose (Local Build)](#option-2-docker-compose-local-build)
-  - [Option 3: Local Static Web Server](#option-3-local-static-web-server)
-  - [Option 4: Desktop Application](#option-4-desktop-application)
-- [Usage Guide & Keyboard Shortcuts](#usage-guide--keyboard-shortcuts)
-- [Project Directory Structure](#project-directory-structure)
-- [Built With (Technology Stack)](#built-with-technology-stack)
-- [Contributing & Code Quality](#contributing--code-quality)
-- [Showcase & Community Projects](#showcase--community-projects)
-- [License](#license)
-- [Contact & Support](#contact--support)
+<details>
+  <summary>📂 <b>Table of Contents</b> (Click to expand)</summary>
+  <br />
+
+  - [About the Project](#about-the-project)
+  - [Key Features](#key-features)
+  - [System Architecture](#system-architecture)
+    - [High-Level Architecture Diagram](#high-level-architecture-diagram)
+    - [Core File Walkthrough](#core-file-walkthrough)
+  - [Under-the-Hood Subsystems Deep-Dive](#under-the-hood-subsystems-deep-dive)
+    - [1. Global State & Session Persistence](#1-global-state--session-persistence)
+    - [2. Document Tab & Session Lifecycle](#2-document-tab--session-lifecycle)
+    - [3. Tab Overflow & Navigation](#3-tab-overflow--navigation)
+    - [4. Responsive Pane Resizer & View Mode Layout Controller](#4-responsive-pane-resizer--view-mode-layout-controller)
+    - [5. Rich Text Editor History & Undo/Redo Engine](#5-rich-text-editor-history--undoredo-engine)
+    - [6. Dynamic Line-Number Gutter & Selection Highlighter](#6-dynamic-line-number-gutter--selection-highlighter)
+    - [7. Web Worker Segmented Markdown Compilation & Sanitization](#7-web-worker-segmented-markdown-compilation--sanitization)
+    - [8. Throttled Bidirectional Scroll Synchronization](#8-throttled-bidirectional-scroll-synchronization)
+    - [9. Interactive Mermaid Diagram & MathJax LaTeX Renderer](#9-interactive-mermaid-diagram--mathjax-latex-renderer)
+    - [10. Draggable Find/Replace Search & Diff Preview Engine](#10-draggable-findreplace-search--diff-preview-engine)
+    - [11. Layout-Aware PDF Export & URL Sharing Subsystem](#11-layout-aware-pdf-export--url-sharing-subsystem)
+  - [Getting Started & Installation](#getting-started--installation)
+  - [Usage Guide & Keyboard Shortcuts](#usage-guide--keyboard-shortcuts)
+  - [Project Directory Structure](#project-directory-structure)
+  - [Built With (Technology Stack)](#built-with-technology-stack)
+  - [Contributing & Code Quality](#contributing--code-quality)
+  - [Showcase & Community Projects](#showcase--community-projects)
+  - [Contributors](#contributors)
+  - [📈 Development Journey](#-development-journey)
+  - [License](#license)
+  - [Contact & Support](#contact--support)
+</details>
 
 ---
 
@@ -301,11 +288,21 @@ Documents are shared database-free via zlib DEFLATE compressed Base64 hashes.
 
 ## Getting Started & Installation
 
-### Option 1: Docker (Pre-built Image)
-Deploy the pre-compiled image hosted on the GitHub Container Registry (GHCR):
+### Prerequisites
+
+| Path | Dependency | Version | Install Link |
+| :--- | :--- | :--- | :--- |
+| **All Paths** | [Git](https://git-scm.com/) | `>= 2.24` | [Download](https://git-scm.com/downloads) |
+| **Docker Path** | [Docker Desktop](https://www.docker.com/) | `>= 20.10` | [Download](https://www.docker.com/products/docker-desktop/) |
+| **Local Path** | [Node.js](https://nodejs.org/) | `>= 18.0.0` | [Download](https://nodejs.org/en/download/) |
+
+---
+
+### 🐳 Option 1: Docker (Pre-built Quick Start)
+
+This is the fastest way to run the application. No local compiler or runtimes are required:
 
 ```bash
-docker pull ghcr.io/thisis-developer/markdown-viewer:sha-15eafb0
 docker run -d \
   --name markdown-viewer \
   -p 8080:80 \
@@ -313,48 +310,62 @@ docker run -d \
   ghcr.io/thisis-developer/markdown-viewer:latest
 ```
 
-Open **http://localhost:8080** in your browser.
+Open **[http://localhost:8080](http://localhost:8080)** in your browser.
 
-### Option 2: Docker Compose (Local Build)
-Clone the repository and spin up the container using Compose:
+---
 
-```bash
-git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
-cd Markdown-Viewer
-docker compose up -d
-```
-The application will start on **http://localhost:8080**.
+### 🛠️ Option 2: Local & Alternative Setup Paths
 
-### Option 3: Local Static Web Server
-Because the code runs completely client-side, you can host the root directory using any static web server:
+<details>
+  <summary><b>🛠️ View Docker Compose & Local Run Instructions</b></summary>
+  <br />
 
-```bash
-# Clone the repository
-git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
-cd Markdown-Viewer
+  #### 📦 Docker Compose (Local Build)
+  Clone the repository and spin up the container using Compose:
+  ```bash
+  git clone https://github.com/ThisIs-Developer/Markdown-Viewer.git
+  cd Markdown-Viewer
+  docker compose up -d
+  ```
+  The application will start on **[http://localhost:8080](http://localhost:8080)**.
 
-# Open VSCode IDE
-open index.html
-and run on localhost http://127.0.0.1:5500 in your browser.
+  #### 💻 Local Static Web Server
+  Because the code runs completely client-side, you can host the root directory using any static web server:
+  ```bash
+  # Serve with Python (built-in)
+  python3 -m http.server 8080
 
-# OR Serve with Python (built-in, no dependencies)
-python3 -m http.server 8080
+  # Serve with Node.js serve
+  npx serve . -p 8080
+  ```
 
-# Serve with Node.js serve
-npx serve . -p 8080
-```
-Open **http://localhost:8080**.
+  #### 🖥️ Desktop Application Build
+  Pre-built desktop binaries are available on the [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) page.
 
-### Option 4: Desktop Application
-Pre-built desktop binaries are available on the [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases) page for Windows, Linux, and macOS.
+  To build the desktop application locally from source:
+  1. Navigate to the `desktop-app/` directory:
+     ```bash
+     cd desktop-app
+     ```
+  2. Install dependencies and download Neutralino binaries:
+     ```bash
+     npm install
+     node setup-binaries.js
+     ```
+  3. Synchronize files with the main web app:
+     ```bash
+     node prepare.js
+     ```
+  4. Compile the application:
+     ```bash
+     # Built embedded version
+     npm run build
+     # Or built portable version
+     npm run build:portable
+     ```
 
-To build the desktop application locally from source:
-1. Navigate to the `desktop-app/` directory.
-2. Run `npm install` followed by `node setup-binaries.js` to download Neutralino binaries.
-3. Synchronize files with `node prepare.js`.
-4. Compile using `npm run build` (for Windows embedded) or `npm run build:portable`.
-
-For detailed desktop app settings, see the [Desktop App Wiki](wiki/Desktop-App).
+  For detailed desktop settings, see the [Desktop App Wiki](wiki/Desktop-App).
+</details>
 
 ---
 
@@ -410,20 +421,28 @@ Markdown-Viewer/
 
 ## Built With (Technology Stack)
 
+<p align="left">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/HTML"><img src="https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white" alt="HTML5" /></a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/CSS"><img src="https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white" alt="CSS3" /></a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"><img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JavaScript" /></a>
+  <a href="https://getbootstrap.com"><img src="https://img.shields.io/badge/Bootstrap-7952B3?style=flat-square&logo=bootstrap&logoColor=white" alt="Bootstrap" /></a>
+  <a href="https://neutralino.js.org"><img src="https://img.shields.io/badge/NeutralinoJS-FFA500?style=flat-square&logo=neutralinojs&logoColor=white" alt="NeutralinoJS" /></a>
+</p>
+
 | Library Name | Version | Role in App | Loading Method |
 | :--- | :--- | :--- | :--- |
-| **Marked.js** | 9.1.6 | Parses markdown content to HTML elements. | Defer (Upfront) |
-| **Highlight.js** | 11.9.0 | Adds syntax highlighting to code sections. | Defer (Upfront) |
-| **DOMPurify** | 3.0.9 | Sanitizes HTML outputs. | Defer (Upfront) |
-| **FileSaver.js** | 2.0.5 | Manages file saving on the client side. | Defer (Upfront) |
-| **js-yaml** | 4.1.0 | Parses YAML frontmatter headers. | Defer (Upfront) |
-| **Bootstrap** | 5.3.2 | Provides component structures and modal panels. | Upfront Script |
-| **Mermaid.js** | 11.15.0 | Renders diagrams and charts. | Lazy-loaded on diagram find |
-| **MathJax** | 3.2.2 | Renders math formulas. | Lazy-loaded on math find |
-| **jsPDF** | 2.5.1 | Generates PDF documents. | Lazy-loaded on PDF request |
-| **html2canvas** | 1.4.1 | Captures HTML layouts as canvas objects. | Lazy-loaded on PDF request |
-| **pako.js** | 2.1.0 | Compresses shared links. | Lazy-loaded on share request |
-| **JoyPixels** | 9.0.1 | Renders emoji sets. | Lazy-loaded on emoji select |
+| **[Marked.js](https://marked.js.org/)** | 9.1.6 | Parses markdown content to HTML elements. | Defer (Upfront) |
+| **[Highlight.js](https://highlightjs.org/)** | 11.9.0 | Adds syntax highlighting to code sections. | Defer (Upfront) |
+| **[DOMPurify](https://github.com/cure53/DOMPurify)** | 3.0.9 | Sanitizes HTML outputs against XSS. | Defer (Upfront) |
+| **[FileSaver.js](https://github.com/eligrey/FileSaver.js/)** | 2.0.5 | Manages file saving on the client side. | Defer (Upfront) |
+| **[js-yaml](https://github.com/nodeca/js-yaml)** | 4.1.0 | Parses YAML frontmatter headers. | Defer (Upfront) |
+| **[Bootstrap](https://getbootstrap.com)** | 5.3.2 | Provides component structures and modal panels. | Upfront Script |
+| **[Mermaid.js](https://mermaid.js.org/)** | 11.15.0 | Renders interactive flowcharts and diagrams. | Lazy-loaded on diagram find |
+| **[MathJax](https://www.mathjax.org/)** | 3.2.2 | Renders mathematical LaTeX expressions. | Lazy-loaded on math find |
+| **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | Generates paginated PDF documents client-side. | Lazy-loaded on PDF request |
+| **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | Captures HTML layouts as canvas objects. | Lazy-loaded on PDF request |
+| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | Handles DEFLATE compression for share links. | Lazy-loaded on share request |
+| **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | Renders standard emoji sets. | Lazy-loaded on emoji select |
 
 ---
 
