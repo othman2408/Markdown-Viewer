@@ -13,6 +13,18 @@
   [![Last Commit](https://img.shields.io/github/last-commit/ThisIs-Developer/Markdown-Viewer?style=flat-square)](https://github.com/ThisIs-Developer/Markdown-Viewer/commits/main)
   [![Stars](https://img.shields.io/github/stars/ThisIs-Developer/Markdown-Viewer?style=flat-square&color=dfb317)](https://github.com/ThisIs-Developer/Markdown-Viewer/stargazers)
 
+  <p>
+    <a href="https://codewiki.google/github.com/thisis-developer/markdown-viewer" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/badge/CodeWiki-Explore-4285F4?logo=wikipedia&logoColor=white&style=flat" alt="CodeWiki" />
+    </a>
+    <a href="https://deepwiki.com/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
+      <img src="https://deepwiki.com/badge.svg" alt="DeepWiki" />
+    </a>
+    <a href="https://oosmetrics.com/repo/ThisIs-Developer/Markdown-Viewer" target="_blank" rel="noopener noreferrer">
+      <img src="https://api.oosmetrics.com/api/v1/badge/achievement/b13c27be-447e-489d-a04d-55f7ccaf9175.svg" alt="OOSMetrics" />
+    </a>
+  </p>
+
   🌐 **English** • <a href="wiki/Localization#zh-cn">简体中文</a> • <a href="wiki/Localization#ja">日本語</a> • <a href="wiki/Localization#ko">한국어</a> • <a href="wiki/Localization#pt-br">Português (Brasil)</a>
 
   [Live Production Demo](https://markdownviewer.pages.dev/) • [Documentation Wiki](wiki/Home) • [Issue Tracker](https://github.com/ThisIs-Developer/Markdown-Viewer/issues) • [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
@@ -401,12 +413,18 @@ Markdown-Viewer/
 | **[FileSaver.js](https://github.com/eligrey/FileSaver.js/)** | 2.0.5 | Manages file saving on the client side. | Defer (Upfront) |
 | **[js-yaml](https://github.com/nodeca/js-yaml)** | 4.1.0 | Parses YAML frontmatter headers. | Defer (Upfront) |
 | **[Bootstrap](https://getbootstrap.com)** | 5.3.2 | Provides component structures and modal panels. | Upfront Script |
+| **[Bootstrap Icons](https://icons.getbootstrap.com/)** | 1.11.3 | Provides responsive vector symbols across formatting tools and headers. | Preloaded (Upfront) |
+| **[GitHub Markdown CSS](https://github.com/sindresorhus/github-markdown-css)** | 5.3.0 | Matches GitHub's exact light and dark typography rendering styles. | Upfront / Exports |
 | **[Mermaid.js](https://mermaid.js.org/)** | 11.15.0 | Renders interactive flowcharts and diagrams. | Lazy-loaded on diagram find |
 | **[MathJax](https://www.mathjax.org/)** | 3.2.2 | Renders mathematical LaTeX expressions. | Lazy-loaded on math find |
 | **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | Generates paginated PDF documents client-side. | Lazy-loaded on PDF request |
 | **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | Captures HTML layouts as canvas objects. | Lazy-loaded on PDF request |
 | **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | Handles DEFLATE compression for share links. | Lazy-loaded on share request |
 | **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | Renders standard emoji sets. | Lazy-loaded on emoji select |
+| **[Leaflet](https://leafletjs.com/)** | 1.9.4 | Powers interactive GeoJSON and TopoJSON map overlays. | Lazy-loaded on map detection |
+| **[TopoJSON](https://github.com/topojson/topojson)** | 3.0.2 | Parses TopoJSON structures into standard GeoJSON coordinates. | Lazy-loaded on topojson detection |
+| **[Three.js](https://threejs.org/)** | r128 | Renders STL 3D models with canvas viewports. | Lazy-loaded on STL file detection |
+| **[ABC Music Notation (abcjs)](https://www.abcjs.net/)** | 6.5.2 | Renders sheet music notation from raw text definitions. | Lazy-loaded on abc music detection |
 
 ---
 
