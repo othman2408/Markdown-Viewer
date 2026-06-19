@@ -215,8 +215,10 @@ graph TD
         CSS["styles.css<br>(Custom Themes & Reset)"]
         Script["script.js<br>(UI Orchestration)"]
         Editor["Markdown Editor<br>(Textarea + Gutter)"]
-        Preview["Preview Pane<br>(Isolated Render Area)"]
+        Preview["Preview Pane<br>(Direct DOM Render Area)"]
         Modal["Mermaid Modal<br>(Zoom & Drag-to-Pan)"]
+        i18n["i18n Localization Engine<br>(Dictionary translation)"]
+        DOMPurify["DOMPurify.js<br>(Strict XSS Sanitizer)"]
     end
 
     %% Background Web Worker Group
@@ -228,16 +230,21 @@ graph TD
 
     %% Storage Group
     subgraph Storage ["Local Storage & Network Proxy"]
-        LS["localStorage<br>(Tabs, Settings, Session)"]
+        LS["localStorage<br>(Tabs, Settings, Shadow Cache)"]
         Cache["Browser Cache<br>(Service Worker sw.js)"]
+        LocalAssets["Local Static Assets<br>(Icons, sample.md, manifest)"]
     end
 
     %% Third-Party Utilities
-    subgraph CDNs ["Third-Party CDN Libraries (Lazy Loaded)"]
+    subgraph CDNs ["Third-Party CDN Libraries (Lazy Loaded / Local Offline Mapped)"]
         MathJax["MathJax.js<br>(LaTeX Math)"]
         Mermaid["Mermaid.js<br>(Diagrams)"]
-        PDF["jsPDF & html2canvas<br>(PDF Export Pipeline)"]
-        Pako["Pako.js<br>(zlib share encoder)"]
+        PDF["jsPDF & html2canvas<br>(PDF/PNG Export)"]
+        Pako["Pako.js<br>(DEFLATE share encoder)"]
+        JoyPixels["JoyPixels.js/css<br>(Emoji Tool)"]
+        Leaflet["Leaflet.js/css & TopoJSON<br>(Interactive Maps)"]
+        ThreeJS["Three.js, loaders & controls<br>(3D STL Viewer)"]
+        Abcjs["abcjs-basic.js<br>(Sheet Music)"]
     end
 
     %% Native Desktop Layer
@@ -251,28 +258,46 @@ graph TD
     PWorker -- "3. Load Scripts" --> MarkedLib
     PWorker -- "3. Load Scripts" --> HljsLib
     PWorker -- "4. Returns Compiled HTML Blocks & Hashes" --> Script
-    Script -- "5. Incremental Patching (replaceWith)" --> Preview
-    Script -- "6. Debounced State Auto-Save" --> LS
+    Script -- "5. Sanitize HTML segments" --> DOMPurify
+    DOMPurify -- "6. Incremental Patching / Full Fallback" --> Preview
+    Script -- "7. Debounced State Auto-Save" --> LS
+    LS -. "Shadow Cache Sync" .-> Script
+    
+    %% Scroll sync loop
+    Editor -- "Proportional Scroll Sync (RAF)" --> Preview
+    Preview -- "Proportional Scroll Sync (RAF)" --> Editor
     
     %% Dynamic Loading triggers
-    Script -- "Lazy Load (Math strings detected)" --> MathJax
-    Script -- "Lazy Load (Mermaid block detected)" --> Mermaid
-    Script -- "Lazy Load (On PDF Export click)" --> PDF
-    Script -- "Lazy Load (On Share click)" --> Pako
+    Script -- "Lazy Load (Math string detected)" --> MathJax
+    Script -- "Lazy Load (Mermaid class detected)" --> Mermaid
+    Script -- "Lazy Load (On Export click)" --> PDF
+    Script -- "Lazy Load (On Share click/hash load)" --> Pako
+    Script -- "Lazy Load (Colons detected)" --> JoyPixels
+    Script -- "Lazy Load (geo/topojson map class)" --> Leaflet
+    Script -- "Lazy Load (stl-viewer class)" --> ThreeJS
+    Script -- "Lazy Load (abc music class)" --> Abcjs
     
     %% Downstream Rendering outputs
     MathJax -- "Inject Math formulas" --> Preview
     Mermaid -- "Draw SVGs + Toolbars" --> Preview
-    Preview -- "Double click diagram" --> Modal
-    PDF -- "Capture sandboxed canvas" --> Script
+    Preview -- "Click toolbar Zoom button" --> Modal
+    PDF -- "Capture sandboxed canvas (useCORS)" --> Script
+    JoyPixels -- "Render emojis" --> Preview
+    Leaflet -- "Render interactive maps" --> Preview
+    ThreeJS -- "Render 3D STL model" --> Preview
+    Abcjs -- "Render sheet music" --> Preview
     
     %% Network Proxy Caching
     Cache -. "Network-First (App Assets)" .-> HTML
     Cache -. "Network-First (App Assets)" .-> Script
     Cache -. "Network-First (App Assets)" .-> CSS
-    Cache -. "Cache-First (5.4MB bundles)" .-> CDNs
+    Cache -. "Network-First (App Assets)" .-> PWorker
+    Cache -. "Network-First (App Assets)" .-> sw.js
+    Cache -. "Stale-While-Revalidate" .-> LocalAssets
+    Cache -. "Cache-First (Lazy-loaded assets)" .-> CDNs
     
     %% Desktop Logic
+    Script -- "Redirect CDNs to /libs/ offline copies" --> Script
     Script -- "Access OS API if wrapped" --> Neu
 ```
 
@@ -357,17 +382,15 @@ You can compile and run a native standalone desktop app (Windows, macOS, or Linu
 | Action | Windows / Linux | macOS |
 | :--- | :--- | :--- |
 | **Export raw Markdown** | `Ctrl + S` | `⌘ + S` |
-| **Copy Rich HTML** | `Ctrl + C` (with no text selected) | `⌘ + C` (with no text selected) |
-| **Toggle Scroll Sync** | `Ctrl + Shift + S` | `⌘ + Shift + S` |
-| **Open a New Tab** | `Ctrl + T` | `⌘ + T` |
-| **Close the Active Tab** | `Ctrl + W` | `⌘ + W` |
-| **Open Find & Replace** | `Ctrl + F` | `⌘ + F` |
-| **Undo Last Edit** | `Ctrl + Z` | `⌘ + Z` |
+| **Copy plain text Markdown** | `Ctrl + C` (with no text selected) | `⌘ + C` (with no text selected) |
+| **Toggle Scroll Sync** | `Ctrl + Shift + S` (in Split view) | `⌘ + Shift + S` (in Split view) |
+| **Open a New Tab** | `Ctrl + T` (desktop) / `Alt + Shift + T` (web) | `⌘ + T` (desktop) / `⌥ + ⇧ + T` (web) |
+| **Close the Active Tab** | `Ctrl + W` (desktop) / `Alt + Shift + W` (web) | `⌘ + W` (desktop) / `⌥ + ⇧ + W` (web) |
+| **Open Find & Replace** | `Ctrl + F` / `Ctrl + H` (replace) | `⌘ + F` / `⌘ + H` (replace) |
+| **Undo Last Edit** | `Ctrl + Z` (when editor active) | `⌘ + Z` (when editor active) |
 | **Redo Last Edit** | `Ctrl + Shift + Z` / `Ctrl + Y` | `⌘ + Shift + Z` / `⌘ + Y` |
-| **Insert Code Block** | `Ctrl + Shift + C` | `⌘ + Shift + C` |
-| **Toggle Fullscreen Editor** | `F11` | `F11` |
-| **Insert 2-space Indent** | `Tab` | `Tab` |
-| **Outdent Line** | `Shift + Tab` | `Shift + Tab` |
+| **Insert 2-space Indent** | `Tab` (when editor active) | `Tab` (when editor active) |
+
 
 ---
 

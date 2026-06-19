@@ -243,6 +243,41 @@ async function prepareOfflineDependencies() {
       url: "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
       dest: path.join(LIBS_DIR, "OrbitControls.js"),
       hash: null
+    },
+    {
+      url: "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.min.js",
+      dest: path.join(LIBS_DIR, "mermaid.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js",
+      dest: path.join(LIBS_DIR, "tex-mml-chtml.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+      dest: path.join(LIBS_DIR, "jspdf.umd.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      dest: path.join(LIBS_DIR, "html2canvas.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js",
+      dest: path.join(LIBS_DIR, "pako.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/lib/js/joypixels.min.js",
+      dest: path.join(LIBS_DIR, "joypixels.min.js"),
+      hash: null
+    },
+    {
+      url: "https://cdn.jsdelivr.net/npm/emoji-toolkit@9.0.1/extras/css/joypixels.min.css",
+      dest: path.join(LIBS_DIR, "joypixels.min.css"),
+      hash: null
     }
   ];
 
