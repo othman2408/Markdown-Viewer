@@ -84,30 +84,48 @@ Designed with privacy and performance at its core, the application performs all 
 
 ## Key Features
 
-*   **🖊️ Decoupled Split-Screen Editing:** Type Markdown in a customized text editor with a dynamic line-number gutter and see updates render instantly.
-*   **📐 LaTeX Math Notation:** Full integration with MathJax for typesetting inline and block mathematical formulas.
+*   **🖊️ Decoupled Split-Screen Editing:** Type Markdown in a custom editor with wrap-aware line numbers and view updates instantly.
+*   **📐 LaTeX Math Notation:** Render inline and block mathematical formulas natively via MathJax.
     <p align="center">
-
       <img src="https://github.com/user-attachments/assets/51831f45-33e8-4788-b9ad-b239a929a2e4" alt="Markdown Viewer - LaTeX math editor rendering display and inline mathematical equations using MathJax in dark mode" width="90%" />
     </p>
-*   **📊 Interactive Mermaid Diagrams:** Render flowcharts, Gantt charts, sequence diagrams, and more. Diagrams feature a toolbar for zooming, panning, copying, and exporting.
+*   **📊 Interactive Mermaid Diagrams:** Draw flowcharts, Gantt charts, and sequence diagrams with zoom, pan, and SVG export.
     <p align="center">
       <img src="https://github.com/user-attachments/assets/da00943c-d00a-4b76-96e9-d7bc1bb7f86c" alt="Markdown Viewer - Rendered interactive Mermaid.js diagram flowchart in preview with zoom, pan, and SVG image export toolbar" width="90%" />
       <img src="https://github.com/user-attachments/assets/3995e614-ffff-4cc0-843d-af73d840ca86" alt="Markdown Viewer - Rendered interactive Mermaid.js diagram flowchart in preview with zoom, pan, and SVG image export toolbar" width="90%" />
     </p>
-*   **⚡ Off-Thread Parsing & Incremental Patching:** Document parsing is offloaded to a background Web Worker. Rendered updates patch only changed DOM nodes to keep browser resources free.
-*   **📤 Professional Export Suite:** Export documents as raw Markdown (`.md`), standalone formatted HTML (`.html`) with inline styles, or high-resolution paginated PDF (`.pdf`).
-*   **📥 Multi-Source File Import:** Drag & drop local files or browse and download multiple Markdown files from a public GitHub repository URL.
+*   **🗺️ Interactive Map & 3D Renderers:** Parse and display GeoJSON, TopoJSON, and STL (ASCII/Binary) files with full camera/viewport controls.
+    <p align="center">
+      <!-- screenshot placeholder: Interactive Map & 3D Renderers -->
+    </p>
+*   **💾 Multi-Document Tab Workspace:** Organize multiple files inside drag-and-drop tabs with local session persistence and rename/duplicate options.
+*   **🔍 Find & Replace with Diff Preview:** Scrutinize text with regular expressions, AST-scoped queries, and visual side-by-side replacements.
+    <p align="center">
+      <img src="https://github.com/user-attachments/assets/b4314cf0-8059-40f1-a445-9d24f00a23b0" alt="Markdown Viewer - Draggable find and replace panel with scoped search filters for Mermaid diagrams, LaTeX equations, and raw text diff preview" width="90%" />
+    </p>
+*   **🛠️ Formatting Toolbar & Quick Modals:** Insert tables, emoji, special symbols, and GitHub alerts directly through quick-action dialogs.
+    <p align="center">
+      <!-- screenshot placeholder: Formatting Toolbar & Modals -->
+    </p>
+*   **🌐 Multi-Language Translation (i18n):** Switch between English, Simplified Chinese, Japanese, Korean, Portuguese, and 9 other languages with automatic preferences detection.
+    <p align="center">
+      <!-- screenshot placeholder: Multi-Language Switcher & UI -->
+    </p>
+*   **📤 Professional Export Suite:** Save work as raw Markdown (`.md`), styled inline HTML (`.html`), or paginated PDF (`.pdf`) with re-engineered page breaks.
+*   **📥 Multi-Source File Import:** Import local files or browse and download directories directly from public GitHub repositories.
     <p align="center">
       <img src="https://github.com/user-attachments/assets/6edbfde9-82a8-472a-a2b5-d06ffb63bcea" alt="Markdown Viewer - Import Markdown files from public GitHub repository tree with recursive directory browser and tab integration" width="90%" />
       <img src="https://github.com/user-attachments/assets/cba06ce4-a13b-4c4b-bc70-6d53a24a8f0f" alt="Markdown Viewer - Import Markdown files from public GitHub repository tree with recursive directory browser and tab integration" width="90%" />
     </p>
-*   **🔗 URL-Encoded Compressed Sharing:** Compress your document's text utilizing DEFLATE compression and encode it directly into a shareable URL hash. No server-side database required.
+*   **🔗 Serverless Compressed URL Sharing:** Encode and share compressed view/edit mode documents database-free via DEFLATE zlib URLs.
     <p align="center">
       <img src="https://github.com/user-attachments/assets/10957066-4bc5-4b7d-9dc0-c28b7fc61a7e" alt="Markdown Viewer - Serverless document sharing using URL-encoded DEFLATE compressed markdown hash in edit or view-only mode" width="90%" />
     </p>
-*   **💾 Multi-Document Tab bar:** Organize multiple files inside tab components featuring drag-and-drop reordering, title renaming, and local session persistence.
-*   **🔒 Privacy & Security Focus:** No analytics, tracking beacons, or backend servers. HTML output is sanitized via DOMPurify to eliminate Cross-Site Scripting (XSS) threats.
+*   **⚡ Off-Thread Parsing & Performance:** Leverage Web Worker compilation, differential content hashing render bypass, and lineCache optimizations.
+*   **🔒 Security, PWA & Offline Desktop Shell:** Work 100% offline using Service Worker caching or a Native Neutralinojs desktop app with confirmed exits, secured by SHA-384 SRI hashes.
+    <p align="center">
+      <!-- screenshot placeholder: PWA & Offline Desktop App -->
+    </p>
 
 ---
 
