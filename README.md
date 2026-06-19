@@ -25,9 +25,9 @@
     </a>
   </p>
 
-  🌐 **English** • <a href="wiki/Localization#zh-cn">简体中文</a> • <a href="wiki/Localization#ja">日本語</a> • <a href="wiki/Localization#ko">한국어</a> • <a href="wiki/Localization#pt-br">Português (Brasil)</a>
+  🌐 **English** • <a href="wiki/Localization.md">简体中文</a> • <a href="wiki/Localization.md">日本語</a> • <a href="wiki/Localization.md">한국어</a> • <a href="wiki/Localization.md">Português (Brasil)</a>
 
-  [Live Production Demo](https://markdownviewer.pages.dev/) • [Documentation Wiki](wiki/Home) • [Issue Tracker](https://github.com/ThisIs-Developer/Markdown-Viewer/issues) • [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
+  [Live Production Demo](https://markdownviewer.pages.dev/) • [Documentation Wiki](wiki/Home.md) • [Issue Tracker](https://github.com/ThisIs-Developer/Markdown-Viewer/issues) • [Releases](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
 
 </div>
 
@@ -459,7 +459,7 @@ Markdown-Viewer/
 
 ## Contributing & Code Quality
 
-We welcome community contributions! Please check our [Contributing Guidelines Wiki](wiki/Contributing) before creating a pull request.
+We welcome community contributions! Please check our [Contributing Guidelines Wiki](wiki/Contributing.md) before creating a pull request.
 
 ### Core Workflow Summary:
 1.  **Fork** the repository and create a feature branch (`git checkout -b feature/your-feature`).
@@ -501,4 +501,4 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 
 Developed and maintained by **[ThisIs-Developer](https://github.com/ThisIs-Developer)**.
 *   **Bug Reports & Requests:** [Submit an Issue](https://github.com/ThisIs-Developer/Markdown-Viewer/issues)
-*   **Documentation:** [Browse the Wiki](wiki/Home)
+*   **Documentation:** [Browse the Wiki](wiki/Home.md)
