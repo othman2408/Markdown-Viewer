@@ -102,6 +102,12 @@ Render and interact with STL (ASCII/Binary) files featuring perspective controls
   <img src="assets/features/stl-renderer.png" alt="STL 3D Model Renderer" width="90%" />
 </p>
 
+### 🎼 ABC Music Notation Renderers
+Render client-side ABC music notation directly to beautifully styled SVG sheet music with full offline rendering support.
+<p align="center">
+  <img src="assets/features/abc-music-notation.png" alt="ABC Music Notation Renderers" width="90%" />
+</p>
+
 ### 📑 Multi-Document Tab Workspace
 Organize multiple open files inside drag-and-drop tabs with local session persistence and tab context menus.
 <p align="center">
@@ -126,10 +132,10 @@ Access a fully localized user interface with support for English, Simplified Chi
   <img src="assets/features/i18n.png" alt="Multi-Language Translation (i18n)" width="90%" />
 </p>
 
-### 📤 Layout-Aware PDF & HTML Export
-Export your files to raw Markdown, centered inline HTML, or paginated PDF with re-engineered page breaks.
+### 📤 Layout-Aware PDF, HTML & PNG Export
+Export your documents to raw Markdown, centered inline HTML, high-quality PNG images, or paginated PDF with re-engineered page breaks.
 <p align="center">
-  <img src="assets/features/pdf-export.png" alt="Layout-Aware PDF & HTML Export" width="90%" />
+  <img src="assets/features/pdf-export.png" alt="Layout-Aware PDF, HTML & PNG Export" width="90%" />
 </p>
 
 ### 🔗 Serverless Compressed URL Sharing
