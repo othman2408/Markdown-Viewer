@@ -78,10 +78,16 @@ Generate flowcharts, Gantt charts, and sequence diagrams with zoom, pan, and SVG
   <img src="https://github.com/user-attachments/assets/3995e614-ffff-4cc0-843d-af73d840ca86" alt="Mermaid Toolbar" width="90%" />
 </p>
 
-### 🗺️ Interactive Map & 3D Renderers
-Parse and visualize GeoJSON, TopoJSON, and STL (ASCII/Binary) files with dynamic viewport controls.
+### 🗺️ Interactive Map Renderers
+Parse and visualize GeoJSON and TopoJSON map files directly inside your preview area.
 <p align="center">
-  <img src="assets/features/map-3d.png" alt="Interactive Map & 3D Renderers" width="90%" />
+  <img src="assets/features/map-renderer.png" alt="Interactive Map Renderers" width="90%" />
+</p>
+
+### 📦 STL 3D Model Renderer
+Render and interact with STL (ASCII/Binary) files featuring perspective controls, flat shading, and reset controls.
+<p align="center">
+  <img src="assets/features/stl-renderer.png" alt="STL 3D Model Renderer" width="90%" />
 </p>
 
 ### 📑 Multi-Document Tab Workspace
