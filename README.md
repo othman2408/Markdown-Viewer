@@ -32,7 +32,7 @@
 </div>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/7f4af5d3-ecae-47ac-9f27-2f91e4a6d866" alt="Markdown Viewer - Live split-screen Markdown editor and previewer with GFM rendering, tabbed multi-document workspace, and dark theme support" width="100%" />
+  <img src="https://github.com/user-attachments/assets/20358a0c-e6c9-4e24-ad26-8a5b2f48d538" alt="Markdown Viewer - Live split-screen Markdown editor and previewer with GFM rendering, tabbed multi-document workspace, and dark theme support" width="100%" />
 </p>
 
 
@@ -74,136 +74,112 @@ Designed with privacy and performance at its core, the application performs all 
 ### 🖊️ Decoupled Split-Screen Editing
 Type Markdown in the custom editor and watch it render in real-time in the live preview pane.
 <p align="center">
-  <img src="assets/live-peview.gif" alt="Decoupled Split-Screen Editing" width="90%" />
+  <img src="https://github.com/user-attachments/assets/5f1298a9-16e7-4c7d-96c6-967a7f914f7d" alt="Decoupled Split-Screen Editing" width="90%" />
 </p>
 
 ### 📐 LaTeX Math Notation
 Render inline and display mathematical formulas natively using the MathJax typesetting engine.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/51831f45-33e8-4788-b9ad-b239a929a2e4" alt="LaTeX Math Notation" width="90%" />
+  <img src="https://github.com/user-attachments/assets/4a3c79e4-4a30-4fcf-8769-fb8867ba6f18" alt="LaTeX Math Notation" width="90%" />
 </p>
 
 ### 📊 Interactive Mermaid Diagrams
 Generate flowcharts, Gantt charts, and sequence diagrams with zoom, pan, and SVG export controls.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/da00943c-d00a-4b76-96e9-d7bc1bb7f86c" alt="Interactive Mermaid Diagrams" width="90%" />
-  <img src="https://github.com/user-attachments/assets/3995e614-ffff-4cc0-843d-af73d840ca86" alt="Mermaid Toolbar" width="90%" />
+  <img src="https://github.com/user-attachments/assets/159bf555-233a-436a-9f43-4e05df16575c" alt="Interactive Mermaid Diagrams" width="90%" />
+  <img src="https://github.com/user-attachments/assets/60e6c63b-df31-4097-a6df-556858087758" alt="Mermaid Toolbar" width="90%" />
 </p>
 
 ### 🗺️ Interactive Map Renderers
 Parse and visualize GeoJSON and TopoJSON map files directly inside your preview area.
 <p align="center">
-  <img src="assets/features/map-renderer.png" alt="Interactive Map Renderers" width="90%" />
+  <img src="https://github.com/user-attachments/assets/43149af7-8ef5-4d17-8e55-77b317c1da11" alt="Interactive Map Renderers" width="90%" />
 </p>
 
-### 📦 STL 3D Model Renderer
+### 📦 STL 3D Model Renderer ([View Release Demo v3.7.5](https://github.com/ThisIs-Developer/Markdown-Viewer/releases/tag/v3.7.5))
 Render and interact with STL (ASCII/Binary) files featuring perspective controls, flat shading, and reset controls.
 <p align="center">
-  <img src="assets/features/stl-renderer.png" alt="STL 3D Model Renderer" width="90%" />
+  <img src="https://github.com/user-attachments/assets/343b4d3d-5891-4aa9-bba5-1229e7a17fdd" alt="STL 3D Model Renderer" width="90%" />
+  <img src="https://github.com/user-attachments/assets/606b1666-7359-4872-bb98-e3ae37b65ca9" alt="STL 3D Model Renderer" width="90%" />
+  <img src="https://github.com/user-attachments/assets/aef963a2-bdc5-4348-976b-68e8d01bbc6f" alt="STL 3D Model Renderer" width="90%" />
 </p>
 
 ### 🎼 ABC Music Notation Renderers
 Render client-side ABC music notation directly to beautifully styled SVG sheet music with full offline rendering support.
 <p align="center">
-  <img src="assets/features/abc-music-notation.png" alt="ABC Music Notation Renderers" width="90%" />
+  <img src="https://github.com/user-attachments/assets/376ab303-ed77-4dff-9cb1-30e6d3e125d3" alt="ABC Music Notation Renderers" width="90%" />
 </p>
 
 ### 📑 Multi-Document Tab Workspace
 Organize multiple open files inside drag-and-drop tabs with local session persistence and tab context menus.
 <p align="center">
-  <img src="assets/features/tabs-workspace.png" alt="Multi-Document Tab Workspace" width="90%" />
+  <img src="https://github.com/user-attachments/assets/4f0c33a8-721e-4792-bedf-4dc79dd1cc63" alt="Multi-Document Tab Workspace" width="90%" />
 </p>
 
 ### 🔍 Find & Replace with AST Scoping & Diff Preview
 Perform scoped searches using regular expressions, syntax scopes, and side-by-side visual diff replacements.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/b4314cf0-8059-40f1-a445-9d24f00a23b0" alt="Find & Replace with Diff Preview" width="90%" />
+  <img src="https://github.com/user-attachments/assets/ad33c3ea-0926-44c4-a0b5-0c12930e45c0" alt="Find & Replace with Diff Preview" width="90%" />
+  <img src="https://github.com/user-attachments/assets/7ba183b1-0e58-450a-afc7-0f805657ba44" alt="Find & Replace with Diff Preview" width="90%" />
 </p>
 
 ### 🛠️ Formatting Toolbar & Quick Modals
 Quickly insert markdown elements, tables, emojis, and symbols using dedicated formatting toolbar modals.
 <p align="center">
-  <img src="assets/features/formatting-toolbar.png" alt="Formatting Toolbar & Quick Modals" width="90%" />
+  <img src="https://github.com/user-attachments/assets/1ecb877d-31fe-4b63-b67b-e3faa39ae776" alt="Formatting Toolbar & Quick Modals" width="90%" />
 </p>
 
 ### 🌐 Multi-Language Translation (i18n)
 Access a fully localized user interface with support for English, Simplified Chinese, Japanese, Korean, Portuguese, and more.
 <p align="center">
-  <img src="assets/features/i18n.png" alt="Multi-Language Translation (i18n)" width="90%" />
+  <img src="https://github.com/user-attachments/assets/a4240b72-8353-47ad-b6f0-21ffee34335d" alt="Multi-Language Translation (i18n)" width="90%" />
 </p>
 
 ### 📤 Layout-Aware PDF, HTML & PNG Export
 Export your documents to raw Markdown, centered inline HTML, high-quality PNG images, or paginated PDF with re-engineered page breaks.
 <p align="center">
-  <img src="assets/features/pdf-export.png" alt="Layout-Aware PDF, HTML & PNG Export" width="90%" />
+  <img src="https://github.com/user-attachments/assets/36a9710d-df23-4fc5-9193-c8d43ca96408" alt="Layout-Aware PDF, HTML & PNG Export" width="90%" />
 </p>
 
-### 🔗 Serverless Compressed URL Sharing
+### 🔗 Serverless Compressed URL Sharing ([Click to Try](https://markdownviewer.pages.dev/#share=eJx1kbtOIzEUhnue4pSm4CFISDbco2EiagOGmJhxZGcaqkx2V1DQ5QICxEUIIXEHgRQQqQZ6zysw2bCw4R32hCFQICpb9neO_8-nDzITkHDmBNdZeCxWIMWEkD19EB-Dp9Nis1Fu1k9atSUgE3whL_gsZzMQz3KHadb7VtBs7PzZb2DFUBpaq_utzeO_h1tAhmiefkKhVw5L5dA7Cr3d0DtDetiC1-rmy_VJu3YFZFgqRp2IbVeX__2uvlbX2r_q7fUKsjEL0lIV3DnXP9RAYopqLiJ4XPi7SCRQQuepfyEFJsWXUScCUlJQBJIWJBV1_APKsUNSMWf6HYhJZ166CpmBBAwwt6Cns0B-MLXQDZSi0ZdYGTA7wc_ACzxza-rmBojlas27nNkOinh8aa6DEuKDNgwWqMBrCeR9F4FxTjv9bAts_07l_AMGxHZV7iP0KFNZOtXJnR5BdaFzHAiuH0B8kT1s3C91mkzC0433fFTpzslWdIYXuHSo-GZQmX4we-YWw54Hq6aBPivocw4kk1OUO198glpQ-g8VBvRv&edit=1))
 Share view or edit mode documents database-free via zlib DEFLATE compressed URL hashes.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/10957066-4bc5-4b7d-9dc0-c28b7fc61a7e" alt="Serverless Compressed URL Sharing" width="90%" />
+  <img src="https://github.com/user-attachments/assets/3ce03da2-2df0-4662-8ed0-67ddb4c48c84" alt="Serverless Compressed URL Sharing" width="90%" />
 </p>
 
 ### 📥 Multi-Source File Import
 Drag and drop local files, or import directories recursively directly from public GitHub repositories.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/6edbfde9-82a8-472a-a2b5-d06ffb63bcea" alt="Multi-Source File Import" width="90%" />
-  <img src="https://github.com/user-attachments/assets/cba06ce4-a13b-4c4b-bc70-6d53a24a8f0f" alt="File Import selection" width="90%" />
+  <img src="https://github.com/user-attachments/assets/c0811f6b-584f-4a88-88cb-6e4604ae8789" alt="Multi-Source File Import" width="90%" />
+  <img src="https://github.com/user-attachments/assets/f1039c97-e826-4dc5-83b2-ba57bfe57611" alt="File Import selection" width="90%" />
 </p>
 
 ### ⚡ Performance & Web Worker Compilation
 Compile Markdown off-thread using a background Web Worker and cache gutter wrapping coordinates to avoid layout thrashing.
-<p align="center">
-  <img src="assets/features/performance.png" alt="Performance & Web Worker Compilation" width="90%" />
-</p>
 
 ### 🔒 Security Hardening & PWA Offline Support
 Work offline via local Service Worker caching, protected by SHA-384 subresource integrity check policies.
-<p align="center">
-  <img src="assets/features/security-offline.png" alt="Security Hardening & PWA Offline Support" width="90%" />
-</p>
 
 ### 📝 GitHub-Style Alert Blocks
 Format and render official GitHub-style admonitions (`> [!NOTE]`, etc.) with correct color schemes and icons.
-<p align="center">
-  <img src="assets/features/alerts.png" alt="GitHub-Style Alert Blocks" width="90%" />
-</p>
 
 ### 📊 Estimated Reading Time & Word Stats
 Track word count, character count, and estimated reading time dynamically via a live status counter.
-<p align="center">
-  <img src="assets/features/reading-stats.png" alt="Estimated Reading Time & Word Stats" width="90%" />
-</p>
 
 ### 🎨 Custom Theme Toggle
 Switch instantly between light and dark themes with CSS-variable based syntax highlighting.
-<p align="center">
-  <img src="assets/features/theme-toggle.png" alt="Custom Theme Toggle" width="90%" />
-</p>
 
 ### ↩️ Custom History State (Undo/Redo)
 Restore and redo editor history individually per document tab using custom-built in-memory history state stacks.
-<p align="center">
-  <img src="assets/features/undo-redo.png" alt="Custom History State (Undo/Redo)" width="90%" />
-</p>
 
 ### ⌨️ Comprehensive Keyboard Shortcuts
 Increase typing efficiency with native keybinds for file saving, sync scrolling, tab management, and text editing.
-<p align="center">
-  <img src="assets/features/keyboard-shortcuts.png" alt="Comprehensive Keyboard Shortcuts" width="90%" />
-</p>
 
 ### 📂 Full-Window Drag-and-Drop Overlay
 Drag markdown files anywhere onto the browser window to instantly import and open them in the workspace.
-<p align="center">
-  <img src="assets/features/drag-and-drop.png" alt="Full-Window Drag-and-Drop Overlay" width="90%" />
-</p>
 
 ### 🧭 Throttled Bidirectional Scroll Sync
 Keep the editor and preview pane aligned using scroll lock mechanisms and requestAnimationFrame coordinates mapping.
-<p align="center">
-  <img src="assets/features/scroll-sync.png" alt="Throttled Bidirectional Scroll Sync" width="90%" />
-</p>
 
 ---
 
