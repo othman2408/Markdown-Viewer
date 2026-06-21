@@ -1746,10 +1746,13 @@ a:focus {
   cursor: grabbing;
 }
 
-.mermaid-modal-diagram svg {
+.mermaid-modal-diagram svg,
+.mermaid-modal-diagram img {
   transform-origin: center;
   transition: transform 0.1s ease;
   max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .mermaid-modal-controls,
@@ -4219,6 +4222,8 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   max-width: 100%;
   height: auto;
   display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* --- PlantUML Toolbar Styling --- */
@@ -4285,6 +4290,8 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   max-width: 100%;
   height: auto;
   display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* --- D2 Toolbar Styling --- */

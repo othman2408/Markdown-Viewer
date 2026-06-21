@@ -3133,6 +3133,8 @@ document.addEventListener("DOMContentLoaded", function () {
               img.src = url;
               img.alt = 'PlantUML Diagram';
               img.className = 'plantuml-img';
+              img.draggable = false;
+              img.addEventListener('dragstart', e => e.preventDefault());
               
               img.onload = function() {
                 if (container) container.classList.remove('is-loading');
@@ -3193,6 +3195,8 @@ document.addEventListener("DOMContentLoaded", function () {
               img.src = url;
               img.alt = 'D2 Diagram';
               img.className = 'd2-img';
+              img.draggable = false;
+              img.addEventListener('dragstart', e => e.preventDefault());
               
               img.onload = function() {
                 if (container) container.classList.remove('is-loading');
@@ -10704,6 +10708,8 @@ document.addEventListener("DOMContentLoaded", function () {
     imgClone.style.maxWidth  = '80vw';
     imgClone.style.maxHeight = '60vh';
     imgClone.style.transformOrigin = 'center';
+    imgClone.draggable = false;
+    imgClone.addEventListener('dragstart', e => e.preventDefault());
     mermaidModalDiagram.appendChild(imgClone);
     modalCurrentSvgEl = imgClone;
 
@@ -10851,6 +10857,8 @@ document.addEventListener("DOMContentLoaded", function () {
     imgClone.style.maxWidth  = '80vw';
     imgClone.style.maxHeight = '60vh';
     imgClone.style.transformOrigin = 'center';
+    imgClone.draggable = false;
+    imgClone.addEventListener('dragstart', e => e.preventDefault());
     mermaidModalDiagram.appendChild(imgClone);
     modalCurrentSvgEl = imgClone;
 
