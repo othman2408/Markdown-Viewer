@@ -70,12 +70,6 @@
 
 ## 主要特性
 
-### 🖊️ 解耦的双栏分屏编辑
-在自定义编辑器中输入 Markdown，并在实时预览面板中即时查看渲染效果。
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/5f1298a9-16e7-4c7d-96c6-967a7f914f7d" alt="解耦的双栏分屏编辑" width="90%" />
-</p>
-
 ### 📐 LaTeX 数学公式
 使用 MathJax 排版引擎原生渲染行内和块级数学公式。
 <p align="center">
@@ -89,24 +83,37 @@
   <img src="https://github.com/user-attachments/assets/60e6c63b-df31-4097-a6df-556858087758" alt="Mermaid 工具栏" width="90%" />
 </p>
 
+### 📐 PlantUML 图表工具箱
+即时渲染 PlantUML 图表，界面整洁且与主题完美契合，支持缩放和平移控制、模态框查看、剪贴板复制以及 SVG/PNG 导出选项。
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/027e0bcb-d149-46bb-adf5-0ece02ffaaac" alt="Client-Side PlantUML Diagrams" width="90%" />
+</p>
+
 ### 🗺️ 交互式地图渲染器
 直接在预览区域解析并可视化 GeoJSON 和 TopoJSON 地图文件。
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/43149af7-8ef5-4d17-8e55-77b317c1da11" alt="交互式地图渲染器" width="90%" />
+  <img src="https://github.com/user-attachments/assets/33df24e1-c1d8-4b8f-ac79-49813ab767c9" alt="交互式地图渲染器" width="90%" />
 </p>
 
 ### 📦 STL 3D 模型渲染器 ([查看版本发布演示 v3.7.5](https://github.com/ThisIs-Developer/Markdown-Viewer/releases/tag/v3.7.5))
-渲染并与 STL (ASCII/二进制) 文件进行交互，支持透视控制、平面着色和重置控制。
+渲染并与 STL (ASCII/二进制) 文件进行交互，支持透视控制、平面着色 and 重置控制。
 <p align="center">
   <img src="https://github.com/user-attachments/assets/343b4d3d-5891-4aa9-bba5-1229e7a17fdd" alt="STL 3D 模型渲染器" width="90%" />
   <img src="https://github.com/user-attachments/assets/606b1666-7359-4872-bb98-e3ae37b65ca9" alt="STL 3D 模型渲染器" width="90%" />
   <img src="https://github.com/user-attachments/assets/aef963a2-bdc5-4348-976b-68e8d01bbc6f" alt="STL 3D 模型渲染器" width="90%" />
 </p>
 
-### 🎼 ABC 乐谱渲染器
-直接在客户端将 ABC 乐谱记谱法渲染为精美的 SVG 五线谱，支持完整的离线渲染。
+### 🎼 ABC 音乐播放器与乐谱查看器 ([立即试听！](https://markdownviewer.pages.dev/#share=eJyFUlFv0zAQfs-v-LSXgRTapRvaFImHdIhN21oNVgFCQurFviQG164uDlWl_HicdJuAPfBytu-77_N3Z6_XaypV8jXPzpJVvmBtjWvxiRS3E9xc02TMzy051cSgD1BKP-kPeGU2vhOEhrEiCST_4PccWPAQhDn8BS3zoxfcI-yoBaGW4TrxG3LBKGzYei20IRiHsPMgFdooUO5H7la8NVWsW1CI5x2uhGsve9zxzrR4lZ2fv32TXWQXr1PsTGiw6dpYHdlPhIPJW-PqSZT9YKQNiNZcYA0KuPS_2AVckWh2g4colqUw4dGuIjGKQicMX2FJW2_ZuzxKHTpMh7T1O3gxtXEpuraTbTuaD414xxj7JdNyi26LJtp2zHoPYUvB-PguwcdGjVNs99CmdibsB7OrYQCW9qh4dKDReBlkSvFd3QR4F5ltoJonySK_7JOPeTY9e5fNTpK7uLtI5vmNbxyuyVosHtLY3OlpiqWX0HSbkmV4-uRb_tlYG0WwGId3L_4Hq4DZSXaOwsUOvojRnNzm7xM9QzXlaRydrjT6uOhjDXWsy8OpGpDHkh6q4AL1EPr_MUuqYuo4xh6suYI-Q98nagY1nU8LcKGKASrqAtWoiOqFYvm0T55N6GdrLxJl_IwVjz51XFQxV-i_J-v1-jdZqQvS&edit=1))
+将 ABC 记谱法渲染为精美的乐谱，支持同步音频播放、音符高亮显示以及 PNG/SVG 导出选项——非常适合在写作时听音乐。
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/376ab303-ed77-4dff-9cb1-30e6d3e125d3" alt="ABC 乐谱渲染器" width="90%" />
+  <video src="https://github.com/user-attachments/assets/a57db33c-0502-47a8-8f91-7c06946c34a9" controls width="800"></video>
+  <img src="https://github.com/user-attachments/assets/4341040b-eddd-40fa-8d1f-ba6ec9ac1010" alt="ABC Music Notation & Audio Synthesis" width="90%" />
+</p>
+
+### 🖊️ 解耦的双栏分屏编辑
+在自定义编辑器中输入 Markdown，并在实时预览面板中即时查看渲染效果。
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/5f1298a9-16e7-4c7d-96c6-967a7f914f7d" alt="解耦的双栏分屏编辑" width="90%" />
 </p>
 
 ### 📑 多文档标签页工作区
@@ -221,7 +228,7 @@ graph TD
         MathJax["MathJax.js<br>(LaTeX 数学)"]
         Mermaid["Mermaid.js<br>(图表)"]
         PDF["jsPDF & html2canvas<br>(PDF/PNG 导出)"]
-        Pako["Pako.js<br>(DEFLATE 分享编码器)"]
+        Pako["Pako.js<br>(DEFLATE 分享与 PlantUML 编码器)"]
         JoyPixels["JoyPixels.js/css<br>(表情包工具)"]
         Leaflet["Leaflet.js/css & TopoJSON<br>(交互式地图)"]
         ThreeJS["Three.js、加载器与控制器<br>(3D STL 查看器)"]
@@ -252,7 +259,8 @@ graph TD
     Script -- "延迟加载 (检测到数学公式)" --> MathJax
     Script -- "延迟加载 (检测到 Mermaid 类)" --> Mermaid
     Script -- "延迟加载 (点击导出)" --> PDF
-    Script -- "延迟加载 (点击分享/哈希加载)" --> Pako
+    Script -- "延迟加载 (点击分享或检测到 PlantUML)" --> Pako
+    Script -- "请求 SVG 图表" --> PlantUML["PlantUML 服务器<br>(plantuml.com)"]
     Script -- "延迟加载 (检测到冒号)" --> JoyPixels
     Script -- "延迟加载 (检测到地图类)" --> Leaflet
     Script -- "延迟加载 (检测到 STL 类)" --> ThreeJS
@@ -267,6 +275,7 @@ graph TD
     Leaflet -- "渲染交互式地图" --> Preview
     ThreeJS -- "渲染 3D STL 模型" --> Preview
     Abcjs -- "渲染五线谱" --> Preview
+    PlantUML -- "渲染 SVG 图表" --> Preview
     
     %% Network Proxy Caching
     Cache -. "网络优先 (应用资产)" .-> HTML
@@ -422,12 +431,13 @@ Markdown-Viewer/
 | **[MathJax](https://www.mathjax.org/)** | 3.2.2 | 渲染 LaTeX 数学公式。 | 检测到数学公式时延迟加载 |
 | **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | 在客户端生成分页的 PDF 文档。 | 请求 PDF 时延迟加载 |
 | **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | 将 HTML 布局捕获为画布对象。 | 请求 PDF 时延迟加载 |
-| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | 处理分享链接的 DEFLATE 压缩。 | 请求分享时延迟加载 |
+| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | 处理分享链接和 PlantUML 图表的 DEFLATE 压缩。 | 请求分享或 PlantUML 时延迟加载 |
 | **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | 渲染标准表情符号集。 | 选择表情符号时延迟加载 |
 | **[Leaflet](https://leafletjs.com/)** | 1.9.4 | 驱动交互式 GeoJSON 和 TopoJSON 地图图层。 | 检测到地图时延迟加载 |
 | **[TopoJSON](https://github.com/topojson/topojson)** | 3.0.2 | 将 TopoJSON 结构解析为标准的 GeoJSON 坐标。 | 检测到 topojson 时延迟加载 |
 | **[Three.js](https://threejs.org/)** | r128 | 通过画布视口渲染 STL 3D 模型。 | 检测到 STL 文件时延迟加载 |
 | **[ABC 乐谱渲染库 (abcjs)](https://www.abcjs.net/)** | 6.5.2 | 从原始文本定义中渲染乐谱。 | 检测到 abc 乐谱时延迟加载 |
+| **[PlantUML](https://plantuml.com/)** | - | 从压缩的标记生成 SVG 图表的外部服务器。 | 检测到 PlantUML 时延迟加载 |
 
 ---
 
