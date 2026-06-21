@@ -71,12 +71,6 @@ Designed with privacy and performance at its core, the application performs all 
 
 ## Key Features
 
-### 🖊️ Decoupled Split-Screen Editing
-Type Markdown in the custom editor and watch it render in real-time in the live preview pane.
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/5f1298a9-16e7-4c7d-96c6-967a7f914f7d" alt="Decoupled Split-Screen Editing" width="90%" />
-</p>
-
 ### 📐 LaTeX Math Notation
 Render inline and display mathematical formulas natively using the MathJax typesetting engine.
 <p align="center">
@@ -90,10 +84,16 @@ Generate flowcharts, Gantt charts, and sequence diagrams with zoom, pan, and SVG
   <img src="https://github.com/user-attachments/assets/60e6c63b-df31-4097-a6df-556858087758" alt="Mermaid Toolbar" width="90%" />
 </p>
 
+### 📐 PlantUML Diagram Toolkit
+Render PlantUML diagrams instantly with a clean, theme-matched interface featuring zoom and pan controls, modal viewing, clipboard copy, and SVG/PNG export options.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/027e0bcb-d149-46bb-adf5-0ece02ffaaac" alt="Client-Side PlantUML Diagrams" width="90%" />
+</p>
+
 ### 🗺️ Interactive Map Renderers
 Parse and visualize GeoJSON and TopoJSON map files directly inside your preview area.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/43149af7-8ef5-4d17-8e55-77b317c1da11" alt="Interactive Map Renderers" width="90%" />
+  <img src="https://github.com/user-attachments/assets/33df24e1-c1d8-4b8f-ac79-49813ab767c9" alt="Interactive Map Renderers" width="90%" />
 </p>
 
 ### 📦 STL 3D Model Renderer ([View Release Demo v3.7.5](https://github.com/ThisIs-Developer/Markdown-Viewer/releases/tag/v3.7.5))
@@ -104,10 +104,17 @@ Render and interact with STL (ASCII/Binary) files featuring perspective controls
   <img src="https://github.com/user-attachments/assets/aef963a2-bdc5-4348-976b-68e8d01bbc6f" alt="STL 3D Model Renderer" width="90%" />
 </p>
 
-### 🎼 ABC Music Notation Renderers
-Render client-side ABC music notation directly to beautifully styled SVG sheet music with full offline rendering support.
+### 🎼 ABC Music Player & Sheet Music Viewer ([Listen Now!](https://markdownviewer.pages.dev/#share=eJyFUlFv0zAQfs-v-LSXgRTapRvaFImHdIhN21oNVgFCQurFviQG164uDlWl_HicdJuAPfBytu-77_N3Z6_XaypV8jXPzpJVvmBtjWvxiRS3E9xc02TMzy051cSgD1BKP-kPeGU2vhOEhrEiCST_4PccWPAQhDn8BS3zoxfcI-yoBaGW4TrxG3LBKGzYei20IRiHsPMgFdooUO5H7la8NVWsW1CI5x2uhGsve9zxzrR4lZ2fv32TXWQXr1PsTGiw6dpYHdlPhIPJW-PqSZT9YKQNiNZcYA0KuPS_2AVckWh2g4colqUw4dGuIjGKQicMX2FJW2_ZuzxKHTpMh7T1O3gxtXEpuraTbTuaD414xxj7JdNyi26LJtp2zHoPYUvB-PguwcdGjVNs99CmdibsB7OrYQCW9qh4dKDReBlkSvFd3QR4F5ltoJonySK_7JOPeTY9e5fNTpK7uLtI5vmNbxyuyVosHtLY3OlpiqWX0HSbkmV4-uRb_tlYG0WwGId3L_4Hq4DZSXaOwsUOvojRnNzm7xM9QzXlaRydrjT6uOhjDXWsy8OpGpDHkh6q4AL1EPr_MUuqYuo4xh6suYI-Q98nagY1nU8LcKGKASrqAtWoiOqFYvm0T55N6GdrLxJl_IwVjz51XFQxV-i_J-v1-jdZqQvS&edit=1))
+Render ABC notation into beautiful sheet music with synchronized audio playback, note highlighting, and PNG/SVG export options—perfect for listening to music while writing.
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/376ab303-ed77-4dff-9cb1-30e6d3e125d3" alt="ABC Music Notation Renderers" width="90%" />
+  <video src="https://github.com/user-attachments/assets/a57db33c-0502-47a8-8f91-7c06946c34a9" controls width="800"></video>
+  <img src="https://github.com/user-attachments/assets/4341040b-eddd-40fa-8d1f-ba6ec9ac1010" alt="ABC Music Notation & Audio Synthesis" width="90%" />
+</p>
+
+### 🖊️ Decoupled Split-Screen Editing
+Type Markdown in the custom editor and watch it render in real-time in the live preview pane.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/5f1298a9-16e7-4c7d-96c6-967a7f914f7d" alt="Decoupled Split-Screen Editing" width="90%" />
 </p>
 
 ### 📑 Multi-Document Tab Workspace
@@ -222,7 +229,7 @@ graph TD
         MathJax["MathJax.js<br>(LaTeX Math)"]
         Mermaid["Mermaid.js<br>(Diagrams)"]
         PDF["jsPDF & html2canvas<br>(PDF/PNG Export)"]
-        Pako["Pako.js<br>(DEFLATE share encoder)"]
+        Pako["Pako.js<br>(DEFLATE share & PlantUML encoder)"]
         JoyPixels["JoyPixels.js/css<br>(Emoji Tool)"]
         Leaflet["Leaflet.js/css & TopoJSON<br>(Interactive Maps)"]
         ThreeJS["Three.js, loaders & controls<br>(3D STL Viewer)"]
@@ -253,7 +260,8 @@ graph TD
     Script -- "Lazy Load (Math string detected)" --> MathJax
     Script -- "Lazy Load (Mermaid class detected)" --> Mermaid
     Script -- "Lazy Load (On Export click)" --> PDF
-    Script -- "Lazy Load (On Share click/hash load)" --> Pako
+    Script -- "Lazy Load (On Share click or PlantUML detection)" --> Pako
+    Script -- "Request SVG diagram" --> PlantUML["PlantUML Server<br>(plantuml.com)"]
     Script -- "Lazy Load (Colons detected)" --> JoyPixels
     Script -- "Lazy Load (geo/topojson map class)" --> Leaflet
     Script -- "Lazy Load (stl-viewer class)" --> ThreeJS
@@ -268,6 +276,7 @@ graph TD
     Leaflet -- "Render interactive maps" --> Preview
     ThreeJS -- "Render 3D STL model" --> Preview
     Abcjs -- "Render sheet music" --> Preview
+    PlantUML -- "Render SVG diagram" --> Preview
     
     %% Network Proxy Caching
     Cache -. "Network-First (App Assets)" .-> HTML
@@ -424,12 +433,13 @@ Markdown-Viewer/
 | **[MathJax](https://www.mathjax.org/)** | 3.2.2 | Renders mathematical LaTeX expressions. | Lazy-loaded on math find |
 | **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | Generates paginated PDF documents client-side. | Lazy-loaded on PDF request |
 | **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | Captures HTML layouts as canvas objects. | Lazy-loaded on PDF request |
-| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | Handles DEFLATE compression for share links. | Lazy-loaded on share request |
+| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | Handles DEFLATE compression for share links and PlantUML diagrams. | Lazy-loaded on share or PlantUML request |
 | **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | Renders standard emoji sets. | Lazy-loaded on emoji select |
 | **[Leaflet](https://leafletjs.com/)** | 1.9.4 | Powers interactive GeoJSON and TopoJSON map overlays. | Lazy-loaded on map detection |
 | **[TopoJSON](https://github.com/topojson/topojson)** | 3.0.2 | Parses TopoJSON structures into standard GeoJSON coordinates. | Lazy-loaded on topojson detection |
 | **[Three.js](https://threejs.org/)** | r128 | Renders STL 3D models with canvas viewports. | Lazy-loaded on STL file detection |
 | **[ABC Music Notation (abcjs)](https://www.abcjs.net/)** | 6.5.2 | Renders sheet music notation from raw text definitions. | Lazy-loaded on abc music detection |
+| **[PlantUML](https://plantuml.com/)** | - | External server rendering SVG diagrams from compressed markup. | Lazy-loaded on PlantUML detection |
 
 ---
 
