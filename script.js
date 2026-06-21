@@ -993,6 +993,15 @@ document.addEventListener("DOMContentLoaded", function () {
       return `<div class="stl-container is-loading"><div class="stl-viewer" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
 
+    if (language === 'plantuml') {
+      const uniqueId = 'plantuml-diagram-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="plantuml-container is-loading"><div class="plantuml-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
     if (language === 'math') {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -1177,6 +1186,47 @@ document.addEventListener("DOMContentLoaded", function () {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function encode6bit(b) {
+    if (b < 10) return String.fromCharCode(48 + b); // '0'-'9'
+    b -= 10;
+    if (b < 26) return String.fromCharCode(65 + b); // 'A'-'Z'
+    b -= 26;
+    if (b < 26) return String.fromCharCode(97 + b); // 'a'-'z'
+    b -= 26;
+    if (b === 0) return '-';
+    if (b === 1) return '_';
+    return '?';
+  }
+
+  function append3bytes(b1, b2, b3) {
+    const c1 = b1 >> 2;
+    const c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+    const c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
+    const c4 = b3 & 0x3F;
+    let r = "";
+    r += encode6bit(c1 & 0x3F);
+    r += encode6bit(c2 & 0x3F);
+    r += encode6bit(c3 & 0x3F);
+    r += encode6bit(c4 & 0x3F);
+    return r;
+  }
+
+  function encodePlantUML(text) {
+    if (typeof pako === 'undefined') {
+      throw new Error('pako is not loaded');
+    }
+    const utf8 = new TextEncoder().encode(text);
+    const compressed = pako.deflate(utf8, { level: 9 });
+    let result = "";
+    for (let i = 0; i < compressed.length; i += 3) {
+      const b1 = compressed[i];
+      const b2 = i + 1 < compressed.length ? compressed[i + 1] : 0;
+      const b3 = i + 2 < compressed.length ? compressed[i + 2] : 0;
+      result += append3bytes(b1, b2, b3);
+    }
+    return result;
   }
 
   // PERF-012: Inlined default template to eliminate network request, FOUC, and layout shifts
@@ -2985,6 +3035,65 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (e) {
       console.warn("STL processing failed:", e);
+    }
+
+    try {
+      const plantumlNodes = queryPreviewRoots(roots, '.plantuml-diagram');
+      if (plantumlNodes.length > 0) {
+        const renderPlantumlNodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          
+          plantumlNodes.forEach(node => {
+            const container = node.closest('.plantuml-container');
+            const originalCode = node.getAttribute('data-original-code');
+            if (!originalCode) return;
+            const decodedCode = decodeURIComponent(originalCode);
+            
+            try {
+              const encoded = encodePlantUML(decodedCode);
+              const url = 'https://www.plantuml.com/plantuml/svg/' + encoded;
+              
+              node.innerHTML = '';
+              const img = document.createElement('img');
+              img.src = url;
+              img.alt = 'PlantUML Diagram';
+              img.className = 'plantuml-img';
+              
+              img.onload = function() {
+                if (container) container.classList.remove('is-loading');
+              };
+              
+              img.onerror = function() {
+                node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);"><i class="bi bi-wifi-off me-2"></i>Offline or unable to connect to PlantUML server</div>`;
+                if (container) container.classList.remove('is-loading');
+              };
+              
+              node.appendChild(img);
+            } catch (err) {
+              console.error("PlantUML encoding failed:", err);
+              node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);">Error encoding diagram: ${escapeHtml(err.message)}</div>`;
+              if (container) container.classList.remove('is-loading');
+            }
+          });
+        };
+        
+        if (typeof pako === 'undefined') {
+          loadScript(CDN.pako).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            renderPlantumlNodes();
+          }).catch(function(e) {
+            console.warn('Failed to load pako for PlantUML:', e);
+            plantumlNodes.forEach(node => {
+              const container = node.closest('.plantuml-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderPlantumlNodes();
+        }
+      }
+    } catch (e) {
+      console.warn("PlantUML processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
