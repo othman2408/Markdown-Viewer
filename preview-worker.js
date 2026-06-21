@@ -8,6 +8,7 @@ let geojsonIdCounter = 0;
 let topojsonIdCounter = 0;
 let stlIdCounter = 0;
 let plantumlIdCounter = 0;
+let d2IdCounter = 0;
 
 const markedOptions = {
   gfm: true,
@@ -342,6 +343,11 @@ function configureMarked() {
       return `<div class="plantuml-container is-loading"><div class="plantuml-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
     }
 
+    if (language === "d2") {
+      const uniqueId = `d2-diagram-worker-${d2IdCounter++}`;
+      return `<div class="d2-container is-loading"><div class="d2-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
+    }
+
     if (language === "math") {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -523,6 +529,7 @@ self.onmessage = function(event) {
     topojsonIdCounter = 0;
     stlIdCounter = 0;
     plantumlIdCounter = 0;
+    d2IdCounter = 0;
     const result = renderSegmentedMarkdown(data.markdown || "", options);
     self.postMessage({
       type: "render-result",

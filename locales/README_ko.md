@@ -89,6 +89,9 @@ PlantUML 다이어그램을 깨끗하고 테마에 맞춘 인터페이스와 함
   <img src="https://github.com/user-attachments/assets/027e0bcb-d149-46bb-adf5-0ece02ffaaac" alt="Client-Side PlantUML Diagrams" width="90%" />
 </p>
 
+### 🖼️ D2 다이어그램 툴킷
+깔끔하고 현대적인 D2(diagramming-as-code) 스크립팅 블록을 즉시 렌더링합니다. 확대/이동, 클립보드 복사, SVG/PNG 다운로드를 지원하는 테마 맞춤형 대화형 도구 모음을 제공합니다.
+
 ### 🗺️ 대화형 맵 렌더러
 미리보기 영역 내부에서 GeoJSON 및 TopoJSON 맵 파일을 직접 파싱하고 시각화합니다.
 <p align="center">
@@ -228,7 +231,7 @@ graph TD
         MathJax["MathJax.js<br>(LaTeX 수학)"]
         Mermaid["Mermaid.js<br>(다이어그램)"]
         PDF["jsPDF & html2canvas<br>(PDF/PNG 내보내기)"]
-        Pako["Pako.js<br>(DEFLATE 공유 & PlantUML 인코더)"]
+        Pako["Pako.js<br>(DEFLATE 공유, PlantUML & D2 인코더)"]
         JoyPixels["JoyPixels.js/css<br>(이모지 도구)"]
         Leaflet["Leaflet.js/css & TopoJSON<br>(대화형 맵)"]
         ThreeJS["Three.js, 로더 & 컨트롤<br>(3D STL 뷰어)"]
@@ -259,8 +262,9 @@ graph TD
     Script -- "지연 로드 (수학 공식 감지 시)" --> MathJax
     Script -- "지연 로드 (Mermaid 클래스 감지 시)" --> Mermaid
     Script -- "지연 로드 (내보내기 클릭 시)" --> PDF
-    Script -- "지연 로드 (공유 클릭 또는 PlantUML 감지 시)" --> Pako
+    Script -- "지연 로드 (공유 클릭, PlantUML 또는 D2 감지 시)" --> Pako
     Script -- "SVG 다이어그램 요청" --> PlantUML["PlantUML 서버<br>(plantuml.com)"]
+    Script -- "SVG 다이어그램 요청" --> Kroki["Kroki 서버<br>(kroki.io)"]
     Script -- "지연 로드 (콜론 감지 시)" --> JoyPixels
     Script -- "지연 로드 (맵 클래스 감지 시)" --> Leaflet
     Script -- "지연 로드 (STL 뷰어 감지 시)" --> ThreeJS
@@ -276,6 +280,7 @@ graph TD
     ThreeJS -- "3D STL 모델 렌더링" --> Preview
     Abcjs -- "악보 렌더링" --> Preview
     PlantUML -- "SVG 다이어그램 렌더링" --> Preview
+    Kroki -- "SVG 다이어그램 렌더링" --> Preview
     
     %% Network Proxy Caching
     Cache -. "네트워크 우선 (앱 자산)" .-> HTML
@@ -431,13 +436,14 @@ Markdown-Viewer/
 | **[MathJax](https://www.mathjax.org/)** | 3.2.2 | 수학적 LaTeX 수식을 렌더링합니다. | 감지 시 지연 로드 |
 | **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | 클라이언트 측에서 페이지가 매겨진 PDF 문서를 생성합니다. | 요청 시 지연 로드 |
 | **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | HTML 레이아웃을 캔버스 개체로 캡처합니다. | 요청 시 지연 로드 |
-| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | 공유 링크 및 PlantUML 다이어그램에 대한 DEFLATE 압축을 처리합니다. | 공유 또는 PlantUML 요청 시 지연 로드 |
+| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | 공유 링크, PlantUML 및 D2 다이어그램에 대한 DEFLATE 압축을 처리합니다. | 공유, PlantUML 또는 D2 요청 시 지연 로드 |
 | **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | 표준 이모지 세트를 렌더링합니다. | 선택 시 지연 로드 |
 | **[Leaflet](https://leafletjs.com/)** | 1.9.4 | 대화형 GeoJSON 및 TopoJSON 맵 오버레이를 구동합니다. | 감지 시 지연 로드 |
 | **[TopoJSON](https://github.com/topojson/topojson)** | 3.0.2 | TopoJSON 구조를 표준 GeoJSON 좌표로 파싱합니다. | 감지 시 지연 로드 |
 | **[Three.js](https://threejs.org/)** | r128 | 캔버스 뷰포트로 STL 3D 모델을 렌더링합니다. | 감지 시 지연 로드 |
 | **[악보 렌더링 라이브러리 (abcjs)](https://www.abcjs.net/)** | 6.5.2 | 원본 텍스트 정의로부터 악보를 렌더링합니다. | 감지 시 지연 로드 |
 | **[PlantUML](https://plantuml.com/)** | - | 압축된 마크업에서 SVG 다이어그램을 생성하는 외부 서버입니다. | PlantUML 감지 시 지연 로드 |
+| **[Kroki / D2](https://kroki.io/)** | - | D2 다이어그램을 테마 맞춤형 SVG로 렌더링하는 외부 서버입니다. | D2 감지 시 지연 로드 |
 
 ---
 

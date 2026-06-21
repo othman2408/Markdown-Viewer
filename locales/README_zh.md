@@ -89,6 +89,9 @@
   <img src="https://github.com/user-attachments/assets/027e0bcb-d149-46bb-adf5-0ece02ffaaac" alt="Client-Side PlantUML Diagrams" width="90%" />
 </p>
 
+### 🖼️ D2 图表工具箱
+即时渲染干净现代的 D2 (diagramming-as-code) 脚本块，配备与主题契合的交互式工具栏，支持缩放/平移查看、复制到剪贴板以及 SVG/PNG 下载。
+
 ### 🗺️ 交互式地图渲染器
 直接在预览区域解析并可视化 GeoJSON 和 TopoJSON 地图文件。
 <p align="center">
@@ -228,7 +231,7 @@ graph TD
         MathJax["MathJax.js<br>(LaTeX 数学)"]
         Mermaid["Mermaid.js<br>(图表)"]
         PDF["jsPDF & html2canvas<br>(PDF/PNG 导出)"]
-        Pako["Pako.js<br>(DEFLATE 分享与 PlantUML 编码器)"]
+        Pako["Pako.js<br>(DEFLATE 分享、PlantUML 与 D2 编码器)"]
         JoyPixels["JoyPixels.js/css<br>(表情包工具)"]
         Leaflet["Leaflet.js/css & TopoJSON<br>(交互式地图)"]
         ThreeJS["Three.js、加载器与控制器<br>(3D STL 查看器)"]
@@ -259,8 +262,9 @@ graph TD
     Script -- "延迟加载 (检测到数学公式)" --> MathJax
     Script -- "延迟加载 (检测到 Mermaid 类)" --> Mermaid
     Script -- "延迟加载 (点击导出)" --> PDF
-    Script -- "延迟加载 (点击分享或检测到 PlantUML)" --> Pako
+    Script -- "延迟加载 (点击分享、检测到 PlantUML 或 D2)" --> Pako
     Script -- "请求 SVG 图表" --> PlantUML["PlantUML 服务器<br>(plantuml.com)"]
+    Script -- "请求 SVG 图表" --> Kroki["Kroki 服务器<br>(kroki.io)"]
     Script -- "延迟加载 (检测到冒号)" --> JoyPixels
     Script -- "延迟加载 (检测到地图类)" --> Leaflet
     Script -- "延迟加载 (检测到 STL 类)" --> ThreeJS
@@ -276,6 +280,7 @@ graph TD
     ThreeJS -- "渲染 3D STL 模型" --> Preview
     Abcjs -- "渲染五线谱" --> Preview
     PlantUML -- "渲染 SVG 图表" --> Preview
+    Kroki -- "渲染 SVG 图表" --> Preview
     
     %% Network Proxy Caching
     Cache -. "网络优先 (应用资产)" .-> HTML
@@ -431,13 +436,14 @@ Markdown-Viewer/
 | **[MathJax](https://www.mathjax.org/)** | 3.2.2 | 渲染 LaTeX 数学公式。 | 检测到数学公式时延迟加载 |
 | **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | 在客户端生成分页的 PDF 文档。 | 请求 PDF 时延迟加载 |
 | **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | 将 HTML 布局捕获为画布对象。 | 请求 PDF 时延迟加载 |
-| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | 处理分享链接和 PlantUML 图表的 DEFLATE 压缩。 | 请求分享或 PlantUML 时延迟加载 |
+| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | 处理分享链接、PlantUML 和 D2 图表的 DEFLATE 压缩。 | 请求分享、PlantUML 或 D2 时延迟加载 |
 | **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | 渲染标准表情符号集。 | 选择表情符号时延迟加载 |
 | **[Leaflet](https://leafletjs.com/)** | 1.9.4 | 驱动交互式 GeoJSON 和 TopoJSON 地图图层。 | 检测到地图时延迟加载 |
 | **[TopoJSON](https://github.com/topojson/topojson)** | 3.0.2 | 将 TopoJSON 结构解析为标准的 GeoJSON 坐标。 | 检测到 topojson 时延迟加载 |
 | **[Three.js](https://threejs.org/)** | r128 | 通过画布视口渲染 STL 3D 模型。 | 检测到 STL 文件时延迟加载 |
 | **[ABC 乐谱渲染库 (abcjs)](https://www.abcjs.net/)** | 6.5.2 | 从原始文本定义中渲染乐谱。 | 检测到 abc 乐谱时延迟加载 |
 | **[PlantUML](https://plantuml.com/)** | - | 从压缩的标记生成 SVG 图表的外部服务器。 | 检测到 PlantUML 时延迟加载 |
+| **[Kroki / D2](https://kroki.io/)** | - | 从压缩的标记生成 D2 图表的外部服务器。 | 检测到 D2 时延迟加载 |
 
 ---
 

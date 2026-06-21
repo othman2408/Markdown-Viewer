@@ -90,6 +90,9 @@ Render PlantUML diagrams instantly with a clean, theme-matched interface featuri
   <img src="https://github.com/user-attachments/assets/027e0bcb-d149-46bb-adf5-0ece02ffaaac" alt="Client-Side PlantUML Diagrams" width="90%" />
 </p>
 
+### 🖼️ D2 Diagram Toolkit
+Render clean, modern D2 diagrams-as-code scripting blocks instantly with a theme-matched interactive toolbar for zoom/pan view, clipboard copy, and SVG/PNG downloads.
+
 ### 🗺️ Interactive Map Renderers
 Parse and visualize GeoJSON and TopoJSON map files directly inside your preview area.
 <p align="center">
@@ -229,7 +232,7 @@ graph TD
         MathJax["MathJax.js<br>(LaTeX Math)"]
         Mermaid["Mermaid.js<br>(Diagrams)"]
         PDF["jsPDF & html2canvas<br>(PDF/PNG Export)"]
-        Pako["Pako.js<br>(DEFLATE share & PlantUML encoder)"]
+        Pako["Pako.js<br>(DEFLATE share, PlantUML & D2 encoder)"]
         JoyPixels["JoyPixels.js/css<br>(Emoji Tool)"]
         Leaflet["Leaflet.js/css & TopoJSON<br>(Interactive Maps)"]
         ThreeJS["Three.js, loaders & controls<br>(3D STL Viewer)"]
@@ -260,8 +263,9 @@ graph TD
     Script -- "Lazy Load (Math string detected)" --> MathJax
     Script -- "Lazy Load (Mermaid class detected)" --> Mermaid
     Script -- "Lazy Load (On Export click)" --> PDF
-    Script -- "Lazy Load (On Share click or PlantUML detection)" --> Pako
+    Script -- "Lazy Load (On Share click, PlantUML or D2 detection)" --> Pako
     Script -- "Request SVG diagram" --> PlantUML["PlantUML Server<br>(plantuml.com)"]
+    Script -- "Request SVG diagram" --> Kroki["Kroki Server<br>(kroki.io)"]
     Script -- "Lazy Load (Colons detected)" --> JoyPixels
     Script -- "Lazy Load (geo/topojson map class)" --> Leaflet
     Script -- "Lazy Load (stl-viewer class)" --> ThreeJS
@@ -277,6 +281,7 @@ graph TD
     ThreeJS -- "Render 3D STL model" --> Preview
     Abcjs -- "Render sheet music" --> Preview
     PlantUML -- "Render SVG diagram" --> Preview
+    Kroki -- "Render SVG diagram" --> Preview
     
     %% Network Proxy Caching
     Cache -. "Network-First (App Assets)" .-> HTML
@@ -433,13 +438,14 @@ Markdown-Viewer/
 | **[MathJax](https://www.mathjax.org/)** | 3.2.2 | Renders mathematical LaTeX expressions. | Lazy-loaded on math find |
 | **[jsPDF](https://github.com/parallax/jsPDF)** | 2.5.1 | Generates paginated PDF documents client-side. | Lazy-loaded on PDF request |
 | **[html2canvas](https://html2canvas.hertzen.com/)** | 1.4.1 | Captures HTML layouts as canvas objects. | Lazy-loaded on PDF request |
-| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | Handles DEFLATE compression for share links and PlantUML diagrams. | Lazy-loaded on share or PlantUML request |
+| **[pako.js](https://github.com/nodeca/pako)** | 2.1.0 | Handles DEFLATE compression for share links, PlantUML, and D2 diagrams. | Lazy-loaded on share, PlantUML, or D2 request |
 | **[JoyPixels](https://www.joypixels.com/)** | 9.0.1 | Renders standard emoji sets. | Lazy-loaded on emoji select |
 | **[Leaflet](https://leafletjs.com/)** | 1.9.4 | Powers interactive GeoJSON and TopoJSON map overlays. | Lazy-loaded on map detection |
 | **[TopoJSON](https://github.com/topojson/topojson)** | 3.0.2 | Parses TopoJSON structures into standard GeoJSON coordinates. | Lazy-loaded on topojson detection |
 | **[Three.js](https://threejs.org/)** | r128 | Renders STL 3D models with canvas viewports. | Lazy-loaded on STL file detection |
 | **[ABC Music Notation (abcjs)](https://www.abcjs.net/)** | 6.5.2 | Renders sheet music notation from raw text definitions. | Lazy-loaded on abc music detection |
 | **[PlantUML](https://plantuml.com/)** | - | External server rendering SVG diagrams from compressed markup. | Lazy-loaded on PlantUML detection |
+| **[Kroki / D2](https://kroki.io/)** | - | External server rendering D2 diagrams into theme-matched SVG. | Lazy-loaded on D2 detection |
 
 ---
 

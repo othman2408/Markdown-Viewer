@@ -1036,6 +1036,15 @@ document.addEventListener("DOMContentLoaded", function () {
       return `<div class="plantuml-container is-loading"><div class="plantuml-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
 
+    if (language === 'd2') {
+      const uniqueId = 'd2-diagram-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="d2-container is-loading"><div class="d2-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
     if (language === 'math') {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -1261,6 +1270,24 @@ document.addEventListener("DOMContentLoaded", function () {
       result += append3bytes(b1, b2, b3);
     }
     return result;
+  }
+
+  function encodeKrokiD2(text) {
+    if (typeof pako === 'undefined') {
+      throw new Error('pako is not loaded');
+    }
+    const utf8 = new TextEncoder().encode(text);
+    const compressed = pako.deflate(utf8, { level: 9 });
+    let binary = '';
+    const len = compressed.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(compressed[i]);
+    }
+    const base64 = btoa(binary);
+    return base64
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
   }
 
   // PERF-012: Inlined default template to eliminate network request, FOUC, and layout shifts
@@ -3143,6 +3170,66 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (e) {
       console.warn("PlantUML processing failed:", e);
+    }
+
+    try {
+      const d2Nodes = queryPreviewRoots(roots, '.d2-diagram');
+      if (d2Nodes.length > 0) {
+        const renderD2Nodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          
+          d2Nodes.forEach(node => {
+            const container = node.closest('.d2-container');
+            const originalCode = node.getAttribute('data-original-code');
+            if (!originalCode) return;
+            const decodedCode = decodeURIComponent(originalCode);
+            
+            try {
+              const encoded = encodeKrokiD2(decodedCode);
+              const url = 'https://kroki.io/d2/svg/' + encoded;
+              
+              node.innerHTML = '';
+              const img = document.createElement('img');
+              img.src = url;
+              img.alt = 'D2 Diagram';
+              img.className = 'd2-img';
+              
+              img.onload = function() {
+                if (container) container.classList.remove('is-loading');
+                addD2Toolbars();
+              };
+              
+              img.onerror = function() {
+                node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);"><i class="bi bi-wifi-off me-2"></i>Offline or unable to connect to Kroki server</div>`;
+                if (container) container.classList.remove('is-loading');
+              };
+              
+              node.appendChild(img);
+            } catch (err) {
+              console.error("D2 encoding failed:", err);
+              node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);">Error encoding diagram: ${escapeHtml(err.message)}</div>`;
+              if (container) container.classList.remove('is-loading');
+            }
+          });
+        };
+        
+        if (typeof pako === 'undefined') {
+          loadScript(CDN.pako).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            renderD2Nodes();
+          }).catch(function(e) {
+            console.warn('Failed to load pako for D2:', e);
+            d2Nodes.forEach(node => {
+              const container = node.closest('.d2-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderD2Nodes();
+        }
+      }
+    } catch (e) {
+      console.warn("D2 processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
@@ -10660,6 +10747,153 @@ document.addEventListener("DOMContentLoaded", function () {
       btnSvg.setAttribute('aria-label', 'Download SVG');
       btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
       btnSvg.addEventListener('click', () => downloadPlantumlSvg(container, btnSvg));
+
+      toolbar.appendChild(btnZoom);
+      toolbar.appendChild(btnCopy);
+      toolbar.appendChild(btnPng);
+      toolbar.appendChild(btnSvg);
+      container.appendChild(toolbar);
+    });
+  }
+
+  // ==========================================================================
+  // D2 TOOLBARS & EXPORT ENGINE
+  // ==========================================================================
+
+  /** Downloads the D2 diagram in the given container as a PNG file. */
+  async function downloadD2Png(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const pngUrl = imgEl.src.replace('/svg/', '/png/');
+      const res = await fetch(pngUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
+    } catch (e) {
+      console.error('D2 PNG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Copies the D2 diagram in the given container as a PNG image to the clipboard. */
+  async function copyD2Image(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const pngUrl = imgEl.src.replace('/svg/', '/png/');
+      const res = await fetch(pngUrl);
+      const blob = await res.blob();
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+      } catch (clipErr) {
+        console.error('Clipboard write failed:', clipErr);
+        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+      }
+      setTimeout(() => { btn.innerHTML = original; }, 1800);
+    } catch (e) {
+      console.error('D2 copy failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Downloads the SVG source of a D2 diagram. */
+  async function downloadD2Svg(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const res = await fetch(imgEl.src);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram-${Date.now()}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
+    } catch (e) {
+      console.error('D2 SVG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Opens the zoom modal with the D2 image from the given container. */
+  function openD2ZoomModal(container) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+
+    mermaidModalDiagram.textContent = '';
+    modalZoomScale = 1;
+    modalPanX = 0;
+    modalPanY = 0;
+
+    const imgClone = imgEl.cloneNode(true);
+    imgClone.removeAttribute('width');
+    imgClone.removeAttribute('height');
+    imgClone.style.width  = 'auto';
+    imgClone.style.height = 'auto';
+    imgClone.style.maxWidth  = '80vw';
+    imgClone.style.maxHeight = '60vh';
+    imgClone.style.transformOrigin = 'center';
+    mermaidModalDiagram.appendChild(imgClone);
+    modalCurrentSvgEl = imgClone;
+
+    mermaidZoomModal.classList.add('active');
+  }
+
+  function addD2Toolbars() {
+    markdownPreview.querySelectorAll('.d2-container').forEach(container => {
+      if (container.querySelector('.d2-toolbar')) return; // already added
+      const imgEl = container.querySelector('img');
+      if (!imgEl) return; // diagram not yet rendered or failed
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'd2-toolbar';
+      toolbar.setAttribute('aria-label', 'Diagram actions');
+
+      const btnZoom = document.createElement('button');
+      btnZoom.className = 'd2-toolbar-btn';
+      btnZoom.title = 'Zoom diagram';
+      btnZoom.setAttribute('aria-label', 'Zoom diagram');
+      btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+      btnZoom.addEventListener('click', () => openD2ZoomModal(container));
+
+      const btnPng = document.createElement('button');
+      btnPng.className = 'd2-toolbar-btn';
+      btnPng.title = 'Download PNG';
+      btnPng.setAttribute('aria-label', 'Download PNG');
+      btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
+      btnPng.addEventListener('click', () => downloadD2Png(container, btnPng));
+
+      const btnCopy = document.createElement('button');
+      btnCopy.className = 'd2-toolbar-btn';
+      btnCopy.title = 'Copy image to clipboard';
+      btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
+      btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
+      btnCopy.addEventListener('click', () => copyD2Image(container, btnCopy));
+
+      const btnSvg = document.createElement('button');
+      btnSvg.className = 'd2-toolbar-btn';
+      btnSvg.title = 'Download SVG';
+      btnSvg.setAttribute('aria-label', 'Download SVG');
+      btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
+      btnSvg.addEventListener('click', () => downloadD2Svg(container, btnSvg));
 
       toolbar.appendChild(btnZoom);
       toolbar.appendChild(btnCopy);
