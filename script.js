@@ -993,6 +993,15 @@ document.addEventListener("DOMContentLoaded", function () {
       return `<div class="stl-container is-loading"><div class="stl-viewer" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
 
+    if (language === 'plantuml') {
+      const uniqueId = 'plantuml-diagram-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="plantuml-container is-loading"><div class="plantuml-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
     if (language === 'math') {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -1177,6 +1186,47 @@ document.addEventListener("DOMContentLoaded", function () {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function encode6bit(b) {
+    if (b < 10) return String.fromCharCode(48 + b); // '0'-'9'
+    b -= 10;
+    if (b < 26) return String.fromCharCode(65 + b); // 'A'-'Z'
+    b -= 26;
+    if (b < 26) return String.fromCharCode(97 + b); // 'a'-'z'
+    b -= 26;
+    if (b === 0) return '-';
+    if (b === 1) return '_';
+    return '?';
+  }
+
+  function append3bytes(b1, b2, b3) {
+    const c1 = b1 >> 2;
+    const c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+    const c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
+    const c4 = b3 & 0x3F;
+    let r = "";
+    r += encode6bit(c1 & 0x3F);
+    r += encode6bit(c2 & 0x3F);
+    r += encode6bit(c3 & 0x3F);
+    r += encode6bit(c4 & 0x3F);
+    return r;
+  }
+
+  function encodePlantUML(text) {
+    if (typeof pako === 'undefined') {
+      throw new Error('pako is not loaded');
+    }
+    const utf8 = new TextEncoder().encode(text);
+    const compressed = pako.deflate(utf8, { level: 9, raw: true });
+    let result = "";
+    for (let i = 0; i < compressed.length; i += 3) {
+      const b1 = compressed[i];
+      const b2 = i + 1 < compressed.length ? compressed[i + 1] : 0;
+      const b3 = i + 2 < compressed.length ? compressed[i + 2] : 0;
+      result += append3bytes(b1, b2, b3);
+    }
+    return result;
   }
 
   // PERF-012: Inlined default template to eliminate network request, FOUC, and layout shifts
@@ -2985,6 +3035,66 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (e) {
       console.warn("STL processing failed:", e);
+    }
+
+    try {
+      const plantumlNodes = queryPreviewRoots(roots, '.plantuml-diagram');
+      if (plantumlNodes.length > 0) {
+        const renderPlantumlNodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          
+          plantumlNodes.forEach(node => {
+            const container = node.closest('.plantuml-container');
+            const originalCode = node.getAttribute('data-original-code');
+            if (!originalCode) return;
+            const decodedCode = decodeURIComponent(originalCode);
+            
+            try {
+              const encoded = encodePlantUML(decodedCode);
+              const url = 'https://www.plantuml.com/plantuml/svg/' + encoded;
+              
+              node.innerHTML = '';
+              const img = document.createElement('img');
+              img.src = url;
+              img.alt = 'PlantUML Diagram';
+              img.className = 'plantuml-img';
+              
+              img.onload = function() {
+                if (container) container.classList.remove('is-loading');
+                addPlantumlToolbars();
+              };
+              
+              img.onerror = function() {
+                node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);"><i class="bi bi-wifi-off me-2"></i>Offline or unable to connect to PlantUML server</div>`;
+                if (container) container.classList.remove('is-loading');
+              };
+              
+              node.appendChild(img);
+            } catch (err) {
+              console.error("PlantUML encoding failed:", err);
+              node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);">Error encoding diagram: ${escapeHtml(err.message)}</div>`;
+              if (container) container.classList.remove('is-loading');
+            }
+          });
+        };
+        
+        if (typeof pako === 'undefined') {
+          loadScript(CDN.pako).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            renderPlantumlNodes();
+          }).catch(function(e) {
+            console.warn('Failed to load pako for PlantUML:', e);
+            plantumlNodes.forEach(node => {
+              const container = node.closest('.plantuml-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderPlantumlNodes();
+        }
+      }
+    } catch (e) {
+      console.warn("PlantUML processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
@@ -10044,23 +10154,35 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Modal download buttons (operate on the currently displayed SVG)
+  // Modal download buttons (operate on the currently displayed SVG or Image)
   document.getElementById('mermaid-modal-download-png').addEventListener('click', async function() {
     if (!modalCurrentSvgEl) return;
     const btn = this;
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
-      // Use the original SVG (with dimensions) for proper PNG rendering
-      const canvas = await svgToCanvas(modalCurrentSvgEl);
-      canvas.toBlob(blob => {
+      if (modalCurrentSvgEl.tagName.toLowerCase() === 'img') {
+        const pngUrl = modalCurrentSvgEl.src.replace('/svg/', '/png/');
+        const res = await fetch(pngUrl);
+        const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = `diagram-${Date.now()}.png`; a.click();
         URL.revokeObjectURL(url);
         btn.innerHTML = '<i class="bi bi-check-lg"></i>';
         setTimeout(() => { btn.innerHTML = original; }, 1500);
-      }, 'image/png');
+      } else {
+        // Use the original SVG (with dimensions) for proper PNG rendering
+        const canvas = await svgToCanvas(modalCurrentSvgEl);
+        canvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `diagram-${Date.now()}.png`; a.click();
+          URL.revokeObjectURL(url);
+          btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+          setTimeout(() => { btn.innerHTML = original; }, 1500);
+        }, 'image/png');
+      }
     } catch (e) {
       console.error('Modal PNG export failed:', e);
       btn.innerHTML = original;
@@ -10073,8 +10195,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
-      const canvas = await svgToCanvas(modalCurrentSvgEl);
-      canvas.toBlob(async blob => {
+      if (modalCurrentSvgEl.tagName.toLowerCase() === 'img') {
+        const pngUrl = modalCurrentSvgEl.src.replace('/svg/', '/png/');
+        const res = await fetch(pngUrl);
+        const blob = await res.blob();
         try {
           await navigator.clipboard.write([
             new ClipboardItem({ 'image/png': blob })
@@ -10085,7 +10209,21 @@ document.addEventListener("DOMContentLoaded", function () {
           btn.innerHTML = '<i class="bi bi-x-lg"></i>';
         }
         setTimeout(() => { btn.innerHTML = original; }, 1800);
-      }, 'image/png');
+      } else {
+        const canvas = await svgToCanvas(modalCurrentSvgEl);
+        canvas.toBlob(async blob => {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+          } catch (clipErr) {
+            console.error('Clipboard write failed:', clipErr);
+            btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+          }
+          setTimeout(() => { btn.innerHTML = original; }, 1800);
+        }, 'image/png');
+      }
     } catch (e) {
       console.error('Modal copy failed:', e);
       btn.innerHTML = original;
@@ -10094,13 +10232,172 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById('mermaid-modal-download-svg').addEventListener('click', function() {
     if (!modalCurrentSvgEl) return;
-    const serialized = new XMLSerializer().serializeToString(modalCurrentSvgEl);
-    const blob = new Blob([serialized], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
-    URL.revokeObjectURL(url);
+    if (modalCurrentSvgEl.tagName.toLowerCase() === 'img') {
+      fetch(modalCurrentSvgEl.src)
+        .then(res => res.blob())
+        .then(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
+          URL.revokeObjectURL(url);
+        })
+        .catch(e => console.error('Modal SVG download failed:', e));
+    } else {
+      const serialized = new XMLSerializer().serializeToString(modalCurrentSvgEl);
+      const blob = new Blob([serialized], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
+      URL.revokeObjectURL(url);
+    }
   });
+
+  // ==========================================================================
+  // PLANTUML TOOLBARS & EXPORT ENGINE
+  // ==========================================================================
+
+  /** Downloads the PlantUML diagram in the given container as a PNG file. */
+  async function downloadPlantumlPng(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const pngUrl = imgEl.src.replace('/svg/', '/png/');
+      const res = await fetch(pngUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
+    } catch (e) {
+      console.error('PlantUML PNG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Copies the PlantUML diagram in the given container as a PNG image to the clipboard. */
+  async function copyPlantumlImage(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const pngUrl = imgEl.src.replace('/svg/', '/png/');
+      const res = await fetch(pngUrl);
+      const blob = await res.blob();
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+      } catch (clipErr) {
+        console.error('Clipboard write failed:', clipErr);
+        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+      }
+      setTimeout(() => { btn.innerHTML = original; }, 1800);
+    } catch (e) {
+      console.error('PlantUML copy failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Downloads the SVG source of a PlantUML diagram. */
+  async function downloadPlantumlSvg(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const res = await fetch(imgEl.src);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram-${Date.now()}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
+    } catch (e) {
+      console.error('PlantUML SVG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Opens the zoom modal with the PlantUML image from the given container. */
+  function openPlantumlZoomModal(container) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+
+    mermaidModalDiagram.textContent = '';
+    modalZoomScale = 1;
+    modalPanX = 0;
+    modalPanY = 0;
+
+    const imgClone = imgEl.cloneNode(true);
+    imgClone.removeAttribute('width');
+    imgClone.removeAttribute('height');
+    imgClone.style.width  = 'auto';
+    imgClone.style.height = 'auto';
+    imgClone.style.maxWidth  = '80vw';
+    imgClone.style.maxHeight = '60vh';
+    imgClone.style.transformOrigin = 'center';
+    mermaidModalDiagram.appendChild(imgClone);
+    modalCurrentSvgEl = imgClone;
+
+    mermaidZoomModal.classList.add('active');
+  }
+
+  function addPlantumlToolbars() {
+    markdownPreview.querySelectorAll('.plantuml-container').forEach(container => {
+      if (container.querySelector('.plantuml-toolbar')) return; // already added
+      const imgEl = container.querySelector('img');
+      if (!imgEl) return; // diagram not yet rendered or failed
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'plantuml-toolbar';
+      toolbar.setAttribute('aria-label', 'Diagram actions');
+
+      const btnZoom = document.createElement('button');
+      btnZoom.className = 'plantuml-toolbar-btn';
+      btnZoom.title = 'Zoom diagram';
+      btnZoom.setAttribute('aria-label', 'Zoom diagram');
+      btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+      btnZoom.addEventListener('click', () => openPlantumlZoomModal(container));
+
+      const btnPng = document.createElement('button');
+      btnPng.className = 'plantuml-toolbar-btn';
+      btnPng.title = 'Download PNG';
+      btnPng.setAttribute('aria-label', 'Download PNG');
+      btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
+      btnPng.addEventListener('click', () => downloadPlantumlPng(container, btnPng));
+
+      const btnCopy = document.createElement('button');
+      btnCopy.className = 'plantuml-toolbar-btn';
+      btnCopy.title = 'Copy image to clipboard';
+      btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
+      btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
+      btnCopy.addEventListener('click', () => copyPlantumlImage(container, btnCopy));
+
+      const btnSvg = document.createElement('button');
+      btnSvg.className = 'plantuml-toolbar-btn';
+      btnSvg.title = 'Download SVG';
+      btnSvg.setAttribute('aria-label', 'Download SVG');
+      btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
+      btnSvg.addEventListener('click', () => downloadPlantumlSvg(container, btnSvg));
+
+      toolbar.appendChild(btnZoom);
+      toolbar.appendChild(btnCopy);
+      toolbar.appendChild(btnPng);
+      toolbar.appendChild(btnSvg);
+      container.appendChild(toolbar);
+    });
+  }
 
   function zoomStl(view, factor) {
     if (!view || !view.camera || !view.controls) return;

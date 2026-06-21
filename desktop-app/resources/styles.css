@@ -1604,7 +1604,8 @@ a:focus {
 }
 
 .mermaid-toolbar-btn,
-.stl-toolbar-btn {
+.stl-toolbar-btn,
+.plantuml-toolbar-btn {
   background-color: var(--button-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
@@ -1620,18 +1621,21 @@ a:focus {
 }
 
 .mermaid-toolbar-btn:hover,
-.stl-toolbar-btn:hover {
+.stl-toolbar-btn:hover,
+.plantuml-toolbar-btn:hover {
   background-color: var(--button-hover);
   color: var(--accent-color);
 }
 
 .mermaid-toolbar-btn:active,
-.stl-toolbar-btn:active {
+.stl-toolbar-btn:active,
+.plantuml-toolbar-btn:active {
   background-color: var(--button-active);
 }
 
 .mermaid-toolbar-btn i,
-.stl-toolbar-btn i {
+.stl-toolbar-btn i,
+.plantuml-toolbar-btn i {
   font-size: 14px;
 }
 
@@ -4152,6 +4156,72 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   display: block;
 }
 
+/* --- PlantUML Styles --- */
+.plantuml-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.5em 0;
+  overflow-x: auto;
+  position: relative;
+}
+
+.plantuml-container.is-loading {
+  min-height: 120px;
+  background-color: var(--skeleton-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  animation: skeleton-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.plantuml-container.is-loading .plantuml-diagram {
+  opacity: 0;
+}
+
+.plantuml-container.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--skeleton-glow) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.plantuml-diagram {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.plantuml-diagram img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* --- PlantUML Toolbar Styling --- */
+.plantuml-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.plantuml-container:hover .plantuml-toolbar {
+  opacity: 1;
+}
+
 /* Accessibility: respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .skeleton-placeholder,
@@ -4165,7 +4235,9 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   .topojson-container.is-loading,
   .topojson-container.is-loading::after,
   .stl-container.is-loading,
-  .stl-container.is-loading::after {
+  .stl-container.is-loading::after,
+  .plantuml-container.is-loading,
+  .plantuml-container.is-loading::after {
     animation: none;
   }
   .drag-overlay-inner {
