@@ -65,6 +65,40 @@ document.addEventListener("DOMContentLoaded", function () {
   const activeStlViews = new Map();
   let activeModalStlView = null;
 
+  // Active ABC synthesis playback variables
+  let activeAbcSynth = null;
+  let activeAbcTimingCallbacks = null;
+  let activeAbcBtn = null;
+
+  function stopActiveAbcPlayback() {
+    if (activeAbcSynth) {
+      try {
+        activeAbcSynth.stop();
+      } catch (e) {
+        console.warn("Error stopping ABC playback:", e);
+      }
+      activeAbcSynth = null;
+    }
+    if (activeAbcTimingCallbacks) {
+      try {
+        activeAbcTimingCallbacks.stop();
+      } catch (e) {
+        console.warn("Error stopping ABC timing callbacks:", e);
+      }
+      activeAbcTimingCallbacks = null;
+    }
+    
+    // Clean up all active cursors and highlights globally in the document
+    document.querySelectorAll('.abc-notation svg .abcjs-cursor').forEach(el => el.remove());
+    document.querySelectorAll('.abc-notation svg .abcjs-highlight').forEach(el => el.classList.remove('abcjs-highlight'));
+
+    if (activeAbcBtn) {
+      activeAbcBtn.innerHTML = '<i class="bi bi-play-fill"></i> Listen';
+      activeAbcBtn.setAttribute('aria-label', 'Listen to score');
+      activeAbcBtn = null;
+    }
+  }
+
   let markdownRenderTimeout = null;
   let pendingPreviewRenderCancel = null;
   let previewRenderGeneration = 0;
@@ -2840,7 +2874,7 @@ document.addEventListener("DOMContentLoaded", function () {
                   const container = node.closest('.abc-container');
                   try {
                     node.innerHTML = '';
-                    ABCJS.renderAbc(node.id, decodedCode, {
+                    const visualObj = ABCJS.renderAbc(node.id, decodedCode, {
                       responsive: "resize",
                       add_classes: true
                     });
@@ -2871,47 +2905,61 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (container) {
                       container.classList.remove('is-loading');
                       
-                      if (!container.querySelector('.abc-toolbar')) {
-                        const toolbar = document.createElement('div');
-                        toolbar.className = 'abc-toolbar';
-                        toolbar.style.cssText = 'display: flex; justify-content: flex-end; width: 100%; margin-bottom: 0.5em;';
-                        
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'tool-button abc-toggle-btn';
-                        btn.setAttribute('aria-pressed', 'false');
-                        btn.style.cssText = 'padding: 2px 8px; font-size: 11px;';
-                        btn.innerHTML = '<i class="bi bi-code-slash me-1"></i>View Code';
-                        toolbar.appendChild(btn);
-                        
-                        const rawPre = document.createElement('pre');
-                        rawPre.className = 'abc-raw-code';
-                        rawPre.style.cssText = 'display: none; width: 100%; margin: 0; padding: 1em; background: var(--editor-bg); border-radius: 4px; overflow-x: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-color);';
-                        rawPre.textContent = decodedCode;
-                        
-                        const srOnlyDiv = document.createElement('div');
-                        srOnlyDiv.className = 'abc-sr-only';
-                        srOnlyDiv.id = 'abc-source-' + node.id;
-                        srOnlyDiv.textContent = decodedCode;
-                        
-                        container.insertBefore(toolbar, node);
-                        container.appendChild(rawPre);
-                        container.appendChild(srOnlyDiv);
-                        
-                        btn.addEventListener('click', function() {
-                          const isPressed = btn.getAttribute('aria-pressed') === 'true';
-                          btn.setAttribute('aria-pressed', !isPressed);
-                          if (!isPressed) {
-                            node.style.display = 'none';
-                            rawPre.style.display = 'block';
-                            btn.innerHTML = '<i class="bi bi-eye me-1"></i>View Score';
-                          } else {
-                            node.style.display = 'block';
-                            rawPre.style.display = 'none';
-                            btn.innerHTML = '<i class="bi bi-code-slash me-1"></i>View Code';
-                          }
-                        });
-                      }
+                      const oldToolbar = container.querySelector('.abc-toolbar');
+                      if (oldToolbar) oldToolbar.remove();
+                      const oldRaw = container.querySelector('.abc-raw-code');
+                      if (oldRaw) oldRaw.remove();
+                      const oldSrOnly = container.querySelector('.abc-sr-only');
+                      if (oldSrOnly) oldSrOnly.remove();
+
+                      const toolbar = document.createElement('div');
+                      toolbar.className = 'abc-toolbar';
+                      toolbar.setAttribute('aria-label', 'ABC notation actions');
+
+                      const btnListen = document.createElement('button');
+                      btnListen.type = 'button';
+                      btnListen.className = 'abc-toolbar-btn';
+                      btnListen.title = 'Listen to score';
+                      btnListen.setAttribute('aria-label', 'Listen to score');
+                      btnListen.innerHTML = '<i class="bi bi-play-fill"></i> Listen';
+                      btnListen.addEventListener('click', () => toggleAbcPlay(visualObj, btnListen, container));
+
+                      const btnCopy = document.createElement('button');
+                      btnCopy.type = 'button';
+                      btnCopy.className = 'abc-toolbar-btn';
+                      btnCopy.title = 'Copy image to clipboard';
+                      btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
+                      btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
+                      btnCopy.addEventListener('click', () => copyAbcImage(container, btnCopy));
+
+                      const btnPng = document.createElement('button');
+                      btnPng.type = 'button';
+                      btnPng.className = 'abc-toolbar-btn';
+                      btnPng.title = 'Download PNG';
+                      btnPng.setAttribute('aria-label', 'Download PNG');
+                      btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
+                      btnPng.addEventListener('click', () => downloadAbcPng(container, btnPng));
+
+                      const btnSvg = document.createElement('button');
+                      btnSvg.type = 'button';
+                      btnSvg.className = 'abc-toolbar-btn';
+                      btnSvg.title = 'Download SVG';
+                      btnSvg.setAttribute('aria-label', 'Download SVG');
+                      btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
+                      btnSvg.addEventListener('click', () => downloadAbcSvg(container, btnSvg));
+
+                      toolbar.appendChild(btnListen);
+                      toolbar.appendChild(btnCopy);
+                      toolbar.appendChild(btnPng);
+                      toolbar.appendChild(btnSvg);
+
+                      const srOnlyDiv = document.createElement('div');
+                      srOnlyDiv.className = 'abc-sr-only';
+                      srOnlyDiv.id = 'abc-source-' + node.id;
+                      srOnlyDiv.textContent = decodedCode;
+
+                      container.insertBefore(toolbar, node);
+                      container.appendChild(srOnlyDiv);
                     }
                   } catch (err) {
                     console.error("ABCJS rendering failed:", err);
@@ -3192,6 +3240,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function renderMarkdown(options) {
+    stopActiveAbcPlayback();
     options = options || {};
     const rawVal = markdownEditor.value;
     const force = options.force === true;
@@ -9981,6 +10030,227 @@ document.addEventListener("DOMContentLoaded", function () {
       img.onerror = reject;
       img.src = svgToDataUrl(svgEl);
     });
+  }
+
+  // ========================================
+  // ABC DIAGRAM PLAYBACK AND EXPORT
+  // ========================================
+
+  function CursorControl(containerNode) {
+    const self = this;
+    self.container = containerNode;
+    self.cursor = null;
+    self.currentElements = [];
+
+    self.onStart = function() {
+      const svg = self.container.querySelector('svg');
+      if (!svg) return;
+      
+      const oldCursor = svg.querySelector('.abcjs-cursor');
+      if (oldCursor) oldCursor.remove();
+
+      self.cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      self.cursor.setAttribute("class", "abcjs-cursor");
+      self.cursor.setAttribute("x1", "0");
+      self.cursor.setAttribute("y1", "0");
+      self.cursor.setAttribute("x2", "0");
+      self.cursor.setAttribute("y2", "0");
+      svg.appendChild(self.cursor);
+    };
+
+    self.onEvent = function(ev) {
+      self.removeHighlight();
+
+      if (ev.elements) {
+        ev.elements.forEach(note => {
+          note.forEach(el => {
+            el.classList.add("abcjs-highlight");
+            self.currentElements.push(el);
+          });
+        });
+      }
+
+      if (self.cursor && typeof ev.left === 'number') {
+        const svg = self.container.querySelector('svg');
+        if (svg) {
+          const x = ev.left;
+          const y1 = ev.top || 0;
+          const y2 = (ev.top + ev.height) || svg.viewBox.baseVal.height || 500;
+          
+          self.cursor.setAttribute("x1", x);
+          self.cursor.setAttribute("x2", x);
+          self.cursor.setAttribute("y1", y1);
+          self.cursor.setAttribute("y2", y2);
+          self.cursor.style.display = "block";
+        }
+      }
+    };
+
+    self.removeHighlight = function() {
+      self.currentElements.forEach(el => {
+        el.classList.remove("abcjs-highlight");
+      });
+      self.currentElements = [];
+    };
+
+    self.onFinished = function() {
+      self.removeHighlight();
+      if (self.cursor) {
+        self.cursor.remove();
+        self.cursor = null;
+      }
+    };
+  }
+
+  function toggleAbcPlay(visualObj, btn, container) {
+    if (!visualObj || !visualObj[0]) return;
+
+    if (activeAbcBtn === btn) {
+      stopActiveAbcPlayback();
+      return;
+    }
+
+    stopActiveAbcPlayback();
+
+    if (!ABCJS.synth.supportsAudio()) {
+      alert("Audio playback is not supported in this browser.");
+      return;
+    }
+
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
+    activeAbcBtn = btn;
+
+    try {
+      const synth = new ABCJS.synth.CreateSynth();
+      activeAbcSynth = synth;
+
+      const cursorControl = new CursorControl(container);
+
+      const timingCallbacks = new ABCJS.TimingCallbacks(visualObj[0], {
+        eventCallback: function(ev) {
+          if (ev) {
+            cursorControl.onEvent(ev);
+          } else {
+            cursorControl.onFinished();
+          }
+        }
+      });
+      activeAbcTimingCallbacks = timingCallbacks;
+
+      synth.init({
+        visualObj: visualObj[0],
+        options: {
+          onEnded: function() {
+            if (activeAbcSynth === synth) {
+              stopActiveAbcPlayback();
+            }
+          }
+        }
+      })
+      .then(function() {
+        if (activeAbcSynth !== synth) return;
+        return synth.prime();
+      })
+      .then(function() {
+        if (activeAbcSynth !== synth) return;
+        
+        cursorControl.onStart();
+        timingCallbacks.start();
+
+        btn.innerHTML = '<i class="bi bi-stop-fill"></i> Stop';
+        btn.setAttribute('aria-label', 'Stop playback');
+        return synth.start();
+      })
+      .catch(function(err) {
+        console.error("ABC synth initialization failed:", err);
+        btn.innerHTML = originalHtml;
+        if (activeAbcBtn === btn) {
+          activeAbcBtn = null;
+        }
+        if (activeAbcSynth === synth) {
+          activeAbcSynth = null;
+        }
+        if (activeAbcTimingCallbacks === timingCallbacks) {
+          activeAbcTimingCallbacks = null;
+        }
+        cursorControl.onFinished();
+      });
+    } catch (e) {
+      console.error("ABC audio setup error:", e);
+      btn.innerHTML = originalHtml;
+      activeAbcBtn = null;
+      activeAbcSynth = null;
+      activeAbcTimingCallbacks = null;
+    }
+  }
+
+  /** Downloads the ABC score in the given container as a PNG file. */
+  async function downloadAbcPng(container, btn) {
+    const svgEl = container.querySelector('svg');
+    if (!svgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const canvas = await svgToCanvas(svgEl);
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `score-${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+        setTimeout(() => { btn.innerHTML = original; }, 1500);
+      }, 'image/png');
+    } catch (e) {
+      console.error('ABC PNG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Copies the ABC score in the given container as a PNG image to the clipboard. */
+  async function copyAbcImage(container, btn) {
+    const svgEl = container.querySelector('svg');
+    if (!svgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const canvas = await svgToCanvas(svgEl);
+      canvas.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        } catch (clipErr) {
+          console.error('Clipboard write failed:', clipErr);
+          btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+        }
+        setTimeout(() => { btn.innerHTML = original; }, 1800);
+      }, 'image/png');
+    } catch (e) {
+      console.error('ABC copy failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Downloads the SVG source of the ABC score. */
+  function downloadAbcSvg(container, btn) {
+    const svgEl = container.querySelector('svg');
+    if (!svgEl) return;
+    const clone = svgEl.cloneNode(true);
+    const serialized = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([serialized], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `score-${Date.now()}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    setTimeout(() => { btn.innerHTML = original; }, 1500);
   }
 
   /** Downloads the diagram in the given container as a PNG file. */

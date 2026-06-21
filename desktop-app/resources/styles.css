@@ -1588,7 +1588,9 @@ a:focus {
   position: relative;
 }
 
-.mermaid-toolbar {
+.mermaid-toolbar,
+.abc-toolbar,
+.plantuml-toolbar {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -1599,11 +1601,14 @@ a:focus {
   z-index: 10;
 }
 
-.mermaid-container:hover .mermaid-toolbar {
+.mermaid-container:hover .mermaid-toolbar,
+.abc-container:hover .abc-toolbar,
+.plantuml-container:hover .plantuml-toolbar {
   opacity: 1;
 }
 
 .mermaid-toolbar-btn,
+.abc-toolbar-btn,
 .stl-toolbar-btn,
 .plantuml-toolbar-btn {
   background-color: var(--button-bg);
@@ -1621,6 +1626,7 @@ a:focus {
 }
 
 .mermaid-toolbar-btn:hover,
+.abc-toolbar-btn:hover,
 .stl-toolbar-btn:hover,
 .plantuml-toolbar-btn:hover {
   background-color: var(--button-hover);
@@ -1628,12 +1634,14 @@ a:focus {
 }
 
 .mermaid-toolbar-btn:active,
+.abc-toolbar-btn:active,
 .stl-toolbar-btn:active,
 .plantuml-toolbar-btn:active {
   background-color: var(--button-active);
 }
 
 .mermaid-toolbar-btn i,
+.abc-toolbar-btn i,
 .stl-toolbar-btn i,
 .plantuml-toolbar-btn i {
   font-size: 14px;
@@ -3877,6 +3885,7 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   border-radius: 6px;
   overflow-x: auto;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+  position: relative;
 }
 
 .abc-container.is-loading {
@@ -4254,4 +4263,14 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   .markdown-tool-btn {
     transition: none;
   }
+}
+
+/* ABC playback cursor and highlight styles */
+.abcjs-highlight {
+  fill: #00a2ff !important;
+  stroke: #00a2ff !important;
+}
+.abcjs-cursor {
+  stroke: red;
+  stroke-width: 2px;
 }
