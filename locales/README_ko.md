@@ -25,7 +25,7 @@
     </a>
   </p>
 
-  🌐 [English](../README.md) • [简体中文](README_zh.md) • [日本語](README_ja.md) • **한국어** • <a href="../wiki/Localization.md">Português (Brasil)</a>
+  🌐 [English](../README.md) • [简体中文](README_zh.md) • [日本語](README_ja.md) • **한국어** • <a href="../wiki/Localization.md">기타 언어</a>
 
   [라이브 데모](https://markdownviewer.pages.dev/) • [문서 Wiki](../wiki/Home.md) • [이슈 트래커](https://github.com/ThisIs-Developer/Markdown-Viewer/issues) • [릴리스](https://github.com/ThisIs-Developer/Markdown-Viewer/releases)
 
