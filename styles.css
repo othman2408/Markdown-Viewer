@@ -4264,3 +4264,13 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
     transition: none;
   }
 }
+
+/* ABC playback cursor and highlight styles */
+.abcjs-highlight {
+  fill: #00a2ff !important;
+  stroke: #00a2ff !important;
+}
+.abcjs-cursor {
+  stroke: red;
+  stroke-width: 2px;
+}

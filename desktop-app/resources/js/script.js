@@ -67,6 +67,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Active ABC synthesis playback variables
   let activeAbcSynth = null;
+  let activeAbcTimingCallbacks = null;
   let activeAbcBtn = null;
 
   function stopActiveAbcPlayback() {
@@ -78,6 +79,19 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       activeAbcSynth = null;
     }
+    if (activeAbcTimingCallbacks) {
+      try {
+        activeAbcTimingCallbacks.stop();
+      } catch (e) {
+        console.warn("Error stopping ABC timing callbacks:", e);
+      }
+      activeAbcTimingCallbacks = null;
+    }
+    
+    // Clean up all active cursors and highlights globally in the document
+    document.querySelectorAll('.abc-notation svg .abcjs-cursor').forEach(el => el.remove());
+    document.querySelectorAll('.abc-notation svg .abcjs-highlight').forEach(el => el.classList.remove('abcjs-highlight'));
+
     if (activeAbcBtn) {
       activeAbcBtn.innerHTML = '<i class="bi bi-play-fill"></i> Listen';
       activeAbcBtn.setAttribute('aria-label', 'Listen to score');
@@ -2908,7 +2922,7 @@ document.addEventListener("DOMContentLoaded", function () {
                       btnListen.title = 'Listen to score';
                       btnListen.setAttribute('aria-label', 'Listen to score');
                       btnListen.innerHTML = '<i class="bi bi-play-fill"></i> Listen';
-                      btnListen.addEventListener('click', () => toggleAbcPlay(visualObj, btnListen));
+                      btnListen.addEventListener('click', () => toggleAbcPlay(visualObj, btnListen, container));
 
                       const btnCopy = document.createElement('button');
                       btnCopy.type = 'button';
@@ -10022,7 +10036,73 @@ document.addEventListener("DOMContentLoaded", function () {
   // ABC DIAGRAM PLAYBACK AND EXPORT
   // ========================================
 
-  function toggleAbcPlay(visualObj, btn) {
+  function CursorControl(containerNode) {
+    const self = this;
+    self.container = containerNode;
+    self.cursor = null;
+    self.currentElements = [];
+
+    self.onStart = function() {
+      const svg = self.container.querySelector('svg');
+      if (!svg) return;
+      
+      const oldCursor = svg.querySelector('.abcjs-cursor');
+      if (oldCursor) oldCursor.remove();
+
+      self.cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      self.cursor.setAttribute("class", "abcjs-cursor");
+      self.cursor.setAttribute("x1", "0");
+      self.cursor.setAttribute("y1", "0");
+      self.cursor.setAttribute("x2", "0");
+      self.cursor.setAttribute("y2", "0");
+      svg.appendChild(self.cursor);
+    };
+
+    self.onEvent = function(ev) {
+      self.removeHighlight();
+
+      if (ev.elements) {
+        ev.elements.forEach(note => {
+          note.forEach(el => {
+            el.classList.add("abcjs-highlight");
+            self.currentElements.push(el);
+          });
+        });
+      }
+
+      if (self.cursor && typeof ev.left === 'number') {
+        const svg = self.container.querySelector('svg');
+        if (svg) {
+          const x = ev.left;
+          const y1 = ev.top || 0;
+          const y2 = (ev.top + ev.height) || svg.viewBox.baseVal.height || 500;
+          
+          self.cursor.setAttribute("x1", x);
+          self.cursor.setAttribute("x2", x);
+          self.cursor.setAttribute("y1", y1);
+          self.cursor.setAttribute("y2", y2);
+          self.cursor.style.display = "block";
+        }
+      }
+    };
+
+    self.removeHighlight = function() {
+      self.currentElements.forEach(el => {
+        el.classList.remove("abcjs-highlight");
+      });
+      self.currentElements = [];
+    };
+
+    self.onFinished = function() {
+      self.removeHighlight();
+      if (self.cursor) {
+        self.cursor.remove();
+        self.cursor = null;
+      }
+    };
+  }
+
+  function toggleAbcPlay(visualObj, btn, container) {
     if (!visualObj || !visualObj[0]) return;
 
     if (activeAbcBtn === btn) {
@@ -10045,6 +10125,19 @@ document.addEventListener("DOMContentLoaded", function () {
       const synth = new ABCJS.synth.CreateSynth();
       activeAbcSynth = synth;
 
+      const cursorControl = new CursorControl(container);
+
+      const timingCallbacks = new ABCJS.TimingCallbacks(visualObj[0], {
+        eventCallback: function(ev) {
+          if (ev) {
+            cursorControl.onEvent(ev);
+          } else {
+            cursorControl.onFinished();
+          }
+        }
+      });
+      activeAbcTimingCallbacks = timingCallbacks;
+
       synth.init({
         visualObj: visualObj[0],
         options: {
@@ -10061,6 +10154,10 @@ document.addEventListener("DOMContentLoaded", function () {
       })
       .then(function() {
         if (activeAbcSynth !== synth) return;
+        
+        cursorControl.onStart();
+        timingCallbacks.start();
+
         btn.innerHTML = '<i class="bi bi-stop-fill"></i> Stop';
         btn.setAttribute('aria-label', 'Stop playback');
         return synth.start();
@@ -10074,12 +10171,17 @@ document.addEventListener("DOMContentLoaded", function () {
         if (activeAbcSynth === synth) {
           activeAbcSynth = null;
         }
+        if (activeAbcTimingCallbacks === timingCallbacks) {
+          activeAbcTimingCallbacks = null;
+        }
+        cursorControl.onFinished();
       });
     } catch (e) {
       console.error("ABC audio setup error:", e);
       btn.innerHTML = originalHtml;
       activeAbcBtn = null;
       activeAbcSynth = null;
+      activeAbcTimingCallbacks = null;
     }
   }
 
