@@ -1218,7 +1218,7 @@ document.addEventListener("DOMContentLoaded", function () {
       throw new Error('pako is not loaded');
     }
     const utf8 = new TextEncoder().encode(text);
-    const compressed = pako.deflate(utf8, { level: 9 });
+    const compressed = pako.deflate(utf8, { level: 9, raw: true });
     let result = "";
     for (let i = 0; i < compressed.length; i += 3) {
       const b1 = compressed[i];
