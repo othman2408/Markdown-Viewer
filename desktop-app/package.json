@@ -9,13 +9,7 @@
     "predev": "npm run setup",
     "dev": "npx -y @neutralinojs/neu@11.7.0 run",
     "prebuild": "npm run setup",
-    "build": "node build-windows.js",
-    "prebuild:windows": "npm run setup",
-    "build:windows": "node build-windows.js",
-    "prebuild:portable": "npm run setup",
-    "build:portable": "npx -y @neutralinojs/neu@11.7.0 build --release --clean",
-    "prebuild:all": "npm run setup",
-    "build:all": "npx -y @neutralinojs/neu@11.7.0 build --release --clean && node build-windows.js --dist dist/windows-embedded"
+    "build": "npx -y @neutralinojs/neu@11.7.0 build --release --clean && node -e \"const fs = require('fs'); if (fs.existsSync('dist/markdown-viewer-release.zip')) fs.unlinkSync('dist/markdown-viewer-release.zip');\""
   },
   "dependencies": {}
 }
