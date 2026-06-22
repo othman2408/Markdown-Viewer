@@ -10763,6 +10763,40 @@ document.addEventListener("DOMContentLoaded", async function () {
   // PLANTUML TOOLBARS & EXPORT ENGINE
   // ==========================================================================
 
+  /** Adds a solid white background to a transparent PNG blob. */
+  function addWhiteBackgroundToPngBlob(blob) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob(newBlob => {
+            if (newBlob) {
+              resolve(newBlob);
+            } else {
+              reject(new Error('Canvas toBlob failed'));
+            }
+          }, 'image/png');
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image for background addition'));
+      };
+      img.src = url;
+    });
+  }
+
   /** Downloads the PlantUML diagram in the given container as a PNG file. */
   async function downloadPlantumlPng(container, btn) {
     const imgEl = container.querySelector('img');
@@ -10772,7 +10806,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
       const res = await fetch(pngUrl);
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      const blob = await addWhiteBackgroundToPngBlob(rawBlob);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -10796,7 +10831,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
       const res = await fetch(pngUrl);
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      const blob = await addWhiteBackgroundToPngBlob(rawBlob);
       try {
         await navigator.clipboard.write([
           new ClipboardItem({ 'image/png': blob })
