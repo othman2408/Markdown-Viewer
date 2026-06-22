@@ -10800,16 +10800,65 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
+  async function getSvgOriginalDimensions(url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const text = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return null;
+      
+      let width = parseFloat(svg.getAttribute('width'));
+      let height = parseFloat(svg.getAttribute('height'));
+      
+      const viewBox = svg.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.trim().split(/\s+/);
+        if (parts.length === 4) {
+          const vbWidth = parseFloat(parts[2]);
+          const vbHeight = parseFloat(parts[3]);
+          if (!isNaN(vbWidth) && !isNaN(vbHeight)) {
+            width = vbWidth;
+            height = vbHeight;
+          }
+        }
+      }
+      
+      if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
+        return { width, height, text };
+      }
+    } catch (e) {
+      console.warn('Failed to parse SVG dimensions:', e);
+    }
+    return null;
+  }
+
   /** Generates a high-quality PNG blob from a rendered diagram image. */
   async function getDiagramPngBlob(imgEl, pngUrl) {
-    // We render the SVG image client-side onto a high-definition canvas (3x scale)
-    // with a solid white background. This ensures perfectly sharp text and shapes.
+    // Attempt to fetch SVG text to parse the exact original coordinates (viewBox)
+    const originalDim = await getSvgOriginalDimensions(imgEl.src);
+
     return new Promise((resolve, reject) => {
       try {
         const canvas = document.createElement('canvas');
         const scale = 3; // 3x scale for high-definition (crisp text)
-        const width = imgEl.naturalWidth || imgEl.width || 800;
-        const height = imgEl.naturalHeight || imgEl.height || 600;
+        
+        let width = imgEl.naturalWidth || imgEl.width || 800;
+        let height = imgEl.naturalHeight || imgEl.height || 600;
+        
+        if (originalDim) {
+          width = originalDim.width;
+          height = originalDim.height;
+        }
+        
+        // Enforce a minimum base width of 1600px to guarantee crisp detail on large D2 diagrams
+        if (width < 1600) {
+          const aspect = height / width;
+          width = 1600;
+          height = width * aspect;
+        }
         
         canvas.width = width * scale;
         canvas.height = height * scale;
@@ -10819,14 +10868,37 @@ document.addEventListener("DOMContentLoaded", async function () {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         ctx.scale(scale, scale);
-        ctx.drawImage(imgEl, 0, 0, width, height);
-        canvas.toBlob(blob => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error('Canvas toBlob failed'));
+        
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(blob => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Canvas toBlob failed'));
+            }
+          }, 'image/png');
+        };
+        img.onerror = () => {
+          // Fallback to direct imgEl drawing if data URL loading fails
+          try {
+            ctx.drawImage(imgEl, 0, 0, width, height);
+            canvas.toBlob(blob => {
+              if (blob) resolve(blob);
+              else reject(new Error('Canvas toBlob failed'));
+            }, 'image/png');
+          } catch (err) {
+            reject(err);
           }
-        }, 'image/png');
+        };
+        
+        if (originalDim && originalDim.text) {
+          const blob = new Blob([originalDim.text], { type: 'image/svg+xml;charset=utf-8' });
+          img.src = URL.createObjectURL(blob);
+        } else {
+          img.src = imgEl.src;
+        }
       } catch (err) {
         reject(err);
       }
