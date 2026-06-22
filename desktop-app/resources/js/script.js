@@ -3244,13 +3244,13 @@ document.addEventListener("DOMContentLoaded", async function () {
           
           try {
             const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
-            const theme = currentTheme === 'dark' ? '200' : '0';
+            const theme = currentTheme === 'dark' ? '200' : '';
             let modifiedCode = decodedCode;
             if (!modifiedCode.includes('style.fill') && !/style\s*:\s*\{[^}]*fill/.test(modifiedCode)) {
               modifiedCode = `style.fill: transparent\n${modifiedCode}`;
             }
             const encoded = encodeKrokiD2(modifiedCode);
-            const url = 'https://kroki.io/d2/svg/' + encoded + '?theme=' + theme;
+            const url = 'https://kroki.io/d2/svg/' + encoded + (theme ? '?theme=' + theme : '');
             
             node.innerHTML = '';
             const img = document.createElement('img');
