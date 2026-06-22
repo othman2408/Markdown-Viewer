@@ -3196,6 +3196,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               
               node.innerHTML = '';
               const img = document.createElement('img');
+              img.crossOrigin = 'anonymous';
               img.src = url;
               img.alt = 'PlantUML Diagram';
               img.className = 'plantuml-img';
@@ -3261,6 +3262,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             
             node.innerHTML = '';
             const img = document.createElement('img');
+            img.crossOrigin = 'anonymous';
             img.src = url;
             img.alt = 'D2 Diagram';
             img.className = 'd2-img';
@@ -3330,6 +3332,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             
             node.innerHTML = '';
             const img = document.createElement('img');
+            img.crossOrigin = 'anonymous';
             img.src = url;
             img.alt = 'Graphviz Diagram';
             img.className = 'graphviz-img';
@@ -10797,6 +10800,81 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
+  /** Fetches PNG from server, falls back to client-side canvas rendering if it fails. */
+  async function getDiagramPngBlob(imgEl, pngUrl) {
+    try {
+      const res = await fetch(pngUrl);
+      if (res.ok) {
+        const rawBlob = await res.blob();
+        if (rawBlob.size > 500) {
+          return await addWhiteBackgroundToPngBlob(rawBlob);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch PNG from server, falling back to client-side SVG render:", e);
+    }
+
+    // Fallback: draw the loaded SVG image onto a canvas client-side
+    return new Promise((resolve, reject) => {
+      try {
+        const canvas = document.createElement('canvas');
+        const scale = 2; // For high resolution
+        const width = imgEl.naturalWidth || imgEl.width || 800;
+        const height = imgEl.naturalHeight || imgEl.height || 600;
+        
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.scale(scale, scale);
+        ctx.drawImage(imgEl, 0, 0, width, height);
+        canvas.toBlob(blob => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Canvas toBlob failed'));
+          }
+        }, 'image/png');
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  /** Helper to download an SVG diagram with fallback if fetch fails. */
+  async function downloadSvgHelper(imgEl, filename, btn, originalHtml) {
+    try {
+      const res = await fetch(imgEl.src);
+      if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = originalHtml; }, 1500);
+    } catch (e) {
+      console.warn('SVG fetch download failed, attempting fallback direct link download:', e);
+      try {
+        const a = document.createElement('a');
+        a.href = imgEl.src;
+        a.download = filename;
+        a.target = '_blank';
+        a.click();
+        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      } catch (err) {
+        console.error('SVG download completely failed:', err);
+        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+      }
+      setTimeout(() => { btn.innerHTML = originalHtml; }, 1500);
+    }
+  }
+
   /** Downloads the PlantUML diagram in the given container as a PNG file. */
   async function downloadPlantumlPng(container, btn) {
     const imgEl = container.querySelector('img');
@@ -10805,9 +10883,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
-      const res = await fetch(pngUrl);
-      const rawBlob = await res.blob();
-      const blob = await addWhiteBackgroundToPngBlob(rawBlob);
+      const blob = await getDiagramPngBlob(imgEl, pngUrl);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -10830,9 +10906,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
-      const res = await fetch(pngUrl);
-      const rawBlob = await res.blob();
-      const blob = await addWhiteBackgroundToPngBlob(rawBlob);
+      const blob = await getDiagramPngBlob(imgEl, pngUrl);
       try {
         await navigator.clipboard.write([
           new ClipboardItem({ 'image/png': blob })
@@ -10855,21 +10929,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!imgEl) return;
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      const res = await fetch(imgEl.src);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `diagram-${Date.now()}.svg`;
-      a.click();
-      URL.revokeObjectURL(url);
-      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-      setTimeout(() => { btn.innerHTML = original; }, 1500);
-    } catch (e) {
-      console.error('PlantUML SVG export failed:', e);
-      btn.innerHTML = original;
-    }
+    await downloadSvgHelper(imgEl, `diagram-${Date.now()}.svg`, btn, original);
   }
 
   /** Opens the zoom modal with the PlantUML image from the given container. */
@@ -10956,8 +11016,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
-      const res = await fetch(pngUrl);
-      const blob = await res.blob();
+      const blob = await getDiagramPngBlob(imgEl, pngUrl);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -10980,8 +11039,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
-      const res = await fetch(pngUrl);
-      const blob = await res.blob();
+      const blob = await getDiagramPngBlob(imgEl, pngUrl);
       try {
         await navigator.clipboard.write([
           new ClipboardItem({ 'image/png': blob })
@@ -11004,21 +11062,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!imgEl) return;
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      const res = await fetch(imgEl.src);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `diagram-${Date.now()}.svg`;
-      a.click();
-      URL.revokeObjectURL(url);
-      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-      setTimeout(() => { btn.innerHTML = original; }, 1500);
-    } catch (e) {
-      console.error('D2 SVG export failed:', e);
-      btn.innerHTML = original;
-    }
+    await downloadSvgHelper(imgEl, `diagram-${Date.now()}.svg`, btn, original);
   }
 
   /** Opens the zoom modal with the D2 image from the given container. */
@@ -11105,8 +11149,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
-      const res = await fetch(pngUrl);
-      const blob = await res.blob();
+      const blob = await getDiagramPngBlob(imgEl, pngUrl);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -11129,8 +11172,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     try {
       const pngUrl = imgEl.src.replace('/svg/', '/png/');
-      const res = await fetch(pngUrl);
-      const blob = await res.blob();
+      const blob = await getDiagramPngBlob(imgEl, pngUrl);
       try {
         await navigator.clipboard.write([
           new ClipboardItem({ 'image/png': blob })
@@ -11153,21 +11195,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!imgEl) return;
     const original = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      const res = await fetch(imgEl.src);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `diagram-${Date.now()}.svg`;
-      a.click();
-      URL.revokeObjectURL(url);
-      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-      setTimeout(() => { btn.innerHTML = original; }, 1500);
-    } catch (e) {
-      console.error('Graphviz SVG export failed:', e);
-      btn.innerHTML = original;
-    }
+    await downloadSvgHelper(imgEl, `diagram-${Date.now()}.svg`, btn, original);
   }
 
   /** Opens the zoom modal with the Graphviz image from the given container. */
