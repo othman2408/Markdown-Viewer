@@ -3243,14 +3243,12 @@ document.addEventListener("DOMContentLoaded", async function () {
           if (container) container.classList.add('is-loading');
           
           try {
-            const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
-            const theme = currentTheme === 'dark' ? '200' : '';
             let modifiedCode = decodedCode;
             if (!modifiedCode.includes('style.fill') && !/style\s*:\s*\{[^}]*fill/.test(modifiedCode)) {
               modifiedCode = `style.fill: transparent\n${modifiedCode}`;
             }
             const encoded = encodeKrokiD2(modifiedCode);
-            const url = 'https://kroki.io/d2/svg/' + encoded + (theme ? '?theme=' + theme : '');
+            const url = 'https://kroki.io/d2/svg/' + encoded;
             
             node.innerHTML = '';
             const img = document.createElement('img');
@@ -7726,23 +7724,6 @@ document.addEventListener("DOMContentLoaded", async function () {
       } catch (e) {
         console.warn('Mermaid theme re-render failed:', e);
       }
-    }
-
-    // Re-render D2 diagrams on theme change
-    try {
-      const d2Nodes = markdownPreview.querySelectorAll('.d2-diagram');
-      d2Nodes.forEach(function(node) {
-        if (typeof node.renderD2 === 'function') {
-          const container = node.closest('.d2-container');
-          if (container) {
-            const oldToolbar = container.querySelector('.d2-toolbar');
-            if (oldToolbar) oldToolbar.remove();
-          }
-          node.renderD2();
-        }
-      });
-    } catch (e) {
-      console.warn('D2 theme re-render failed:', e);
     }
 
     updateMapThemes();

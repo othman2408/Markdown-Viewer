@@ -4227,7 +4227,9 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
 }
 
 [data-theme="dark"] .plantuml-diagram img,
-[data-theme="dark"] .plantuml-img {
+[data-theme="dark"] .plantuml-img,
+[data-theme="dark"] .d2-diagram img,
+[data-theme="dark"] .d2-img {
   filter: invert(0.9) hue-rotate(180deg);
 }
 
