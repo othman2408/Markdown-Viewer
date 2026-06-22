@@ -21,7 +21,9 @@
     "os.open",
     "os.setTray",
     "filesystem.readFile",
-    "filesystem.writeFile"
+    "filesystem.writeFile",
+    "storage.setData",
+    "storage.getData"
   ],
   "globalVariables": {},
   "modes": {
