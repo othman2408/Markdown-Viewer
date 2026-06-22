@@ -1084,6 +1084,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       return `<div class="d2-container is-loading"><div class="d2-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
     }
 
+    if (language === 'graphviz' || language === 'dot') {
+      const uniqueId = 'graphviz-diagram-' + Math.random().toString(36).substr(2, 9);
+      const escapedCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div class="graphviz-container is-loading"><div class="graphviz-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapedCode}</div></div>`;
+    }
+
     if (language === 'math') {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -3302,6 +3311,75 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     } catch (e) {
       console.warn("D2 processing failed:", e);
+    }
+
+    try {
+      const graphvizNodes = queryPreviewRoots(roots, '.graphviz-diagram');
+      if (graphvizNodes.length > 0) {
+        const renderSingleGraphvizNode = function(node) {
+          const container = node.closest('.graphviz-container');
+          const originalCode = node.getAttribute('data-original-code');
+          if (!originalCode) return;
+          const decodedCode = decodeURIComponent(originalCode);
+          
+          if (container) container.classList.add('is-loading');
+          
+          try {
+            const encoded = encodeKrokiD2(decodedCode);
+            const url = 'https://kroki.io/graphviz/svg/' + encoded;
+            
+            node.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = 'Graphviz Diagram';
+            img.className = 'graphviz-img';
+            img.draggable = false;
+            img.addEventListener('dragstart', e => e.preventDefault());
+            
+            img.onload = function() {
+              if (container) container.classList.remove('is-loading');
+              addGraphvizToolbars();
+            };
+            
+            img.onerror = function() {
+              node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);"><i class="bi bi-wifi-off me-2"></i>Offline or unable to connect to Kroki server</div>`;
+              if (container) container.classList.remove('is-loading');
+            };
+            
+            node.appendChild(img);
+          } catch (err) {
+            console.error("Graphviz encoding failed:", err);
+            node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);">Error encoding diagram: ${escapeHtml(err.message)}</div>`;
+            if (container) container.classList.remove('is-loading');
+          }
+        };
+
+        graphvizNodes.forEach(node => {
+          node.renderGraphviz = () => renderSingleGraphvizNode(node);
+        });
+
+        const renderGraphvizNodes = function() {
+          if (context.renderId !== previewRenderGeneration) return;
+          graphvizNodes.forEach(node => node.renderGraphviz());
+        };
+        
+        if (typeof pako === 'undefined') {
+          loadScript(CDN.pako).then(function() {
+            if (context.renderId !== previewRenderGeneration) return;
+            renderGraphvizNodes();
+          }).catch(function(e) {
+            console.warn('Failed to load pako for Graphviz:', e);
+            graphvizNodes.forEach(node => {
+              const container = node.closest('.graphviz-container');
+              if (container) container.classList.remove('is-loading');
+            });
+          });
+        } else {
+          renderGraphvizNodes();
+        }
+      }
+    } catch (e) {
+      console.warn("Graphviz processing failed:", e);
     }
 
     const hasMath = /\$\$|\$[^$]|\\\(|\\\[/.test(rawVal || '') || /```math\b/.test(rawVal || '');
@@ -10970,6 +11048,155 @@ document.addEventListener("DOMContentLoaded", async function () {
       btnSvg.setAttribute('aria-label', 'Download SVG');
       btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
       btnSvg.addEventListener('click', () => downloadD2Svg(container, btnSvg));
+
+      toolbar.appendChild(btnZoom);
+      toolbar.appendChild(btnCopy);
+      toolbar.appendChild(btnPng);
+      toolbar.appendChild(btnSvg);
+      container.appendChild(toolbar);
+    });
+  }
+
+  // ==========================================================================
+  // GRAPHVIZ TOOLBARS & EXPORT ENGINE
+  // ==========================================================================
+
+  /** Downloads the Graphviz diagram in the given container as a PNG file. */
+  async function downloadGraphvizPng(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const pngUrl = imgEl.src.replace('/svg/', '/png/');
+      const res = await fetch(pngUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
+    } catch (e) {
+      console.error('Graphviz PNG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Copies the Graphviz diagram in the given container as a PNG image to the clipboard. */
+  async function copyGraphvizImage(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const pngUrl = imgEl.src.replace('/svg/', '/png/');
+      const res = await fetch(pngUrl);
+      const blob = await res.blob();
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+      } catch (clipErr) {
+        console.error('Clipboard write failed:', clipErr);
+        btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+      }
+      setTimeout(() => { btn.innerHTML = original; }, 1800);
+    } catch (e) {
+      console.error('Graphviz copy failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Downloads the SVG source of a Graphviz diagram. */
+  async function downloadGraphvizSvg(container, btn) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    try {
+      const res = await fetch(imgEl.src);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram-${Date.now()}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      setTimeout(() => { btn.innerHTML = original; }, 1500);
+    } catch (e) {
+      console.error('Graphviz SVG export failed:', e);
+      btn.innerHTML = original;
+    }
+  }
+
+  /** Opens the zoom modal with the Graphviz image from the given container. */
+  function openGraphvizZoomModal(container) {
+    const imgEl = container.querySelector('img');
+    if (!imgEl) return;
+
+    mermaidModalDiagram.textContent = '';
+    modalZoomScale = 1;
+    modalPanX = 0;
+    modalPanY = 0;
+
+    const imgClone = imgEl.cloneNode(true);
+    imgClone.removeAttribute('width');
+    imgClone.removeAttribute('height');
+    imgClone.style.width  = 'auto';
+    imgClone.style.height = 'auto';
+    imgClone.style.maxWidth  = '80vw';
+    imgClone.style.maxHeight = '60vh';
+    imgClone.style.transformOrigin = 'center';
+    imgClone.draggable = false;
+    imgClone.addEventListener('dragstart', e => e.preventDefault());
+    mermaidModalDiagram.appendChild(imgClone);
+    modalCurrentSvgEl = imgClone;
+
+    mermaidZoomModal.classList.add('active');
+  }
+
+  function addGraphvizToolbars() {
+    markdownPreview.querySelectorAll('.graphviz-container').forEach(container => {
+      if (container.querySelector('.graphviz-toolbar')) return; // already added
+      const imgEl = container.querySelector('img');
+      if (!imgEl) return; // diagram not yet rendered or failed
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'graphviz-toolbar';
+      toolbar.setAttribute('aria-label', 'Diagram actions');
+
+      const btnZoom = document.createElement('button');
+      btnZoom.className = 'graphviz-toolbar-btn';
+      btnZoom.title = 'Zoom diagram';
+      btnZoom.setAttribute('aria-label', 'Zoom diagram');
+      btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+      btnZoom.addEventListener('click', () => openGraphvizZoomModal(container));
+
+      const btnPng = document.createElement('button');
+      btnPng.className = 'graphviz-toolbar-btn';
+      btnPng.title = 'Download PNG';
+      btnPng.setAttribute('aria-label', 'Download PNG');
+      btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
+      btnPng.addEventListener('click', () => downloadGraphvizPng(container, btnPng));
+
+      const btnCopy = document.createElement('button');
+      btnCopy.className = 'graphviz-toolbar-btn';
+      btnCopy.title = 'Copy image to clipboard';
+      btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
+      btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
+      btnCopy.addEventListener('click', () => copyGraphvizImage(container, btnCopy));
+
+      const btnSvg = document.createElement('button');
+      btnSvg.className = 'graphviz-toolbar-btn';
+      btnSvg.title = 'Download SVG';
+      btnSvg.setAttribute('aria-label', 'Download SVG');
+      btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
+      btnSvg.addEventListener('click', () => downloadGraphvizSvg(container, btnSvg));
 
       toolbar.appendChild(btnZoom);
       toolbar.appendChild(btnCopy);

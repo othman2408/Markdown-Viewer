@@ -9,6 +9,7 @@ let topojsonIdCounter = 0;
 let stlIdCounter = 0;
 let plantumlIdCounter = 0;
 let d2IdCounter = 0;
+let graphvizIdCounter = 0;
 
 const markedOptions = {
   gfm: true,
@@ -348,6 +349,11 @@ function configureMarked() {
       return `<div class="d2-container is-loading"><div class="d2-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
     }
 
+    if (language === "graphviz" || language === "dot") {
+      const uniqueId = `graphviz-diagram-worker-${graphvizIdCounter++}`;
+      return `<div class="graphviz-container is-loading"><div class="graphviz-diagram" id="${uniqueId}" data-original-code="${encodeURIComponent(code)}">${escapeHtml(code)}</div></div>`;
+    }
+
     if (language === "math") {
       return `<div class="math-block">$$\n${code}\n$$</div>\n`;
     }
@@ -530,6 +536,7 @@ self.onmessage = function(event) {
     stlIdCounter = 0;
     plantumlIdCounter = 0;
     d2IdCounter = 0;
+    graphvizIdCounter = 0;
     const result = renderSegmentedMarkdown(data.markdown || "", options);
     self.postMessage({
       type: "render-result",

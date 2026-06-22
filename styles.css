@@ -1609,7 +1609,8 @@ a:focus {
 .mermaid-container:hover .mermaid-toolbar,
 .abc-container:hover .abc-toolbar,
 .plantuml-container:hover .plantuml-toolbar,
-.d2-container:hover .d2-toolbar {
+.d2-container:hover .d2-toolbar,
+.graphviz-container:hover .graphviz-toolbar {
   opacity: 1;
 }
 
@@ -1617,7 +1618,8 @@ a:focus {
 .abc-toolbar-btn,
 .stl-toolbar-btn,
 .plantuml-toolbar-btn,
-.d2-toolbar-btn {
+.d2-toolbar-btn,
+.graphviz-toolbar-btn {
   background-color: var(--button-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
@@ -1636,7 +1638,8 @@ a:focus {
 .abc-toolbar-btn:hover,
 .stl-toolbar-btn:hover,
 .plantuml-toolbar-btn:hover,
-.d2-toolbar-btn:hover {
+.d2-toolbar-btn:hover,
+.graphviz-toolbar-btn:hover {
   background-color: var(--button-hover);
   color: var(--accent-color);
 }
@@ -1645,7 +1648,8 @@ a:focus {
 .abc-toolbar-btn:active,
 .stl-toolbar-btn:active,
 .plantuml-toolbar-btn:active,
-.d2-toolbar-btn:active {
+.d2-toolbar-btn:active,
+.graphviz-toolbar-btn:active {
   background-color: var(--button-active);
 }
 
@@ -1653,7 +1657,8 @@ a:focus {
 .abc-toolbar-btn i,
 .stl-toolbar-btn i,
 .plantuml-toolbar-btn i,
-.d2-toolbar-btn i {
+.d2-toolbar-btn i,
+.graphviz-toolbar-btn i {
   font-size: 14px;
 }
 
@@ -4233,7 +4238,9 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
 [data-theme="dark"] .plantuml-diagram img,
 [data-theme="dark"] .plantuml-img,
 [data-theme="dark"] .d2-diagram img,
-[data-theme="dark"] .d2-img {
+[data-theme="dark"] .d2-img,
+[data-theme="dark"] .graphviz-diagram img,
+[data-theme="dark"] .graphviz-img {
   filter: invert(0.9) hue-rotate(180deg);
 }
 
@@ -4321,6 +4328,74 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   opacity: 1;
 }
 
+/* --- Graphviz Styles --- */
+.graphviz-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.5em 0;
+  overflow-x: auto;
+  position: relative;
+}
+
+.graphviz-container.is-loading {
+  min-height: 120px;
+  background-color: var(--skeleton-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  animation: skeleton-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.graphviz-container.is-loading .graphviz-diagram {
+  opacity: 0;
+}
+
+.graphviz-container.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--skeleton-glow) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.graphviz-diagram {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.graphviz-diagram img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* --- Graphviz Toolbar Styling --- */
+.graphviz-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.graphviz-container:hover .graphviz-toolbar {
+  opacity: 1;
+}
+
 /* Accessibility: respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .skeleton-placeholder,
@@ -4338,7 +4413,9 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   .plantuml-container.is-loading,
   .plantuml-container.is-loading::after,
   .d2-container.is-loading,
-  .d2-container.is-loading::after {
+  .d2-container.is-loading::after,
+  .graphviz-container.is-loading,
+  .graphviz-container.is-loading::after {
     animation: none;
   }
   .drag-overlay-inner {
