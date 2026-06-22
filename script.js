@@ -10249,7 +10249,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   function svgToCanvas(svgEl) {
     return new Promise((resolve, reject) => {
       const bbox = svgEl.getBoundingClientRect();
-      const scale = window.devicePixelRatio || 1;
+      const scale = Math.max(window.devicePixelRatio || 1, 3);
       const width  = Math.max(Math.round(bbox.width),  1);
       const height = Math.max(Math.round(bbox.height), 1);
 
@@ -10800,25 +10800,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
-  /** Fetches PNG from server, falls back to client-side canvas rendering if it fails. */
+  /** Generates a high-quality PNG blob from a rendered diagram image. */
   async function getDiagramPngBlob(imgEl, pngUrl) {
-    try {
-      const res = await fetch(pngUrl);
-      if (res.ok) {
-        const rawBlob = await res.blob();
-        if (rawBlob.size > 500) {
-          return await addWhiteBackgroundToPngBlob(rawBlob);
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to fetch PNG from server, falling back to client-side SVG render:", e);
-    }
-
-    // Fallback: draw the loaded SVG image onto a canvas client-side
+    // We render the SVG image client-side onto a high-definition canvas (3x scale)
+    // with a solid white background. This ensures perfectly sharp text and shapes.
     return new Promise((resolve, reject) => {
       try {
         const canvas = document.createElement('canvas');
-        const scale = 2; // For high resolution
+        const scale = 3; // 3x scale for high-definition (crisp text)
         const width = imgEl.naturalWidth || imgEl.width || 800;
         const height = imgEl.naturalHeight || imgEl.height || 600;
         
