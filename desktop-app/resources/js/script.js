@@ -3164,7 +3164,25 @@ document.addEventListener("DOMContentLoaded", async function () {
             const decodedCode = decodeURIComponent(originalCode);
             
             try {
-              const encoded = encodePlantUML(decodedCode);
+              let modifiedCode = decodedCode;
+              if (!modifiedCode.toLowerCase().includes('backgroundcolor')) {
+                const lines = modifiedCode.split('\n');
+                let inserted = false;
+                for (let i = 0; i < lines.length; i++) {
+                  const trimmed = lines[i].trim();
+                  if (trimmed.startsWith('@start')) {
+                    lines.splice(i + 1, 0, 'skinparam backgroundColor transparent');
+                    inserted = true;
+                    break;
+                  }
+                }
+                if (!inserted) {
+                  modifiedCode = 'skinparam backgroundColor transparent\n' + modifiedCode;
+                } else {
+                  modifiedCode = lines.join('\n');
+                }
+              }
+              const encoded = encodePlantUML(modifiedCode);
               const url = 'https://www.plantuml.com/plantuml/svg/' + encoded;
               
               node.innerHTML = '';
@@ -3216,44 +3234,57 @@ document.addEventListener("DOMContentLoaded", async function () {
     try {
       const d2Nodes = queryPreviewRoots(roots, '.d2-diagram');
       if (d2Nodes.length > 0) {
+        const renderSingleD2Node = function(node) {
+          const container = node.closest('.d2-container');
+          const originalCode = node.getAttribute('data-original-code');
+          if (!originalCode) return;
+          const decodedCode = decodeURIComponent(originalCode);
+          
+          if (container) container.classList.add('is-loading');
+          
+          try {
+            const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+            const theme = currentTheme === 'dark' ? '200' : '0';
+            let modifiedCode = decodedCode;
+            if (!modifiedCode.includes('style.fill') && !/style\s*:\s*\{[^}]*fill/.test(modifiedCode)) {
+              modifiedCode = `style.fill: transparent\n${modifiedCode}`;
+            }
+            const encoded = encodeKrokiD2(modifiedCode);
+            const url = 'https://kroki.io/d2/svg/' + encoded + '?theme=' + theme;
+            
+            node.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = 'D2 Diagram';
+            img.className = 'd2-img';
+            img.draggable = false;
+            img.addEventListener('dragstart', e => e.preventDefault());
+            
+            img.onload = function() {
+              if (container) container.classList.remove('is-loading');
+              addD2Toolbars();
+            };
+            
+            img.onerror = function() {
+              node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);"><i class="bi bi-wifi-off me-2"></i>Offline or unable to connect to Kroki server</div>`;
+              if (container) container.classList.remove('is-loading');
+            };
+            
+            node.appendChild(img);
+          } catch (err) {
+            console.error("D2 encoding failed:", err);
+            node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);">Error encoding diagram: ${escapeHtml(err.message)}</div>`;
+            if (container) container.classList.remove('is-loading');
+          }
+        };
+
+        d2Nodes.forEach(node => {
+          node.renderD2 = () => renderSingleD2Node(node);
+        });
+
         const renderD2Nodes = function() {
           if (context.renderId !== previewRenderGeneration) return;
-          
-          d2Nodes.forEach(node => {
-            const container = node.closest('.d2-container');
-            const originalCode = node.getAttribute('data-original-code');
-            if (!originalCode) return;
-            const decodedCode = decodeURIComponent(originalCode);
-            
-            try {
-              const encoded = encodeKrokiD2(decodedCode);
-              const url = 'https://kroki.io/d2/svg/' + encoded;
-              
-              node.innerHTML = '';
-              const img = document.createElement('img');
-              img.src = url;
-              img.alt = 'D2 Diagram';
-              img.className = 'd2-img';
-              img.draggable = false;
-              img.addEventListener('dragstart', e => e.preventDefault());
-              
-              img.onload = function() {
-                if (container) container.classList.remove('is-loading');
-                addD2Toolbars();
-              };
-              
-              img.onerror = function() {
-                node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);"><i class="bi bi-wifi-off me-2"></i>Offline or unable to connect to Kroki server</div>`;
-                if (container) container.classList.remove('is-loading');
-              };
-              
-              node.appendChild(img);
-            } catch (err) {
-              console.error("D2 encoding failed:", err);
-              node.innerHTML = `<div class="render-error-msg" style="padding: 1.5em; text-align: center; color: var(--text-color);">Error encoding diagram: ${escapeHtml(err.message)}</div>`;
-              if (container) container.classList.remove('is-loading');
-            }
-          });
+          d2Nodes.forEach(node => node.renderD2());
         };
         
         if (typeof pako === 'undefined') {
@@ -7695,6 +7726,23 @@ document.addEventListener("DOMContentLoaded", async function () {
       } catch (e) {
         console.warn('Mermaid theme re-render failed:', e);
       }
+    }
+
+    // Re-render D2 diagrams on theme change
+    try {
+      const d2Nodes = markdownPreview.querySelectorAll('.d2-diagram');
+      d2Nodes.forEach(function(node) {
+        if (typeof node.renderD2 === 'function') {
+          const container = node.closest('.d2-container');
+          if (container) {
+            const oldToolbar = container.querySelector('.d2-toolbar');
+            if (oldToolbar) oldToolbar.remove();
+          }
+          node.renderD2();
+        }
+      });
+    } catch (e) {
+      console.warn('D2 theme re-render failed:', e);
     }
 
     updateMapThemes();

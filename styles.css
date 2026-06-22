@@ -4226,6 +4226,11 @@ html[lang="ko"] .markdown-body h1, html[lang="ko"] .markdown-body h2, html[lang=
   -webkit-user-drag: none;
 }
 
+[data-theme="dark"] .plantuml-diagram img,
+[data-theme="dark"] .plantuml-img {
+  filter: invert(0.9) hue-rotate(180deg);
+}
+
 /* --- PlantUML Toolbar Styling --- */
 .plantuml-toolbar {
   position: absolute;
