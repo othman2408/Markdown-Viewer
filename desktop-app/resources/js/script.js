@@ -1,4 +1,43 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
+  async function syncStorageFromNeutralino() {
+    if (typeof Neutralino === 'undefined') return;
+    const keys = [
+      'markdownViewerGlobalState',
+      'markdownViewerTabs',
+      'markdownViewerActiveTab',
+      'markdownViewerUntitledCounter',
+      'find-replace-docked',
+      'app-lang'
+    ];
+    for (const key of keys) {
+      try {
+        const value = await Neutralino.storage.getData(key);
+        if (value !== undefined && value !== null) {
+          localStorage.setItem(key, value);
+        }
+      } catch (err) {
+        // Key does not exist yet
+      }
+    }
+  }
+
+  function saveStorageItem(key, value) {
+    localStorage.setItem(key, value);
+    if (typeof Neutralino !== 'undefined') {
+      Neutralino.storage.setData(key, value).catch(err => {
+        console.warn('Failed to save to Neutralino storage:', err);
+      });
+    }
+  }
+
+  if (typeof Neutralino !== 'undefined') {
+    try {
+      await syncStorageFromNeutralino();
+    } catch (e) {
+      console.warn('Neutralino storage sync failed:', e);
+    }
+  }
+
   // PERF-002: Lazy script loader for optional heavy libraries
   const _loadedScripts = new Set();
   function loadScript(url) {
@@ -339,7 +378,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function saveGlobalState(patch) {
     _globalStateCache = { ...loadGlobalState(), ...patch };
-    localStorage.setItem(GLOBAL_STATE_KEY, JSON.stringify(_globalStateCache));
+    saveStorageItem(GLOBAL_STATE_KEY, JSON.stringify(_globalStateCache));
   }
 
   // Check dark mode preference first for proper initialization
@@ -1349,7 +1388,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function _flushTabsToStorage(tabsArr) {
     clearTimeout(saveTabStateTimeout);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tabsArr || tabs));
+      saveStorageItem(STORAGE_KEY, JSON.stringify(tabsArr || tabs));
     } catch (e) {
       console.warn('Failed to save tabs to localStorage:', e);
     }
@@ -1366,7 +1405,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function saveActiveTabId(id) {
-    localStorage.setItem(ACTIVE_TAB_KEY, id);
+    saveStorageItem(ACTIVE_TAB_KEY, id);
   }
 
   function loadUntitledCounter() {
@@ -1374,7 +1413,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function saveUntitledCounter(val) {
-    localStorage.setItem(UNTITLED_COUNTER_KEY, String(val));
+    saveStorageItem(UNTITLED_COUNTER_KEY, String(val));
   }
 
   function nextUntitledTitle() {
@@ -6631,7 +6670,7 @@ document.addEventListener("DOMContentLoaded", function () {
     
     // Save preference to localStorage
     frPreferredDocked = isFrDocked;
-    localStorage.setItem('find-replace-docked', frPreferredDocked ? 'true' : 'false');
+    saveStorageItem('find-replace-docked', frPreferredDocked ? 'true' : 'false');
 
     if (isFrDocked) {
       panel.classList.add('docked');
@@ -11844,7 +11883,7 @@ document.addEventListener("DOMContentLoaded", function () {
       e.preventDefault();
       const lang = item.getAttribute('data-lang');
       applyTranslations(lang);
-      localStorage.setItem('app-lang', lang);
+      saveStorageItem('app-lang', lang);
       
       // Update browser search parameters dynamically without page reload
       const url = new URL(window.location.href);
