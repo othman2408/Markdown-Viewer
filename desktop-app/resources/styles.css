@@ -233,6 +233,10 @@ body {
   padding: 0.2em 0.4em;
 }
 
+.markdown-body img{
+  background-color: transparent;
+} 
+
 .markdown-body img.emoji-inline {
   width: 1em;
   height: 1em;
