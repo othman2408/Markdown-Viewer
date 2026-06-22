@@ -10249,7 +10249,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   function svgToCanvas(svgEl) {
     return new Promise((resolve, reject) => {
       const bbox = svgEl.getBoundingClientRect();
-      const scale = Math.max(window.devicePixelRatio || 1, 3);
+      const scale = 2; // 2x scale for high quality without excessive file size
       const width  = Math.max(Math.round(bbox.width),  1);
       const height = Math.max(Math.round(bbox.height), 1);
 
@@ -10843,7 +10843,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     return new Promise((resolve, reject) => {
       try {
         const canvas = document.createElement('canvas');
-        const scale = 3; // 3x scale for high-definition (crisp text)
+        const scale = 2; // 2x scale for high quality without being excessively large
         
         let width = imgEl.naturalWidth || imgEl.width || 800;
         let height = imgEl.naturalHeight || imgEl.height || 600;
@@ -10851,13 +10851,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (originalDim) {
           width = originalDim.width;
           height = originalDim.height;
-        }
-        
-        // Enforce a minimum base width of 1600px to guarantee crisp detail on large D2 diagrams
-        if (width < 1600) {
-          const aspect = height / width;
-          width = 1600;
-          height = width * aspect;
         }
         
         canvas.width = width * scale;
