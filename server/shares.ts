@@ -3,7 +3,7 @@ import express, { type Response } from "express";
 import { MAX_DOCUMENT_BYTES, SHARE_DB_MAX_BYTES, publicBaseUrl, randomToken } from "./config";
 import { getSessionUserId } from "./auth";
 import { pipeAsset } from "./assets";
-import { getPool } from "./db";
+import { getDb } from "./db";
 import { ensureBucket, getObject, isR2Configured, putObject, streamToString } from "./r2";
 import type { AssetRow, ShareRow } from "./types";
 
@@ -24,12 +24,13 @@ export function createPublicShareRouter(options: {
 
   router.get("/api/shares/:token", async (req, res, next) => {
     try {
-      const result = await getPool().query<ShareRow>(
-        "SELECT token, title, mode, content, content_object_key FROM shares WHERE token = $1",
-        [req.params.token]
-      );
-      if (!result.rowCount) return res.status(404).json({ error: "not_found" });
-      const share = result.rows[0];
+      const rows = await getDb()<ShareRow>`
+        SELECT token, title, mode, content, content_object_key
+        FROM shares
+        WHERE token = ${req.params.token}
+      `;
+      if (!rows.length) return res.status(404).json({ error: "not_found" });
+      const share = rows[0];
       let content = share.content || "";
       if (!content && share.content_object_key) {
         const object = await getObject(share.content_object_key);
@@ -49,19 +50,21 @@ export function createPublicShareRouter(options: {
 
   router.get("/api/shared-assets/:token/:assetId", async (req, res, next) => {
     try {
-      const shareResult = await getPool().query<Pick<ShareRow, "asset_ids">>(
-        "SELECT asset_ids FROM shares WHERE token = $1",
-        [req.params.token]
-      );
-      if (!shareResult.rowCount) return res.status(404).end();
-      const assetIds = Array.isArray(shareResult.rows[0].asset_ids) ? shareResult.rows[0].asset_ids : [];
+      const shareRows = await getDb()<Pick<ShareRow, "asset_ids">>`
+        SELECT asset_ids
+        FROM shares
+        WHERE token = ${req.params.token}
+      `;
+      if (!shareRows.length) return res.status(404).end();
+      const assetIds = Array.isArray(shareRows[0].asset_ids) ? shareRows[0].asset_ids : [];
       if (!assetIds.includes(req.params.assetId)) return res.status(404).end();
-      const assetResult = await getPool().query<AssetRow>(
-        "SELECT object_key, content_type FROM assets WHERE id = $1",
-        [req.params.assetId]
-      );
-      if (!assetResult.rowCount) return res.status(404).end();
-      await pipeAsset(res, assetResult.rows[0]);
+      const assetRows = await getDb()<AssetRow>`
+        SELECT object_key, content_type
+        FROM assets
+        WHERE id = ${req.params.assetId}
+      `;
+      if (!assetRows.length) return res.status(404).end();
+      await pipeAsset(res, assetRows[0]);
     } catch (error) {
       next(error);
     }
@@ -97,11 +100,18 @@ export function createSharesRouter() {
         await putObject(objectKey, Buffer.from(rewrittenContent, "utf8"), "text/markdown;charset=utf-8");
         dbContent = null;
       }
-      await getPool().query(
-        `INSERT INTO shares (token, user_id, title, mode, content, content_object_key, asset_ids)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-        [token, userId, title, mode, dbContent, objectKey, JSON.stringify(assetIds)]
-      );
+      await getDb()`
+        INSERT INTO shares (token, user_id, title, mode, content, content_object_key, asset_ids)
+        VALUES (
+          ${token},
+          ${userId},
+          ${title},
+          ${mode},
+          ${dbContent},
+          ${objectKey},
+          ${JSON.stringify(assetIds)}::jsonb
+        )
+      `;
       res.json({
         token,
         url: `${publicBaseUrl(req)}/share/${token}${mode === "edit" ? "?edit=1" : ""}`

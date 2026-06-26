@@ -1,44 +1,38 @@
-import { Pool, type PoolClient } from "pg";
+import { SQL } from "bun";
 
-let pool: Pool | null = null;
+type DbRow = Record<string, unknown>;
+type DbClient = SQL;
 
-function getPool(): Pool {
-  if (pool) return pool;
+let db: DbClient | null = null;
+
+function getDb(): DbClient {
+  if (db) return db;
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is required");
   }
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes("sslmode=require")
-      ? { rejectUnauthorized: false }
-      : undefined
+  db = new SQL({
+    url: process.env.DATABASE_URL,
+    max: Number(process.env.DB_POOL_MAX || 10),
+    idleTimeout: Number(process.env.DB_IDLE_TIMEOUT || 30),
+    connectionTimeout: Number(process.env.DB_CONNECTION_TIMEOUT || 30)
   });
-  return pool;
+  return db;
 }
 
-async function closePool(): Promise<void> {
-  if (!pool) return;
-  await pool.end();
-  pool = null;
+async function closeDb(): Promise<void> {
+  if (!db) return;
+  await db.close();
+  db = null;
 }
 
-async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await getPool().connect();
-  try {
-    await client.query("BEGIN");
-    const result = await fn(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
+  return getDb().begin(fn);
 }
 
 export {
-  closePool,
-  getPool,
+  closeDb,
+  getDb,
+  type DbClient,
+  type DbRow,
   withTransaction
 };

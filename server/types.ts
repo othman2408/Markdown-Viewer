@@ -1,5 +1,3 @@
-import type { QueryResultRow } from "pg";
-
 export type ViewMode = "editor" | "split" | "preview";
 export type ShareMode = "edit" | "view";
 export type JsonObject = Record<string, unknown>;
@@ -32,7 +30,7 @@ export interface ClientTab {
   createdAt: number;
 }
 
-export interface DocumentRow extends QueryResultRow {
+export interface DocumentRow {
   id: string;
   title: string;
   content: string | null;
@@ -42,19 +40,19 @@ export interface DocumentRow extends QueryResultRow {
   created_at: string | Date;
 }
 
-export interface WorkspaceStateRow extends QueryResultRow {
+export interface WorkspaceStateRow {
   active_tab_id: string | null;
   find_replace_docked: boolean | null;
   global_state: JsonObject | null;
   untitled_counter: number | string | null;
 }
 
-export interface AssetRow extends QueryResultRow {
+export interface AssetRow {
   object_key: string;
   content_type: string | null;
 }
 
-export interface ShareRow extends QueryResultRow {
+export interface ShareRow {
   asset_ids?: unknown;
   content: string | null;
   content_object_key: string | null;

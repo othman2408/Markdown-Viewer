@@ -3,8 +3,12 @@ import express, { type NextFunction, type Request, type Response } from "express
 import rateLimit from "express-rate-limit";
 
 import { randomToken, requiredEnv, safeCompare } from "./config";
-import { getPool } from "./db";
+import { getDb } from "./db";
 import type { HttpError } from "./types";
+
+interface UserIdRow {
+  id: string;
+}
 
 export function sanitizeReturnTo(value: unknown): string {
   if (!value || typeof value !== "string") return "/";
@@ -67,10 +71,11 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
 
 async function ensureUser(email: string): Promise<string> {
   const normalizedEmail = email.toLowerCase();
-  const existing = await getPool().query("SELECT id FROM users WHERE email = $1", [normalizedEmail]);
-  if (existing.rowCount) return existing.rows[0].id;
+  const db = getDb();
+  const existing = await db<UserIdRow>`SELECT id FROM users WHERE email = ${normalizedEmail}`;
+  if (existing.length) return existing[0].id;
   const id = randomToken(18);
-  await getPool().query("INSERT INTO users (id, email) VALUES ($1, $2)", [id, normalizedEmail]);
+  await db`INSERT INTO users (id, email) VALUES (${id}, ${normalizedEmail})`;
   return id;
 }
 

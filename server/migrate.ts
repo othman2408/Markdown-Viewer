@@ -1,4 +1,4 @@
-import { closePool, getPool } from "./db";
+import { closeDb, getDb, withTransaction } from "./db";
 import { loadAppEnv } from "./env";
 
 loadAppEnv();
@@ -89,35 +89,30 @@ const migrations = [
 ];
 
 async function runMigrations() {
-  const pool = getPool();
-  await pool.query(`
+  const db = getDb();
+  await db`
     CREATE TABLE IF NOT EXISTS migrations (
       name text PRIMARY KEY,
       applied_at timestamptz NOT NULL DEFAULT now()
     )
-  `);
+  `;
   for (const migration of migrations) {
-    const applied = await pool.query("SELECT 1 FROM migrations WHERE name = $1", [migration.name]);
-    if (applied.rowCount) continue;
-    await pool.query("BEGIN");
-    try {
-      await pool.query(migration.sql);
-      await pool.query("INSERT INTO migrations (name) VALUES ($1)", [migration.name]);
-      await pool.query("COMMIT");
+    const applied = await db`SELECT 1 FROM migrations WHERE name = ${migration.name}`;
+    if (applied.length) continue;
+    await withTransaction(async (transaction) => {
+      await transaction.unsafe(migration.sql);
+      await transaction`INSERT INTO migrations (name) VALUES (${migration.name})`;
       console.log(`Applied migration ${migration.name}`);
-    } catch (error) {
-      await pool.query("ROLLBACK");
-      throw error;
-    }
+    });
   }
 }
 
 if (import.meta.main) {
   runMigrations()
-    .then(() => closePool())
+    .then(() => closeDb())
     .catch(async (error) => {
       console.error(error);
-      await closePool();
+      await closeDb();
       process.exit(1);
     });
 }

@@ -5,7 +5,7 @@ import multer from "multer";
 
 import { MAX_ASSET_BYTES } from "./config";
 import { getSessionUserId } from "./auth";
-import { getPool } from "./db";
+import { getDb } from "./db";
 import { ensureBucket, getObject, isR2Configured, putObject } from "./r2";
 import { randomToken } from "./config";
 import type { AssetRow } from "./types";
@@ -51,11 +51,10 @@ export function createAssetsRouter() {
       const userId = getSessionUserId(req);
       const objectKey = `${userId}/assets/${id}-${safeName}`;
       await putObject(objectKey, req.file.buffer, req.file.mimetype);
-      await getPool().query(
-        `INSERT INTO assets (id, user_id, object_key, filename, content_type, byte_size)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, userId, objectKey, safeName, req.file.mimetype, req.file.size]
-      );
+      await getDb()`
+        INSERT INTO assets (id, user_id, object_key, filename, content_type, byte_size)
+        VALUES (${id}, ${userId}, ${objectKey}, ${safeName}, ${req.file.mimetype}, ${req.file.size})
+      `;
       res.json({ id, url: `/api/assets/${id}` });
     } catch (error) {
       next(error);
@@ -64,12 +63,13 @@ export function createAssetsRouter() {
 
   router.get("/assets/:id", async (req, res, next) => {
     try {
-      const result = await getPool().query<AssetRow>(
-        "SELECT object_key, content_type FROM assets WHERE user_id = $1 AND id = $2",
-        [getSessionUserId(req), req.params.id]
-      );
-      if (!result.rowCount) return res.status(404).end();
-      await pipeAsset(res, result.rows[0]);
+      const rows = await getDb()<AssetRow>`
+        SELECT object_key, content_type
+        FROM assets
+        WHERE user_id = ${getSessionUserId(req)} AND id = ${req.params.id}
+      `;
+      if (!rows.length) return res.status(404).end();
+      await pipeAsset(res, rows[0]);
     } catch (error) {
       next(error);
     }

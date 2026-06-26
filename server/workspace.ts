@@ -2,7 +2,7 @@ import express from "express";
 
 import { MAX_DOCUMENT_BYTES, VIEW_MODES } from "./config";
 import { ensureCsrfToken, getSessionUserId } from "./auth";
-import { getPool, withTransaction } from "./db";
+import { getDb, withTransaction } from "./db";
 import type {
   ClientTab,
   DocumentRow,
@@ -71,25 +71,39 @@ export function normalizeWorkspaceBody(body: unknown): NormalizedWorkspaceBody {
 
 async function saveWorkspace(userId: string, body: unknown): Promise<void> {
   const state = normalizeWorkspaceBody(body);
-  await withTransaction(async (client) => {
+  await withTransaction(async (db) => {
     const ids = state.tabs.map((tab) => tab.id);
     if (ids.length) {
-      await client.query(
-        "UPDATE documents SET deleted_at = now(), updated_at = now() WHERE user_id = $1 AND deleted_at IS NULL AND NOT (id = ANY($2::text[]))",
-        [userId, ids]
-      );
+      await db`
+        UPDATE documents
+        SET deleted_at = now(), updated_at = now()
+        WHERE user_id = ${userId}
+          AND deleted_at IS NULL
+          AND NOT (id = ANY(${db.array(ids)}::text[]))
+      `;
     } else {
-      await client.query(
-        "UPDATE documents SET deleted_at = now(), updated_at = now() WHERE user_id = $1 AND deleted_at IS NULL",
-        [userId]
-      );
+      await db`
+        UPDATE documents
+        SET deleted_at = now(), updated_at = now()
+        WHERE user_id = ${userId} AND deleted_at IS NULL
+      `;
     }
 
     for (const tab of state.tabs) {
-      await client.query(
-        `INSERT INTO documents
+      await db`
+        INSERT INTO documents
           (id, user_id, title, content, scroll_pos, view_mode, sort_order, client_created_at, deleted_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
+         VALUES (
+          ${tab.id},
+          ${userId},
+          ${tab.title},
+          ${tab.content},
+          ${tab.scrollPos},
+          ${tab.viewMode},
+          ${tab.sortOrder},
+          ${tab.createdAt},
+          NULL
+         )
          ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           content = EXCLUDED.content,
@@ -99,29 +113,27 @@ async function saveWorkspace(userId: string, body: unknown): Promise<void> {
           client_created_at = EXCLUDED.client_created_at,
           deleted_at = NULL,
           updated_at = now()
-         WHERE documents.user_id = EXCLUDED.user_id`,
-        [tab.id, userId, tab.title, tab.content, tab.scrollPos, tab.viewMode, tab.sortOrder, tab.createdAt]
-      );
+         WHERE documents.user_id = EXCLUDED.user_id
+      `;
     }
 
-    await client.query(
-      `INSERT INTO workspace_state
+    await db`
+      INSERT INTO workspace_state
         (user_id, active_tab_id, untitled_counter, global_state, find_replace_docked)
-       VALUES ($1, $2, $3, $4::jsonb, $5)
+       VALUES (
+        ${userId},
+        ${state.activeTabId},
+        ${state.untitledCounter},
+        ${JSON.stringify(state.globalState)}::jsonb,
+        ${state.findReplaceDocked}
+       )
        ON CONFLICT (user_id) DO UPDATE SET
         active_tab_id = EXCLUDED.active_tab_id,
         untitled_counter = EXCLUDED.untitled_counter,
         global_state = EXCLUDED.global_state,
         find_replace_docked = EXCLUDED.find_replace_docked,
-        updated_at = now()`,
-      [
-        userId,
-        state.activeTabId,
-        state.untitledCounter,
-        JSON.stringify(state.globalState),
-        state.findReplaceDocked
-      ]
-    );
+        updated_at = now()
+    `;
   });
 }
 
@@ -132,26 +144,27 @@ async function loadWorkspace(userId: string): Promise<{
   tabs: ClientTab[];
   untitledCounter: number;
 }> {
+  const db = getDb();
   const [docResult, stateResult] = await Promise.all([
-    getPool().query<DocumentRow>(
-      `SELECT id, title, content, scroll_pos, view_mode, client_created_at, created_at
+    db<DocumentRow>`
+      SELECT id, title, content, scroll_pos, view_mode, client_created_at, created_at
        FROM documents
-       WHERE user_id = $1 AND deleted_at IS NULL
-       ORDER BY sort_order ASC, created_at ASC`,
-      [userId]
-    ),
-    getPool().query<WorkspaceStateRow>(
-      "SELECT active_tab_id, untitled_counter, global_state, find_replace_docked FROM workspace_state WHERE user_id = $1",
-      [userId]
-    )
+       WHERE user_id = ${userId} AND deleted_at IS NULL
+       ORDER BY sort_order ASC, created_at ASC
+    `,
+    db<WorkspaceStateRow>`
+      SELECT active_tab_id, untitled_counter, global_state, find_replace_docked
+      FROM workspace_state
+      WHERE user_id = ${userId}
+    `
   ]);
 
-  const state = stateResult.rows[0] || {};
+  const state = stateResult[0] || {};
   return {
     activeTabId: state.active_tab_id || null,
     findReplaceDocked: Boolean(state.find_replace_docked),
     globalState: state.global_state || {},
-    tabs: docResult.rows.map(toClientTab),
+    tabs: docResult.map(toClientTab),
     untitledCounter: Number(state.untitled_counter || 0)
   };
 }
@@ -184,11 +197,22 @@ export function createWorkspaceRouter() {
     try {
       const tab = normalizeTab({ ...req.body, id: req.params.id }, 0);
       if (!tab) return res.status(400).json({ error: "invalid_document" });
-      await withTransaction(async (client) => {
-        await client.query(
-          `INSERT INTO documents
+      const userId = getSessionUserId(req);
+      await withTransaction(async (db) => {
+        await db`
+          INSERT INTO documents
             (id, user_id, title, content, scroll_pos, view_mode, sort_order, client_created_at, deleted_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 0, $7, NULL)
+           VALUES (
+            ${tab.id},
+            ${userId},
+            ${tab.title},
+            ${tab.content},
+            ${tab.scrollPos},
+            ${tab.viewMode},
+            0,
+            ${tab.createdAt},
+            NULL
+           )
            ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
             content = EXCLUDED.content,
@@ -197,9 +221,8 @@ export function createWorkspaceRouter() {
             client_created_at = EXCLUDED.client_created_at,
             deleted_at = NULL,
             updated_at = now()
-           WHERE documents.user_id = EXCLUDED.user_id`,
-          [tab.id, getSessionUserId(req), tab.title, tab.content, tab.scrollPos, tab.viewMode, tab.createdAt]
-        );
+           WHERE documents.user_id = EXCLUDED.user_id
+        `;
       });
       res.json({ ok: true });
     } catch (error) {
@@ -209,10 +232,11 @@ export function createWorkspaceRouter() {
 
   router.delete("/documents/:id", async (req, res, next) => {
     try {
-      await getPool().query(
-        "UPDATE documents SET deleted_at = now(), updated_at = now() WHERE user_id = $1 AND id = $2",
-        [getSessionUserId(req), req.params.id]
-      );
+      await getDb()`
+        UPDATE documents
+        SET deleted_at = now(), updated_at = now()
+        WHERE user_id = ${getSessionUserId(req)} AND id = ${req.params.id}
+      `;
       res.json({ ok: true });
     } catch (error) {
       next(error);

@@ -24,7 +24,6 @@
     "@highlightjs/cdn-assets": "^11.9.0",
     "bcryptjs": "^3.0.3",
     "bootstrap-icons": "^1.11.3",
-    "connect-pg-simple": "^10.0.0",
     "dompurify": "^3.0.9",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -35,19 +34,16 @@
     "highlight.js": "^11.9.0",
     "js-yaml": "^4.1.0",
     "marked": "^9.1.6",
-    "multer": "^2.0.0",
-    "pg": "^8.13.1"
+    "multer": "^2.0.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@testing-library/svelte": "^5.4.2",
     "@tsconfig/svelte": "^5.0.8",
-    "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.19.0",
     "@types/multer": "^2.1.0",
     "@types/node": "^26.0.0",
-    "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
     "concurrently": "^10.0.3",
     "jsdom": "^29.1.1",

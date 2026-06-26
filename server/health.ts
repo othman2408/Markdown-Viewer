@@ -1,6 +1,6 @@
 import express from "express";
 
-import { getPool } from "./db";
+import { getDb } from "./db";
 import { ensureBucket, isR2Configured } from "./r2";
 
 export function createHealthRouter() {
@@ -9,7 +9,7 @@ export function createHealthRouter() {
   router.get("/healthz", async (_req, res) => {
     const result = { ok: true, db: "unknown", r2: "not_configured" };
     try {
-      await getPool().query("SELECT 1");
+      await getDb()`SELECT 1`;
       result.db = "ok";
     } catch (error) {
       result.ok = false;

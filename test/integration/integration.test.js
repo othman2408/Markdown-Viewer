@@ -16,11 +16,11 @@ if (!hasDatabase) {
 
   const { runMigrations } = require("../../server/migrate");
   const { createApp } = require("../../server/app");
-  const { closePool } = require("../../server/db");
+  const { closeDb } = require("../../server/db");
 
   test("auth, workspace, csrf, and sharing work against Postgres", async (t) => {
     await runMigrations();
-    t.after(closePool);
+    t.after(closeDb);
 
     const app = createApp();
     const agent = request.agent(app);
@@ -118,7 +118,7 @@ if (!hasDatabase) {
     }
 
     await runMigrations();
-    t.after(closePool);
+    t.after(closeDb);
 
     const app = createApp();
     const agent = request.agent(app);
