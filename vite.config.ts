@@ -16,9 +16,6 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': 'http://127.0.0.1:8080',
-      '/login': 'http://127.0.0.1:8080',
-      '/logout': 'http://127.0.0.1:8080',
-      '/share': 'http://127.0.0.1:8080',
       '/healthz': 'http://127.0.0.1:8080'
     }
   },
