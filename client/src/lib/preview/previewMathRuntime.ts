@@ -44,7 +44,7 @@ export interface ProcessPreviewMathOptions {
 
 export function createPreviewMathJaxConfig(): PreviewMathJaxConfig {
   return {
-    loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
+    loader: { load: ['[tex]/boldsymbol'] },
     options: {
       a11y: { inTabOrder: false }
     },
@@ -52,7 +52,7 @@ export function createPreviewMathJaxConfig(): PreviewMathJaxConfig {
       inlineMath: [['$', '$'], ['\\(', '\\)']],
       displayMath: [['$$', '$$'], ['\\[', '\\]']],
       processEscapes: true,
-      packages: { '[+]': ['ams', 'boldsymbol'] }
+      packages: { '[+]': ['boldsymbol'] }
     }
   };
 }

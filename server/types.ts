@@ -38,6 +38,7 @@ export interface DocumentRow {
   view_mode: ViewMode | null;
   client_created_at: string | number | null;
   created_at: string | Date;
+  updated_at?: string | Date;
 }
 
 export interface WorkspaceStateRow {
@@ -59,4 +60,31 @@ export interface ShareRow {
   mode: ShareMode;
   title: string;
   token: string;
+}
+
+export interface FileSummaryRow {
+  id: string;
+  title: string;
+  content_length: number | string | null;
+  content_preview: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+  version_count: number | string | null;
+}
+
+export interface FileDetailRow extends DocumentRow {
+  content_length: number | string | null;
+  updated_at: string | Date;
+}
+
+export interface DocumentVersionRow {
+  id: string;
+  document_id: string;
+  title: string;
+  content?: string | null;
+  content_hash: string;
+  content_length: number | string | null;
+  content_preview: string | null;
+  source: "autosave" | "manual" | "restore";
+  created_at: string | Date;
 }

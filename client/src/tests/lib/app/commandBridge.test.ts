@@ -35,6 +35,7 @@ describe('app command bridge', () => {
       exportMarkdown: vi.fn(),
       exportPdf: vi.fn(),
       exportPng: vi.fn(),
+      files: vi.fn(),
       importFile: vi.fn(),
       importGithub: vi.fn(),
       share: vi.fn()

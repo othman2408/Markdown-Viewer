@@ -59,6 +59,13 @@ export const mobileMenuActions: MobileMenuActionConfig[] = [
     label: 'Copy'
   },
   {
+    id: 'mobile-files-button',
+    title: 'Files',
+    action: 'files',
+    icon: 'bi-folder2-open',
+    label: 'Files'
+  },
+  {
     id: 'mobile-share-button',
     title: 'Share via URL',
     action: 'share',

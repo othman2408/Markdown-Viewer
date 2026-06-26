@@ -190,6 +190,7 @@ test("Svelte app mounts the preserved app shell", () => {
     ["components", "modals", "ShareModeCard.svelte"],
     ["components", "modals", "ShareUrlRow.svelte"],
     ["components", "modals", "RenameModal.svelte"],
+    ["components", "modals", "FilesModal.svelte"],
     ["components", "modals", "FindReplacePanel.svelte"],
     ["components", "modals", "FindReplaceHeader.svelte"],
     ["components", "modals", "FindReplaceFindRow.svelte"],

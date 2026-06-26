@@ -3,6 +3,7 @@ import express from "express";
 import { MAX_DOCUMENT_BYTES, VIEW_MODES } from "./config";
 import { ensureCsrfToken, getSessionUserId } from "./auth";
 import { getDb, withTransaction } from "./db";
+import { createDocumentVersionIfChanged } from "./documentHistory";
 import type {
   ClientTab,
   DocumentRow,
@@ -76,7 +77,7 @@ async function saveWorkspace(userId: string, body: unknown): Promise<void> {
     if (ids.length) {
       await db`
         UPDATE documents
-        SET deleted_at = now(), updated_at = now()
+        SET in_workspace = false
         WHERE user_id = ${userId}
           AND deleted_at IS NULL
           AND NOT (id = ANY(${db.array(ids)}::text[]))
@@ -84,7 +85,7 @@ async function saveWorkspace(userId: string, body: unknown): Promise<void> {
     } else {
       await db`
         UPDATE documents
-        SET deleted_at = now(), updated_at = now()
+        SET in_workspace = false
         WHERE user_id = ${userId} AND deleted_at IS NULL
       `;
     }
@@ -92,7 +93,7 @@ async function saveWorkspace(userId: string, body: unknown): Promise<void> {
     for (const tab of state.tabs) {
       await db`
         INSERT INTO documents
-          (id, user_id, title, content, scroll_pos, view_mode, sort_order, client_created_at, deleted_at)
+          (id, user_id, title, content, scroll_pos, view_mode, sort_order, client_created_at, deleted_at, in_workspace)
          VALUES (
           ${tab.id},
           ${userId},
@@ -102,7 +103,8 @@ async function saveWorkspace(userId: string, body: unknown): Promise<void> {
           ${tab.viewMode},
           ${tab.sortOrder},
           ${tab.createdAt},
-          NULL
+          NULL,
+          true
          )
          ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
@@ -112,9 +114,17 @@ async function saveWorkspace(userId: string, body: unknown): Promise<void> {
           sort_order = EXCLUDED.sort_order,
           client_created_at = EXCLUDED.client_created_at,
           deleted_at = NULL,
+          in_workspace = true,
           updated_at = now()
          WHERE documents.user_id = EXCLUDED.user_id
       `;
+      await createDocumentVersionIfChanged(db, {
+        content: tab.content,
+        documentId: tab.id,
+        source: "autosave",
+        title: tab.title,
+        userId
+      });
     }
 
     await db`
@@ -149,7 +159,7 @@ async function loadWorkspace(userId: string): Promise<{
     db<DocumentRow>`
       SELECT id, title, content, scroll_pos, view_mode, client_created_at, created_at
        FROM documents
-       WHERE user_id = ${userId} AND deleted_at IS NULL
+       WHERE user_id = ${userId} AND deleted_at IS NULL AND in_workspace = true
        ORDER BY sort_order ASC, created_at ASC
     `,
     db<WorkspaceStateRow>`
@@ -201,7 +211,7 @@ export function createWorkspaceRouter() {
       await withTransaction(async (db) => {
         await db`
           INSERT INTO documents
-            (id, user_id, title, content, scroll_pos, view_mode, sort_order, client_created_at, deleted_at)
+            (id, user_id, title, content, scroll_pos, view_mode, sort_order, client_created_at, deleted_at, in_workspace)
            VALUES (
             ${tab.id},
             ${userId},
@@ -211,7 +221,8 @@ export function createWorkspaceRouter() {
             ${tab.viewMode},
             0,
             ${tab.createdAt},
-            NULL
+            NULL,
+            true
            )
            ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
@@ -220,9 +231,17 @@ export function createWorkspaceRouter() {
             view_mode = EXCLUDED.view_mode,
             client_created_at = EXCLUDED.client_created_at,
             deleted_at = NULL,
+            in_workspace = true,
             updated_at = now()
            WHERE documents.user_id = EXCLUDED.user_id
         `;
+        await createDocumentVersionIfChanged(db, {
+          content: tab.content,
+          documentId: tab.id,
+          source: "autosave",
+          title: tab.title,
+          userId
+        });
       });
       res.json({ ok: true });
     } catch (error) {

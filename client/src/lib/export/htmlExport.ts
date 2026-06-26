@@ -121,12 +121,12 @@ export function buildStandaloneHtmlExportDocument(options: BuildStandaloneHtmlEx
   <link rel="stylesheet" href="${theme.githubCss}">
   <script>
       window.MathJax = {
-          loader: { load: ['[tex]/ams', '[tex]/boldsymbol'] },
+          loader: { load: ['[tex]/boldsymbol'] },
           tex: {
               inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
               displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
               processEscapes: true,
-              packages: { '[+]': ['ams', 'boldsymbol'] }
+              packages: { '[+]': ['boldsymbol'] }
           }
       };
   </script>

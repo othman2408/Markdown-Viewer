@@ -159,6 +159,7 @@ describe('AppHeader', () => {
     const desktopExportHtml = container.querySelector<HTMLAnchorElement>('#export-html');
     const desktopExportPdf = container.querySelector<HTMLAnchorElement>('#export-pdf');
     const desktopExportPng = container.querySelector<HTMLAnchorElement>('#export-png');
+    const desktopFiles = container.querySelector<HTMLButtonElement>('#files-button');
     const desktopShare = container.querySelector<HTMLButtonElement>('#share-button');
     const mobileExportMd = container.querySelector<HTMLButtonElement>('#mobile-export-md');
     const mobileExportHtml = container.querySelector<HTMLButtonElement>('#mobile-export-html');
@@ -167,6 +168,7 @@ describe('AppHeader', () => {
     const mobileImportFile = container.querySelector<HTMLButtonElement>('#mobile-import-button');
     const mobileImportGithub = container.querySelector<HTMLButtonElement>('#mobile-import-github-button');
     const mobileCopy = container.querySelector<HTMLButtonElement>('#mobile-copy-markdown');
+    const mobileFiles = container.querySelector<HTMLButtonElement>('#mobile-files-button');
     const mobileShare = container.querySelector<HTMLButtonElement>('#mobile-share-button');
 
     expect(desktopImportFile).not.toBeNull();
@@ -176,6 +178,7 @@ describe('AppHeader', () => {
     expect(desktopExportHtml).not.toBeNull();
     expect(desktopExportPdf).not.toBeNull();
     expect(desktopExportPng).not.toBeNull();
+    expect(desktopFiles).not.toBeNull();
     expect(desktopShare).not.toBeNull();
     expect(mobileExportMd).not.toBeNull();
     expect(mobileExportHtml).not.toBeNull();
@@ -184,6 +187,7 @@ describe('AppHeader', () => {
     expect(mobileImportFile).not.toBeNull();
     expect(mobileImportGithub).not.toBeNull();
     expect(mobileCopy).not.toBeNull();
+    expect(mobileFiles).not.toBeNull();
     expect(mobileShare).not.toBeNull();
 
     await fireEvent.click(desktopCopy as HTMLButtonElement);
@@ -193,6 +197,7 @@ describe('AppHeader', () => {
     await fireEvent.click(desktopExportPng as HTMLAnchorElement);
     await fireEvent.click(desktopImportFile as HTMLAnchorElement);
     await fireEvent.click(desktopImportGithub as HTMLAnchorElement);
+    await fireEvent.click(desktopFiles as HTMLButtonElement);
     await fireEvent.click(desktopShare as HTMLButtonElement);
     await fireEvent.click(mobileCopy as HTMLButtonElement);
     await fireEvent.click(mobileExportMd as HTMLButtonElement);
@@ -201,6 +206,7 @@ describe('AppHeader', () => {
     await fireEvent.click(mobileExportPng as HTMLButtonElement);
     await fireEvent.click(mobileImportFile as HTMLButtonElement);
     await fireEvent.click(mobileImportGithub as HTMLButtonElement);
+    await fireEvent.click(mobileFiles as HTMLButtonElement);
     await fireEvent.click(mobileShare as HTMLButtonElement);
 
     expect(calls).toEqual([
@@ -211,6 +217,7 @@ describe('AppHeader', () => {
       'desktop:exportPng:true',
       'desktop:importFile:true',
       'desktop:importGithub:true',
+      'desktop:files:true',
       'desktop:share:true',
       'mobile:copyMarkdown:true',
       'mobile:exportMarkdown:true',
@@ -219,6 +226,7 @@ describe('AppHeader', () => {
       'mobile:exportPng:true',
       'mobile:importFile:true',
       'mobile:importGithub:true',
+      'mobile:files:true',
       'mobile:share:true'
     ]);
   });

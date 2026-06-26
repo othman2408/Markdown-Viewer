@@ -54,4 +54,35 @@ describe('cloud client', () => {
     await expect(client.bootstrap()).rejects.toBeInstanceOf(AuthRequiredError);
     expect(onAuthRequired).toHaveBeenCalledOnce();
   });
+
+  it('calls file library endpoints with expected methods and CSRF headers', async () => {
+    const fetcher = vi.fn(async () => jsonResponse({ ok: true, files: [], versions: [] }));
+    const client = createCloudClient({
+      fetcher: fetcher as never,
+      getCsrfToken: () => 'csrf-token'
+    });
+
+    await client.listFiles({ query: 'notes', limit: 25 });
+    await client.getFile('doc 1');
+    await client.getFileHistory('doc 1');
+    await client.getFileVersion('doc 1', 'version 1');
+    await client.restoreFileVersion('doc 1', 'version 1');
+    await client.copyFileVersion('doc 1', 'version 1');
+    await client.deleteFile('doc 1');
+
+    const calls = fetcher.mock.calls as unknown as Array<[string, RequestInit]>;
+    expect(calls.map((call) => call[0])).toEqual([
+      '/api/files?query=notes&limit=25',
+      '/api/files/doc%201',
+      '/api/files/doc%201/history',
+      '/api/files/doc%201/history/version%201',
+      '/api/files/doc%201/restore',
+      '/api/files/doc%201/copy-version',
+      '/api/files/doc%201'
+    ]);
+    expect((calls[4][1].headers as Headers).get('X-CSRF-Token')).toBe('csrf-token');
+    expect(calls[4][1]).toMatchObject({ method: 'POST' });
+    expect(calls[5][1]).toMatchObject({ method: 'POST' });
+    expect(calls[6][1]).toMatchObject({ method: 'DELETE' });
+  });
 });

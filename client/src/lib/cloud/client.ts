@@ -87,6 +87,38 @@ export function createCloudClient(options: CloudClientOptions = {}): CloudClient
     },
     getShare(token) {
       return request(`/api/shares/${encodeURIComponent(token)}`);
+    },
+    listFiles(input = {}) {
+      const params = new URLSearchParams();
+      const query = input.query?.trim();
+      if (query) params.set('query', query);
+      if (input.limit) params.set('limit', String(input.limit));
+      const suffix = params.toString();
+      return request(`/api/files${suffix ? `?${suffix}` : ''}`);
+    },
+    getFile(id) {
+      return request(`/api/files/${encodeURIComponent(id)}`);
+    },
+    getFileHistory(id) {
+      return request(`/api/files/${encodeURIComponent(id)}/history`);
+    },
+    getFileVersion(id, versionId) {
+      return request(`/api/files/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`);
+    },
+    restoreFileVersion(id, versionId) {
+      return request(`/api/files/${encodeURIComponent(id)}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({ versionId })
+      });
+    },
+    copyFileVersion(id, versionId) {
+      return request(`/api/files/${encodeURIComponent(id)}/copy-version`, {
+        method: 'POST',
+        body: JSON.stringify({ versionId })
+      });
+    },
+    deleteFile(id) {
+      return request(`/api/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
   };
 }

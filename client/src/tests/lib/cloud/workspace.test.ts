@@ -98,6 +98,35 @@ describe('cloud workspace', () => {
     expect(headers['Content-Type']).toBeUndefined();
   });
 
+  it('queues a retry when workspace save hits a network fetch failure', async () => {
+    const fetcher = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const setTimer = vi.fn();
+    const warn = vi.fn();
+    const cloud = createCloudWorkspace({
+      getWorkspacePayload: () => workspacePayload,
+      location: browserLocation,
+      fetcher: fetcher as never,
+      setTimer: setTimer as never,
+      consoleRef: { warn }
+    });
+    cloud.state.enabled = true;
+    cloud.state.csrfToken = 'csrf-token';
+
+    await cloud.flushWorkspaceSave();
+
+    expect(fetcher).toHaveBeenCalledWith('/api/workspace', expect.objectContaining({
+      method: 'PUT'
+    }));
+    expect(cloud.state.saveQueued).toBe(true);
+    expect(setTimer).toHaveBeenCalledWith(expect.any(Function), 1500);
+    expect(warn).toHaveBeenCalledWith(
+      'Cloud workspace save failed; retrying when the backend is reachable:',
+      expect.any(TypeError)
+    );
+  });
+
   it('clears the in-memory cloud workspace snapshot', () => {
     const cloud = createCloudWorkspace({
       getWorkspacePayload: () => workspacePayload,

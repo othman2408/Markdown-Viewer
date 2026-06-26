@@ -73,6 +73,8 @@ describe('preview MathJax runtime', () => {
     });
 
     expect(configuredBeforeLoad).toEqual(createPreviewMathJaxConfig());
+    expect((configuredBeforeLoad as ReturnType<typeof createPreviewMathJaxConfig>).loader.load).toEqual(['[tex]/boldsymbol']);
+    expect((configuredBeforeLoad as ReturnType<typeof createPreviewMathJaxConfig>).tex.packages['[+]']).toEqual(['boldsymbol']);
     await Promise.resolve();
     await Promise.resolve();
 

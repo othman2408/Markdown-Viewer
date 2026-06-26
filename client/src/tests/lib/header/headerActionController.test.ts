@@ -9,6 +9,7 @@ function createHandlers(): HeaderActionHandlers {
     exportMarkdown: vi.fn(),
     exportPdf: vi.fn(async () => {}),
     exportPng: vi.fn(async () => {}),
+    files: vi.fn(),
     importFile: vi.fn(),
     importGithub: vi.fn(),
     share: vi.fn()
@@ -26,6 +27,7 @@ describe('header action controller', () => {
     controller.run('exportMarkdown', 'desktop', event);
     controller.run('exportPdf', 'desktop', event);
     controller.run('exportPng', 'desktop', event);
+    controller.run('files', 'desktop', event);
     controller.run('importFile', 'desktop', event);
     controller.run('share', 'desktop', event);
 
@@ -34,6 +36,7 @@ describe('header action controller', () => {
     expect(handlers.exportMarkdown).toHaveBeenCalledWith(event);
     expect(handlers.exportPdf).toHaveBeenCalledWith(event);
     expect(handlers.exportPng).toHaveBeenCalledWith(event);
+    expect(handlers.files).toHaveBeenCalledWith(event, 'desktop');
     expect(handlers.importFile).toHaveBeenCalledWith(event);
     expect(handlers.share).toHaveBeenCalledWith(event);
   });

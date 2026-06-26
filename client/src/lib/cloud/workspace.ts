@@ -17,6 +17,7 @@ type CloudWorkspaceState = {
   items: Record<string, string>;
   saveInFlight: boolean;
   saveQueued: boolean;
+  saveRetryDelay: number;
   saveTimer: TimerHandle | null;
   shareRequestSeq: number;
 };
@@ -39,6 +40,8 @@ const WORKSPACE_STORAGE_KEYS = [
   UNTITLED_COUNTER_KEY,
   FIND_REPLACE_DOCKED_KEY
 ] as const;
+const INITIAL_SAVE_RETRY_DELAY = 1500;
+const MAX_SAVE_RETRY_DELAY = 15000;
 
 function createInitialState(): CloudWorkspaceState {
   return {
@@ -47,6 +50,7 @@ function createInitialState(): CloudWorkspaceState {
     items: {},
     saveInFlight: false,
     saveQueued: false,
+    saveRetryDelay: INITIAL_SAVE_RETRY_DELAY,
     saveTimer: null,
     shareRequestSeq: 0
   };
@@ -64,6 +68,10 @@ function createAuthRedirect(locationRef: Pick<Location, 'pathname' | 'search' | 
 
 function isJsonRequestBody(body: BodyInit | null | undefined): boolean {
   return Boolean(body) && !(typeof FormData !== 'undefined' && body instanceof FormData);
+}
+
+function isNetworkFetchError(error: unknown): boolean {
+  return error instanceof TypeError && /fetch|network/i.test(error.message);
 }
 
 export function createCloudWorkspace(options: CloudWorkspaceOptions) {
@@ -172,17 +180,26 @@ export function createCloudWorkspace(options: CloudWorkspaceOptions) {
     state.saveInFlight = true;
     state.saveQueued = false;
     syncCloudStateSnapshot();
+    let queuedRetryDelay = 50;
     try {
       await api('/api/workspace', {
         method: 'PUT',
         body: JSON.stringify(options.getWorkspacePayload())
       });
+      state.saveRetryDelay = INITIAL_SAVE_RETRY_DELAY;
     } catch (error) {
-      consoleRef.warn('Cloud workspace save failed:', error);
+      if (isNetworkFetchError(error)) {
+        state.saveQueued = true;
+        queuedRetryDelay = state.saveRetryDelay;
+        state.saveRetryDelay = Math.min(state.saveRetryDelay * 2, MAX_SAVE_RETRY_DELAY);
+        consoleRef.warn('Cloud workspace save failed; retrying when the backend is reachable:', error);
+      } else {
+        consoleRef.warn('Cloud workspace save failed:', error);
+      }
     } finally {
       state.saveInFlight = false;
       syncCloudStateSnapshot();
-      if (state.saveQueued) scheduleWorkspaceSave(50);
+      if (state.saveQueued) scheduleWorkspaceSave(queuedRetryDelay);
     }
   }
 

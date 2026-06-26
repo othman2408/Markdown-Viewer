@@ -26,9 +26,11 @@ import {
   openDocumentModal
 } from '../modals/documentModalControls';
 import {
+  MAX_DOCUMENT_TABS,
   findTabById,
   updateTabInList
 } from '../workspace/actions';
+import { fileLibraryState } from '../state/files.svelte';
 import {
   attachFileDragDropController,
   createFileDragDropController
@@ -312,6 +314,11 @@ export async function startMarkdownViewerApp(options: MarkdownViewerAppOptions =
         closeMobileMenu,
         openGitHubImportModal
       });
+    },
+    files(event, variant) {
+      if (event) event.preventDefault();
+      if (variant === 'mobile') closeMobileMenu();
+      openFilesLibrary();
     },
     share(event) {
       openShareAction({ event, openShareModal });
@@ -657,6 +664,105 @@ export async function startMarkdownViewerApp(options: MarkdownViewerAppOptions =
   function getActivePreviewDocumentId() {
     return workspaceTabsRuntime ? workspaceTabsRuntime.getActivePreviewDocumentId() : '__single-document__';
   }
+  function normalizeCloudDocumentTab(file) {
+    return {
+      id: String(file.id || ''),
+      title: String(file.title || 'Untitled'),
+      content: String(file.content || ''),
+      scrollPos: Number.isFinite(Number(file.scrollPos)) ? Math.max(0, Math.floor(Number(file.scrollPos))) : 0,
+      viewMode: file.viewMode === 'editor' || file.viewMode === 'preview' || file.viewMode === 'split' ? file.viewMode : 'split',
+      createdAt: Number.isFinite(Number(file.createdAt)) ? Number(file.createdAt) : Date.now()
+    };
+  }
+  function applyDocumentToActiveEditor(tab) {
+    markdownEditor.value = tab.content;
+    initTabHistory(tab.id, tab.content);
+    updateUndoRedoButtons();
+    currentViewMode = null;
+    setViewMode(tab.viewMode);
+    renderMarkdown({ reason: 'document-load', showSkeleton: true });
+    requestAnimationFrame(() => {
+      markdownEditor.scrollTop = tab.scrollPos || 0;
+    });
+    renderTabBar(tabs, activeTabId);
+    saveTabsToStorage(tabs);
+    markdownEditor.focus();
+  }
+  function openCloudDocumentTab(file) {
+    const tab = normalizeCloudDocumentTab(file);
+    if (!tab.id) return false;
+    captureActiveTabState();
+    const existing = findTabById(tabs, tab.id);
+    if (!existing && tabs.length >= MAX_DOCUMENT_TABS) {
+      alert('Maximum of 20 tabs reached. Please close an existing tab to open a file.');
+      return false;
+    }
+    tabs = existing ? updateTabInList(tabs, tab.id, tab) : [...tabs, tab];
+    if (activeTabId === tab.id) {
+      applyDocumentToActiveEditor(tab);
+    } else {
+      saveTabsToStorage(tabs);
+      switchTab(tab.id);
+    }
+    return true;
+  }
+  async function flushWorkspaceBeforeFileAction() {
+    if (!cloudStorage.enabled) return;
+    captureActiveTabState();
+    workspaceSaveScheduler.clearPendingSave();
+    if (cloudStorage.saveTimer) {
+      clearTimeout(cloudStorage.saveTimer);
+      cloudStorage.saveTimer = null;
+    }
+    await cloudApi('/api/workspace', {
+      method: 'PUT',
+      body: JSON.stringify(getWorkspacePayload())
+    });
+  }
+  function openFilesLibrary() {
+    fileLibraryState.openModal();
+  }
+  async function openFileFromLibrary(id) {
+    fileLibraryState.setBusy(true);
+    try {
+      await flushWorkspaceBeforeFileAction();
+      const file = await cloudApi('/api/files/' + encodeURIComponent(id));
+      openCloudDocumentTab(file);
+    } finally {
+      fileLibraryState.setBusy(false);
+    }
+  }
+  async function deleteFileFromLibrary(id) {
+    fileLibraryState.setBusy(true);
+    try {
+      await flushWorkspaceBeforeFileAction();
+      await cloudApi('/api/files/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (findTabById(tabs, id)) {
+        closeTab(id);
+      }
+    } finally {
+      fileLibraryState.setBusy(false);
+    }
+  }
+  async function restoreVersionFromLibrary(fileId, versionId, mode) {
+    fileLibraryState.setBusy(true);
+    try {
+      await flushWorkspaceBeforeFileAction();
+      const path = '/api/files/' + encodeURIComponent(fileId) + (mode === 'copy' ? '/copy-version' : '/restore');
+      const file = await cloudApi(path, {
+        method: 'POST',
+        body: JSON.stringify({ versionId })
+      });
+      openCloudDocumentTab(file);
+    } finally {
+      fileLibraryState.setBusy(false);
+    }
+  }
+  window.markdownViewerFiles = {
+    deleteFile: deleteFileFromLibrary,
+    openFile: openFileFromLibrary,
+    restoreVersion: restoreVersionFromLibrary
+  };
   registerWorkspaceTabBridge({
     closeMobileMenu,
     closeTabMenus,
@@ -1170,6 +1276,7 @@ export async function startMarkdownViewerApp(options: MarkdownViewerAppOptions =
       delete window.markdownViewerTheme;
       delete window.markdownViewerEditorGeometry;
       delete window.markdownViewerShare;
+      delete window.markdownViewerFiles;
     }
   };
 }

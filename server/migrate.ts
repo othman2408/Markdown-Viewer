@@ -85,6 +85,40 @@ const migrations = [
     sql: `
       ALTER TABLE workspace_state DROP COLUMN IF EXISTS app_lang;
     `
+  },
+  {
+    name: "003_document_versions",
+    sql: `
+      CREATE TABLE IF NOT EXISTS document_versions (
+        id text PRIMARY KEY,
+        document_id text NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        content text NOT NULL DEFAULT '',
+        content_hash text NOT NULL,
+        source text NOT NULL DEFAULT 'autosave',
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS documents_user_updated_idx
+        ON documents (user_id, deleted_at, updated_at DESC);
+
+      CREATE INDEX IF NOT EXISTS documents_user_title_idx
+        ON documents (user_id, lower(title));
+
+      CREATE INDEX IF NOT EXISTS document_versions_user_document_created_idx
+        ON document_versions (user_id, document_id, created_at DESC);
+    `
+  },
+  {
+    name: "004_document_workspace_membership",
+    sql: `
+      ALTER TABLE documents
+        ADD COLUMN IF NOT EXISTS in_workspace boolean NOT NULL DEFAULT true;
+
+      CREATE INDEX IF NOT EXISTS documents_user_workspace_order_idx
+        ON documents (user_id, in_workspace, deleted_at, sort_order, created_at);
+    `
   }
 ];
 

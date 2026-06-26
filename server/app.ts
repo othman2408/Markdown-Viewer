@@ -6,6 +6,7 @@ import { createAssetsRouter } from "./assets";
 import { createAuthRouter, requireAuth, requireCsrf, sanitizeReturnTo } from "./auth";
 import { createClientStaticMiddleware, sendClientApp } from "./static";
 import { createHealthRouter } from "./health";
+import { createFilesRouter } from "./files";
 import { createPublicShareRouter, createSharesRouter } from "./shares";
 import { createSessionMiddleware } from "./session";
 import { createWorkspaceRouter, normalizeWorkspaceBody } from "./workspace";
@@ -59,6 +60,7 @@ function createApp(): Express {
 
   app.use("/api", requireAuth, requireCsrf);
   app.use("/api", createWorkspaceRouter());
+  app.use("/api", createFilesRouter());
   app.use("/api", createAssetsRouter());
   app.use("/api", createSharesRouter());
 

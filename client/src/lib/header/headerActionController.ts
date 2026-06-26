@@ -10,6 +10,7 @@ export interface HeaderActionHandlers {
   exportMarkdown(event?: Event): void;
   exportPdf(event?: Event): void | Promise<void>;
   exportPng(event?: Event): void | Promise<void>;
+  files(event?: Event, variant?: HeaderActionVariant): void;
   importFile(event?: Event): void;
   importGithub(event?: Event, variant?: HeaderActionVariant): void;
   share(event?: Event): void;
@@ -35,6 +36,9 @@ export function createHeaderActionController(
           break;
         case 'exportPng':
           void handlers.exportPng(event);
+          break;
+        case 'files':
+          handlers.files(event, variant);
           break;
         case 'importFile':
           handlers.importFile(event);

@@ -4,6 +4,7 @@ export type HeaderAction =
   | 'exportMarkdown'
   | 'exportPdf'
   | 'exportPng'
+  | 'files'
   | 'importFile'
   | 'importGithub'
   | 'share';
