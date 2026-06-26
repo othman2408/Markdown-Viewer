@@ -28,6 +28,7 @@ import {
 } from '../modals/findReplaceActions';
 import {
   attachFindReplacePanelDrag,
+  type FindReplacePanelDragAttachment,
   resetFindReplaceDockLayoutOnClose,
   toggleFindReplaceDockMode
 } from '../modals/findReplacePanel';
@@ -101,6 +102,7 @@ export interface FindReplaceRuntime {
   openFindReplaceModal(): void;
   scheduleFindRefresh(options?: { resetIndex?: boolean }): void;
   toggleDockMode(forceFloat?: boolean): void;
+  destroy(): void;
   updateFindHighlights(): void;
 }
 
@@ -124,6 +126,7 @@ export function createFindReplaceRuntime(options: CreateFindReplaceRuntimeOption
   let lastFloatingLeft: string | null = null;
   let lastFloatingTop: string | null = null;
   let lastFloatingRight: string | null = null;
+  let findPanelDragAttachment: FindReplacePanelDragAttachment | null = null;
 
   function isPreviewVisible(): boolean {
     const currentViewMode = options.getCurrentViewMode();
@@ -303,7 +306,8 @@ export function createFindReplaceRuntime(options: CreateFindReplaceRuntimeOption
   }
 
   function initFindReplacePanelDrag(): void {
-    attachFindReplacePanelDrag({
+    findPanelDragAttachment?.detach();
+    findPanelDragAttachment = attachFindReplacePanelDrag({
       documentRef,
       handle: options.findReplaceDragHandle,
       isDocked: () => isFrDocked,
@@ -486,9 +490,17 @@ export function createFindReplaceRuntime(options: CreateFindReplaceRuntimeOption
     lastFloatingTop = constrainedPosition.top;
   }
 
+  function destroy(): void {
+    clearTimeoutFn(findRefreshTimeout);
+    findRefreshTimeout = null;
+    findPanelDragAttachment?.detach();
+    findPanelDragAttachment = null;
+  }
+
   return {
     closeFindReplaceModal,
     constrainFloatingPanelPosition,
+    destroy,
     getFindDocked: () => isFrDocked,
     getFindOpen: () => isFindModalOpen,
     initFindReplaceModal,

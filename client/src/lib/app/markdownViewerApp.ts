@@ -95,7 +95,25 @@ import { createInsertModalRuntime } from './insertModalRuntime';
 import { createFindReplaceRuntime } from './findReplaceRuntime';
 import { createWorkspaceTabsRuntime } from './workspaceTabsRuntime';
 import { createPreviewRuntime } from './previewRuntime';
-export async function startMarkdownViewerApp(): Promise<void> {
+
+type Detachable = {
+  detach(): void;
+};
+
+export type MarkdownViewerAppRuntime = {
+  destroy(): void;
+};
+
+export type MarkdownViewerAppOptions = {
+  onLogout?: () => void | Promise<void>;
+};
+
+export async function startMarkdownViewerApp(options: MarkdownViewerAppOptions = {}): Promise<MarkdownViewerAppRuntime | null> {
+  const cleanupCallbacks: Array<() => void> = [];
+  const addCleanup = (cleanup: Detachable | (() => void) | null | undefined): void => {
+    if (!cleanup) return;
+    cleanupCallbacks.push(typeof cleanup === 'function' ? cleanup : () => cleanup.detach());
+  };
   let tabs = [];
   let activeTabId = null;
   let untitledCounter = 0;
@@ -127,7 +145,7 @@ export async function startMarkdownViewerApp(): Promise<void> {
     alertFn: alert,
     consoleRef: console
   });
-  if (!libraryRuntime) return;
+  if (!libraryRuntime) return null;
   const { CDN, loadScript, loadStyle } = libraryRuntime;
   const {
     stopActiveAbcPlayback,
@@ -236,7 +254,18 @@ export async function startMarkdownViewerApp(): Promise<void> {
     try {
       await cloudApi('/api/logout', { method: 'POST' });
       clearCloudWorkspaceSnapshot();
-      window.location.href = '/login';
+      syncCloudState({
+        enabled: false,
+        csrfToken: null,
+        logoutInFlight: false,
+        saveInFlight: false,
+        saveQueued: false
+      });
+      if (options.onLogout) {
+        await options.onLogout();
+      } else {
+        window.location.href = '/login';
+      }
     } catch (error) {
       console.warn('Logout failed:', error);
       syncCloudState({ logoutInFlight: false });
@@ -519,6 +548,7 @@ export async function startMarkdownViewerApp(): Promise<void> {
     return workspaceTabsRuntime ? workspaceTabsRuntime.getExportFilename(extension, fallback) : fallback;
   }
   const {
+    detachLifecycleFlush,
     loadActiveTabId,
     loadTabsFromStorage,
     loadUntitledCounter,
@@ -536,6 +566,7 @@ export async function startMarkdownViewerApp(): Promise<void> {
     windowRef: window,
     workspaceStorage
   });
+  addCleanup(detachLifecycleFlush);
   workspaceTabsRuntime = createWorkspaceTabsRuntime({
     alertRef: alert,
     closeAppModal,
@@ -837,7 +868,7 @@ export async function startMarkdownViewerApp(): Promise<void> {
     windowRef: window
   });
   function initAppModals() {
-    attachDocumentModalControls({
+    addCleanup(attachDocumentModalControls({
       aboutModal,
       aboutModalClose,
       aboutModalCloseIcon,
@@ -851,7 +882,7 @@ export async function startMarkdownViewerApp(): Promise<void> {
     }, {
       applyClearFormatting,
       closeAppModal
-    });
+    }));
   }
   function openHelpModal() {
     openDocumentModal(helpModal, openAppModal);
@@ -951,7 +982,7 @@ export async function startMarkdownViewerApp(): Promise<void> {
     refreshEditorWidth();
     scheduleLineNumberUpdate();
   }, 100);
-  attachEditorLayoutController({
+  addCleanup(attachEditorLayoutController({
     constrainFloatingPanelPosition,
     getFindDocked: getFindReplaceDocked,
     getFindOpen: getFindReplaceOpen,
@@ -962,8 +993,8 @@ export async function startMarkdownViewerApp(): Promise<void> {
     syncPreviewToEditor,
     toggleFindDockMode: toggleFrDockMode,
     windowRef: window
-  });
-  attachEditorTextareaController({
+  }));
+  addCleanup(attachEditorTextareaController({
     editorElement: markdownEditor,
     getFindModalOpen: getFindReplaceOpen,
     handleListEnter,
@@ -984,14 +1015,14 @@ export async function startMarkdownViewerApp(): Promise<void> {
     scheduleEditorOverlayScrollSync,
     syncEditorToPreview,
     updateLastCursor
-  });
+  }));
   initFindReplaceModal();
   initAppModals();
   function toggleContentDirection() {
     contentDirectionController.toggle();
   }
   registerThemeBridge({ toggleTheme }, window);
-  attachGitHubImportModalControls({
+  addCleanup(attachGitHubImportModalControls({
     cancelButton: githubImportCancelBtn,
     fileSelect: githubImportFileSelect,
     selectAllButton: githubImportSelectAllBtn,
@@ -1003,11 +1034,11 @@ export async function startMarkdownViewerApp(): Promise<void> {
     getSelectedPaths: githubImportController.getSelectedPaths,
     setSelectedPaths: githubImportController.setSelectedPaths,
     submitImport: githubImportController.submit
-  });
-  attachMarkdownFileInputController({
+  }));
+  addCleanup(attachMarkdownFileInputController({
     fileInput,
     importMarkdownFile
-  });
+  }));
   const {
     loadFromCloudShare,
     loadFromShareHash,
@@ -1065,8 +1096,8 @@ export async function startMarkdownViewerApp(): Promise<void> {
     importMarkdownFile,
     alertRef: alert
   });
-  attachFileDragDropController(document, fileDragDropController);
-  attachAppKeyboardShortcutController({
+  addCleanup(attachFileDragDropController(document, fileDragDropController));
+  addCleanup(attachAppKeyboardShortcutController({
     documentRef: document,
     editorElement: markdownEditor,
     findReplaceHandlers: {
@@ -1097,9 +1128,9 @@ export async function startMarkdownViewerApp(): Promise<void> {
         closeMermaidModal();
       }
     }
-  });
+  }));
   // Preview link handling
-  attachPreviewLinkClickController({
+  addCleanup(attachPreviewLinkClickController({
     editor: markdownEditor,
     locationHref: window.location.href,
     markdownPreview,
@@ -1111,6 +1142,35 @@ export async function startMarkdownViewerApp(): Promise<void> {
       syncScrollController.setProgrammaticScrolling(value);
     },
     warn: console.warn
-  });
+  }));
+
+  let destroyed = false;
+  return {
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      clearTimeout(markdownRenderTimeout);
+      workspaceSaveScheduler.clearPendingSave();
+      if (cloudStorage.saveTimer) {
+        clearTimeout(cloudStorage.saveTimer);
+        cloudStorage.saveTimer = null;
+      }
+      findReplaceRuntime?.destroy();
+      previewRuntime?.clearPendingPreviewWork();
+      cleanupImageObjectUrls();
+      for (const cleanup of cleanupCallbacks.splice(0).reverse()) {
+        cleanup();
+      }
+      delete window.markdownViewerAuth;
+      delete window.markdownViewerHeaderActions;
+      delete window.markdownViewerTabs;
+      delete window.markdownViewerToolbar;
+      delete window.markdownViewerSyncScroll;
+      delete window.markdownViewerViewMode;
+      delete window.markdownViewerTheme;
+      delete window.markdownViewerEditorGeometry;
+      delete window.markdownViewerShare;
+    }
+  };
 }
 

@@ -32,6 +32,10 @@ export interface FindReplacePanelDragOptions {
   viewportWidth?: () => number;
 }
 
+export interface FindReplacePanelDragAttachment {
+  detach(): void;
+}
+
 export interface FindReplaceDockCloseOptions {
   contentContainer: HTMLElement | null;
   docked: boolean;
@@ -188,10 +192,10 @@ function eventStartedInHeaderActions(event: Event): boolean {
   return target instanceof Element && Boolean(target.closest('.find-replace-header-actions'));
 }
 
-export function attachFindReplacePanelDrag(options: FindReplacePanelDragOptions): boolean {
+export function attachFindReplacePanelDrag(options: FindReplacePanelDragOptions): FindReplacePanelDragAttachment | null {
   const { handle, panel } = options;
   const documentRef = options.documentRef ?? panel?.ownerDocument;
-  if (!documentRef || !handle || !panel) return false;
+  if (!documentRef || !handle || !panel) return null;
 
   let dragOffset = { x: 0, y: 0 };
   let dragging = false;
@@ -231,19 +235,17 @@ export function attachFindReplacePanelDrag(options: FindReplacePanelDragOptions)
     documentRef.body.classList.remove('resizing');
   };
 
-  handle.addEventListener('mousedown', (event) => {
+  const handleMouseDown = (event: MouseEvent): void => {
     if (options.isDocked()) return;
     if (viewportWidth() < minViewportWidth) return;
     if (eventStartedInHeaderActions(event)) return;
     startDrag(event.clientX, event.clientY);
-  });
-  documentRef.addEventListener('mousemove', (event) => {
+  };
+  const handleMouseMove = (event: MouseEvent): void => {
     if (!dragging || options.isDocked()) return;
     moveDrag(event.clientX, event.clientY);
-  });
-  documentRef.addEventListener('mouseup', stopDrag);
-
-  handle.addEventListener('touchstart', (event) => {
+  };
+  const handleTouchStart = (event: TouchEvent): void => {
     if (options.isDocked()) return;
     if (viewportWidth() < minViewportWidth) return;
     if (eventStartedInHeaderActions(event)) return;
@@ -251,17 +253,33 @@ export function attachFindReplacePanelDrag(options: FindReplacePanelDragOptions)
     if (touch) {
       startDrag(touch.clientX, touch.clientY);
     }
-  }, { passive: true });
-  documentRef.addEventListener('touchmove', (event) => {
+  };
+  const handleTouchMove = (event: TouchEvent): void => {
     if (!dragging || options.isDocked()) return;
     const touch = event.touches?.[0];
     if (touch) {
       moveDrag(touch.clientX, touch.clientY);
     }
-  }, { passive: true });
+  };
+
+  handle.addEventListener('mousedown', handleMouseDown);
+  documentRef.addEventListener('mousemove', handleMouseMove);
+  documentRef.addEventListener('mouseup', stopDrag);
+  handle.addEventListener('touchstart', handleTouchStart, { passive: true });
+  documentRef.addEventListener('touchmove', handleTouchMove, { passive: true });
   documentRef.addEventListener('touchend', stopDrag);
 
-  return true;
+  return {
+    detach() {
+      handle.removeEventListener('mousedown', handleMouseDown);
+      documentRef.removeEventListener('mousemove', handleMouseMove);
+      documentRef.removeEventListener('mouseup', stopDrag);
+      handle.removeEventListener('touchstart', handleTouchStart);
+      documentRef.removeEventListener('touchmove', handleTouchMove);
+      documentRef.removeEventListener('touchend', stopDrag);
+      stopDrag();
+    }
+  };
 }
 
 export function resetFindReplaceDockLayoutOnClose(options: FindReplaceDockCloseOptions): boolean {

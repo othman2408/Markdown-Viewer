@@ -152,7 +152,7 @@ describe('find/replace panel movement helpers', () => {
     Object.defineProperty(panel, 'offsetWidth', { value: 300 });
     Object.defineProperty(panel, 'offsetHeight', { value: 120 });
 
-    expect(attachFindReplacePanelDrag({
+    const attachment = attachFindReplacePanelDrag({
       documentRef: document,
       handle,
       isDocked: () => false,
@@ -160,7 +160,8 @@ describe('find/replace panel movement helpers', () => {
       panel,
       viewportHeight: () => 500,
       viewportWidth: () => 800
-    })).toBe(true);
+    });
+    expect(attachment).not.toBeNull();
 
     handle.dispatchEvent(new MouseEvent('mousedown', {
       bubbles: true,
@@ -185,6 +186,7 @@ describe('find/replace panel movement helpers', () => {
 
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     expect(document.body.classList.contains('resizing')).toBe(false);
+    attachment?.detach();
   });
 
   it('does not start dragging while docked, on mobile width, or from header actions', () => {

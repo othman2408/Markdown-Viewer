@@ -25,6 +25,7 @@ export type WorkspacePersistenceRuntimeOptions = {
 };
 
 export type WorkspacePersistenceRuntime = {
+  detachLifecycleFlush(): void;
   loadActiveTabId(): string | null;
   loadTabsFromStorage(): DocumentTab[];
   loadUntitledCounter(): number;
@@ -55,7 +56,7 @@ export function createWorkspacePersistenceRuntime(
     consoleRef: options.consoleRef
   });
 
-  workspaceSaveScheduler.installLifecycleFlush({
+  const detachLifecycleFlush = workspaceSaveScheduler.installLifecycleFlush({
     windowRef: options.windowRef ?? window,
     documentRef: options.documentRef ?? document,
     captureActiveTabState: options.captureActiveTabState
@@ -67,6 +68,7 @@ export function createWorkspacePersistenceRuntime(
   }
 
   return {
+    detachLifecycleFlush,
     loadActiveTabId() {
       return options.workspaceStorage.loadActiveTabId();
     },

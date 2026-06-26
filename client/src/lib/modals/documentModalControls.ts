@@ -18,6 +18,10 @@ export interface DocumentModalControlHandlers {
   closeAppModal(modal: NullableModalElement): void;
 }
 
+export interface DocumentModalControlsAttachment {
+  detach(): void;
+}
+
 export interface OpenAboutModalOptions {
   modal: NullableModalElement;
   openAppModal(modal: NullableModalElement): void;
@@ -25,38 +29,54 @@ export interface OpenAboutModalOptions {
   versionElement: HTMLElement | null | undefined;
 }
 
-function addClickListener(element: NullableModalElement, handler: () => void): void {
+function addClickListener(
+  listeners: Array<{ element: HTMLElement; handler: () => void }>,
+  element: NullableModalElement,
+  handler: () => void
+): void {
   if (element) {
     element.addEventListener('click', handler);
+    listeners.push({ element, handler });
   }
 }
 
 export function attachDocumentModalControls(
   elements: DocumentModalControlElements,
   handlers: DocumentModalControlHandlers
-): void {
-  addClickListener(elements.clearFormattingConfirm, () => {
+): DocumentModalControlsAttachment {
+  const listeners: Array<{ element: HTMLElement; handler: () => void }> = [];
+
+  addClickListener(listeners, elements.clearFormattingConfirm, () => {
     handlers.applyClearFormatting();
     handlers.closeAppModal(elements.clearFormattingModal);
   });
-  addClickListener(elements.clearFormattingCancel, () => {
+  addClickListener(listeners, elements.clearFormattingCancel, () => {
     handlers.closeAppModal(elements.clearFormattingModal);
   });
-  addClickListener(elements.clearFormattingClose, () => {
+  addClickListener(listeners, elements.clearFormattingClose, () => {
     handlers.closeAppModal(elements.clearFormattingModal);
   });
-  addClickListener(elements.helpModalClose, () => {
+  addClickListener(listeners, elements.helpModalClose, () => {
     handlers.closeAppModal(elements.helpModal);
   });
-  addClickListener(elements.helpModalCloseIcon, () => {
+  addClickListener(listeners, elements.helpModalCloseIcon, () => {
     handlers.closeAppModal(elements.helpModal);
   });
-  addClickListener(elements.aboutModalClose, () => {
+  addClickListener(listeners, elements.aboutModalClose, () => {
     handlers.closeAppModal(elements.aboutModal);
   });
-  addClickListener(elements.aboutModalCloseIcon, () => {
+  addClickListener(listeners, elements.aboutModalCloseIcon, () => {
     handlers.closeAppModal(elements.aboutModal);
   });
+
+  return {
+    detach() {
+      listeners.forEach(({ element, handler }) => {
+        element.removeEventListener('click', handler);
+      });
+      listeners.length = 0;
+    }
+  };
 }
 
 export function openDocumentModal(

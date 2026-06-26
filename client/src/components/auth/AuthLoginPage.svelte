@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
+  type AuthLoginPageProps = {
+    onLoginSuccess?: (returnTo: string) => void | Promise<void>;
+  };
+
+  let { onLoginSuccess }: AuthLoginPageProps = $props();
   let emailInput: HTMLInputElement | null = null;
 
   function sanitizeReturnTo(value: string | null): string {
@@ -14,7 +19,45 @@
     ? new URLSearchParams()
     : new URLSearchParams(window.location.search);
   const returnTo = sanitizeReturnTo(params.get('returnTo'));
-  const hasError = params.get('error') === '1';
+  let loginError = $state(params.get('error') === '1');
+  let submitting = $state(false);
+
+  async function handleSubmit(event: SubmitEvent): Promise<void> {
+    if (!onLoginSuccess) return;
+
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+    submitting = true;
+    loginError = false;
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: String(formData.get('email') || ''),
+          password: String(formData.get('password') || ''),
+          returnTo
+        })
+      });
+
+      if (!response.ok) {
+        loginError = true;
+        return;
+      }
+
+      await onLoginSuccess(returnTo);
+    } catch (_) {
+      loginError = true;
+    } finally {
+      submitting = false;
+    }
+  }
 
   onMount(() => {
     emailInput?.focus();
@@ -33,7 +76,7 @@
       <p class="auth-copy">Welcome back.</p>
     </header>
 
-    {#if hasError}
+    {#if loginError}
       <div id="login-error" class="auth-alert" role="alert">Invalid email or password.</div>
     {/if}
 
@@ -41,7 +84,8 @@
       class="auth-form"
       method="post"
       action="/api/login"
-      aria-describedby={hasError ? 'login-error' : undefined}
+      aria-describedby={loginError ? 'login-error' : undefined}
+      onsubmit={handleSubmit}
     >
       <input type="hidden" name="returnTo" value={returnTo} />
       <div class="auth-field">
@@ -69,7 +113,7 @@
           required
         />
       </div>
-      <button class="auth-submit" type="submit">Sign in</button>
+      <button class="auth-submit" type="submit" disabled={submitting} aria-busy={submitting}>Sign in</button>
     </form>
   </section>
 </main>
