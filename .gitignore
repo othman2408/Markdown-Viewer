@@ -1,12 +1,18 @@
 # Dependency directories
 node_modules/
+dist/
+.server-smoke.*.log
 
-# Local offline bundled assets
-desktop-app/resources/libs/
+# Local deployment secrets
+.env
+.env.*
+!.env.example
 
 # Testing reports and outputs
 playwright-report/
 test-results/
+.cache/
+.tmp-svelte-vite/
 .pytest_cache/
 __pycache__/
 

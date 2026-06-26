@@ -1,16 +1,18 @@
-# PERF-019: Exclude unnecessary files from Docker build context
 .git
-.github
 .gitignore
 .dockerignore
-desktop-app
-wiki
+.env
+.env.*
 node_modules
-*.md
+dist
+.server-smoke.*.log
+.cache
+.tmp-svelte-vite
+playwright-report
+test-results
+.pytest_cache
+__pycache__
+test
 LICENSE
 docker-compose.yml
 Dockerfile
-
-# Exclude large demo assets not needed at runtime
-assets/live-peview.gif
-assets/*.gif

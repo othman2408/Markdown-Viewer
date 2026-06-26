@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <base href="/" />
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+  <meta name="title" content="Markdown Viewer" />
+  <meta name="description" content="Personal cloud Markdown workspace with live preview, diagrams, math, syntax highlighting, and export tools." />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="language" content="English" />
+  <title>Markdown Viewer</title>
+  <link href="/assets/icon.jpg" rel="icon" type="image/jpg" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.3.0/github-markdown.min.css" integrity="sha384-hZuxRjC/Dsr4zEx1JlUhDQqkvqBPp2VLHsgXfnxPq1ULDy1eIdWCiux7nvO1RIZP" crossorigin="anonymous" />
+  <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/vendor/marked/marked.min.js" defer></script>
+  <script src="/vendor/highlight.js/highlight.min.js" defer></script>
+  <script src="/vendor/highlight.js/languages/powershell.min.js" defer></script>
+  <script src="/vendor/dompurify/purify.min.js" defer></script>
+  <script src="/vendor/file-saver/FileSaver.min.js" defer></script>
+  <script src="/vendor/js-yaml/js-yaml.min.js" defer></script>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

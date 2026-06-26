@@ -1,0 +1,64 @@
+import type { QueryResultRow } from "pg";
+
+export type ViewMode = "editor" | "split" | "preview";
+export type ShareMode = "edit" | "view";
+export type JsonObject = Record<string, unknown>;
+export type HttpError = Error & { status?: number; statusCode?: number };
+
+export interface NormalizedTab {
+  id: string;
+  title: string;
+  content: string;
+  scrollPos: number;
+  viewMode: ViewMode;
+  sortOrder: number;
+  createdAt: number;
+}
+
+export interface NormalizedWorkspaceBody {
+  activeTabId: string | null;
+  findReplaceDocked: boolean;
+  globalState: JsonObject;
+  tabs: NormalizedTab[];
+  untitledCounter: number;
+}
+
+export interface ClientTab {
+  id: string;
+  title: string;
+  content: string;
+  scrollPos: number;
+  viewMode: ViewMode;
+  createdAt: number;
+}
+
+export interface DocumentRow extends QueryResultRow {
+  id: string;
+  title: string;
+  content: string | null;
+  scroll_pos: number | null;
+  view_mode: ViewMode | null;
+  client_created_at: string | number | null;
+  created_at: string | Date;
+}
+
+export interface WorkspaceStateRow extends QueryResultRow {
+  active_tab_id: string | null;
+  find_replace_docked: boolean | null;
+  global_state: JsonObject | null;
+  untitled_counter: number | string | null;
+}
+
+export interface AssetRow extends QueryResultRow {
+  object_key: string;
+  content_type: string | null;
+}
+
+export interface ShareRow extends QueryResultRow {
+  asset_ids?: unknown;
+  content: string | null;
+  content_object_key: string | null;
+  mode: ShareMode;
+  title: string;
+  token: string;
+}
