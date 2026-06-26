@@ -3,6 +3,11 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
 
 const svelteConfigFile = fileURLToPath(new URL('./svelte.config.mjs', import.meta.url));
+const serverTarget = 'http://127.0.0.1:8080';
+const createServerProxy = () => ({
+  target: serverTarget,
+  changeOrigin: false as const
+});
 
 export default defineConfig({
   root: 'client',
@@ -15,8 +20,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
-      '/healthz': 'http://127.0.0.1:8080'
+      '/api': createServerProxy(),
+      '/healthz': createServerProxy()
     }
   },
   build: {

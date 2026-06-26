@@ -60,7 +60,14 @@
       </div>
       <div class="auth-field">
         <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Enter password"
+          required
+        />
       </div>
       <button class="auth-submit" type="submit">Sign in</button>
     </form>

@@ -4,6 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { normalizeWorkspaceBody, sanitizeReturnTo } = require("../../server/app");
+const { requireCsrf } = require("../../server/auth");
 
 test("sanitizeReturnTo keeps only safe relative paths", () => {
   assert.equal(sanitizeReturnTo("/"), "/");
@@ -37,6 +38,61 @@ test("normalizeWorkspaceBody preserves the existing tab shape", () => {
   assert.equal(body.tabs[0].content, "# Hello");
   assert.equal(body.tabs[0].viewMode, "split");
   assert.equal(body.findReplaceDocked, true);
+});
+
+test("requireCsrf accepts the same browser origin from the dev proxy", () => {
+  const req = {
+    method: "POST",
+    protocol: "http",
+    session: { csrfToken: "csrf-token" },
+    get(name) {
+      return {
+        origin: "http://127.0.0.1:5173",
+        host: "127.0.0.1:5173",
+        "x-csrf-token": "csrf-token"
+      }[String(name).toLowerCase()];
+    }
+  };
+  let nextCalled = false;
+
+  requireCsrf(req, {}, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, true);
+});
+
+test("requireCsrf rejects unknown cross-origin writes", () => {
+  const req = {
+    method: "POST",
+    protocol: "http",
+    session: { csrfToken: "csrf-token" },
+    get(name) {
+      return {
+        origin: "http://evil.example",
+        host: "127.0.0.1:5173",
+        "x-csrf-token": "csrf-token"
+      }[String(name).toLowerCase()];
+    }
+  };
+  let statusCode = null;
+  let jsonBody = null;
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(body) {
+      jsonBody = body;
+    }
+  };
+
+  requireCsrf(req, res, () => {
+    throw new Error("Expected CSRF middleware to reject the request");
+  });
+
+  assert.equal(statusCode, 403);
+  assert.deepEqual(jsonBody, { error: "bad_origin" });
 });
 
 test("auth UI lives in Svelte and keeps form wiring", () => {

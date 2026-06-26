@@ -26,6 +26,7 @@ describe('AuthLoginPage', () => {
     expect(returnTo?.value).toBe('/notes?tab=1');
     expect(email?.getAttribute('autocomplete')).toBe('username');
     expect(password?.getAttribute('autocomplete')).toBe('current-password');
+    expect(password?.getAttribute('placeholder')).toBe('Enter password');
     expect(error?.getAttribute('role')).toBe('alert');
     expect(error?.textContent).toBe('Invalid email or password.');
   });
